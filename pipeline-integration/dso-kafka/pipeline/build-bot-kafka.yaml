@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: build-bot-kafka
+secrets:
+  - name: basic-user-auth-kafka
+  - name: devops-team1-robot-devops-team1-pull-secret

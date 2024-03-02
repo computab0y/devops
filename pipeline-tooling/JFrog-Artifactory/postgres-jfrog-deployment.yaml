@@ -1,0 +1,40 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: postgresjfrogdb
+spec:
+  selector:
+    matchLabels:
+      app: postgresjfrogdb
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: postgresjfrogdb
+    spec:
+      containers:
+      - name: postgresjfrogdb
+        image: postgres:10.3
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/
+          subPath: data
+          name: postgresjfrogdb
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: postgresql
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-jfrog-secrets
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-jfrog-secrets
+              key: password
+      volumes:
+      - name: postgresjfrogdb
+        persistentVolumeClaim:
+          claimName: postgresjfrogdb

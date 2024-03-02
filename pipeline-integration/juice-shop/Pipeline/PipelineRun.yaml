@@ -1,0 +1,45 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: dso-pl-juice-shop-
+spec:
+  pipelineRef:
+    name: dso-pl-juice-shop
+  params:
+  - name: GIT_URL
+    value: <GitHub URL>
+  - name: MANIFEST_GIT_URL
+    value: <GitHub Manifest URL>
+  - name: REVISION
+    value: main
+  - name: IMAGE_REPOSITORY
+    value: <Quay Repository>
+  - name: SERVICE_VERSION
+    value: v1
+  - name: REPO_NAME
+    value: dso-project-juiceshop
+  - name: SERVICE_NAME
+    value: juice-shop
+  - name: KUSTOMIZATION_PATH
+    value: juice-shop/Manifests
+  - name: DEFAULT_IMAGE
+    value: juice-shop:latest
+  - name: APP_URL
+    value: <Application url>
+  - name: minutes
+    value: '5'
+  serviceAccountName: build-bot
+  workspaces:
+  - name: shared-data
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+  - name: shared-workspace
+    persistentvolumeclaim:
+      claimName: sonar-source-pvc
+  - name: sonar-settings
+    emptyDir: {}

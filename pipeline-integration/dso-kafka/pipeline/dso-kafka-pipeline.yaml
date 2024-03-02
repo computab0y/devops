@@ -1,0 +1,148 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: dso-kafka-pipeline
+spec:
+  workspaces:
+    - name: kafka-workspace
+    - name: maven-settings
+  params:
+    - name: GIT_URL
+      type: string 
+      default: https://github.com/AccenturePreda/dso-project-kafka.git
+    - name: MANIFEST_GIT_URL
+      type: string 
+      default: https://github.com/AccenturePreda/dso-pipeline-integration.git
+    - name: REPO_NAME
+      type: string
+      default: dso-project-kafka
+    - name: CONTEXT
+      type: string
+      default: spring-boot-example        
+    - name: REVISION
+      type: string  
+      default: 'main'
+    - name: SERVICE_NAME
+      type: string  
+      default: dso-kafka
+    - name: SERVICE_VERSION
+      type: string
+      default: v13
+    - name: IMAGE_REPOSITORY
+      type: string
+      default: dso-quay-registry-quay-quay-enterprise.apps.ocp1.azure.dso.digital.mod.uk/dso-project
+      
+    - name: KUSTOMIZATION_PATH
+      default: dso-kafka/manifests
+      type: string  
+    - name: DEFAULT_IMAGE
+      default: dso-project/dso-kafka
+      type: string  
+      
+    - name: SONAR_HOST_URL
+      type: string
+      default: https://sonarqube-https-scanner-dso-tooling-sonar.apps.ocp1.azure.dso.digital.mod.uk
+    - name: SONAR_PROJECT_KEY
+      type: string
+      default: d49dac018b7ddc392060eceb9a11251bebcb9a54
+            
+  tasks:     
+    - name: fetch-repository
+      params:
+        - name: url
+          value: "$(params.GIT_URL)"
+        - name: revision
+          value: "$(params.REVISION)"
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: kafka-workspace
+    
+          
+    - name: dso-kafka-maven-run
+      params:
+        - name: CONTEXT_DIR
+          value: "$(params.CONTEXT)"
+        - name: GOALS
+          value:
+            - clean
+            - test
+            - package   
+      runAfter:
+        - fetch-repository
+      taskRef:
+        kind: ClusterTask
+        name: maven
+      workspaces:
+        - name: source
+          workspace: kafka-workspace
+        - name: maven-settings
+          workspace: kafka-workspace
+      
+    - name: dso-kafka-build-image
+      taskRef:
+        name: dso-kafka-build-image
+      params:
+        - name: SERVICE_NAME
+          value: "$(params.SERVICE_NAME)"
+        - name: IMAGE_REPOSITORY
+          value: "$(params.IMAGE_REPOSITORY)"
+        - name: SERVICE_VERSION
+          value: "$(params.SERVICE_VERSION)"
+        - name: REPO_NAME
+          value: "$(params.REPO_NAME)"          
+      workspaces:
+        - name: source
+          workspace: kafka-workspace
+      runAfter:
+        - dso-kafka-push-package
+        
+      
+    - name: dso-kafka-push-package
+      runAfter:
+        - dso-kafka-maven-run
+      taskRef:
+        name: dso-kafka-push-binary
+      workspaces:
+        - name: source
+          workspace: kafka-workspace
+    
+    - name: fetch-manifest-repo
+      params:
+        - name: url
+          value: "$(params.MANIFEST_GIT_URL)"
+        - name: revision
+          value: "$(params.REVISION)"
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: kafka-workspace
+      runAfter:
+        - dso-kafka-build-image
+
+          
+    - name: dso-kafka-manifest-update
+      params:
+        - name: KUSTOMIZATION_PATH
+          value: $(params.KUSTOMIZATION_PATH)
+        - name: DEFAULT_IMAGE
+          value: $(params.DEFAULT_IMAGE)
+        - name: IMAGE_REPOSITORY
+          value: $(params.IMAGE_REPOSITORY)
+        - name: SERVICE_NAME
+          value: $(params.SERVICE_NAME)
+        - name: SERVICE_VERSION
+          value: $(params.SERVICE_VERSION)
+      runAfter:
+        - fetch-manifest-repo
+      taskRef:
+        kind: ClusterTask
+        name: git-update-deployment
+      workspaces:
+        - name: workspace
+          workspace: kafka-workspace
+          

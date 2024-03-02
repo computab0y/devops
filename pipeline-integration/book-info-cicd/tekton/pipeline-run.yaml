@@ -1,0 +1,27 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: bookinfo-run-
+spec:
+  serviceAccountName: build-bot
+  pipelineRef:
+    name: dso-pl-bookinfo
+  params:
+    - name: GIT_URL
+      value: https://github.com/semirmussa1/ci-cd-istio-tekton_pvt
+    - name: REPO_NAME
+      value: ci-cd-istio-tekton_pvt
+    - name: BUILDER_IMAGE
+      value: https://quay.io/buildah/stable:v1.14.0
+    - name: REVISION
+      value: main
+    - name: SERVICE_NAME
+      value: ratings
+    - name: IMAGE_REPOSITORY
+      value: dso-quay-registry-quay-quay-enterprise.apps.ocpcluster1.ocp.stackpoc.com/preda
+    - name: SERVICE_VERSION
+      value: v2
+  workspaces:
+    - name: build-deploy-workspace
+      persistentVolumeClaim:
+        claimName: bookinfo-ci-cd

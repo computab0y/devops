@@ -1,0 +1,24 @@
+
+apps:
+  - application: MongoDB 
+    licence_policy: https://www.mongodb.com/support-policy/software
+    release_notes: https://docs.mongodb.com/manual/release-notes/
+    policy_details: |
+      MongoDB will support each GA Major Release of the MongoDB Server 
+      beginning on its Release Date. Support for each Major Release of the MongoDB Server
+      will end 30 months after its Release Date.
+    current_version: 5.0.5
+    current_ga_release_date: Jul 13, 2021
+    notes: |
+      Are we using the Kubernetes MongoDB Enterprise/Community Operator?
+      ensure we use > 5.0.2 is used due to vunerabilities or otherwise legacy 4.X.X versions 
+
+  - application: Postgres 
+    licence_policy: https://www.postgresql.org/about/licence/
+    release_notes: https://www.postgresql.org/support/versioning/
+    policy_details: |
+      The PostgreSQL Global Development Group supports a major version for 5 years after its initial release. 
+      After its five year anniversary, a major version will have one last minor release containing any fixes and 
+      will be considered end-of-life (EOL) and no longer supported.
+    current_version: 14.1
+    current_ga_release_date: Sept 30, 2021

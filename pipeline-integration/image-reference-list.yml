@@ -1,0 +1,35 @@
+
+repository:
+  # Book Info images, don't transfer below versions, grab latest
+  - image: docker.io/maistra/examples-bookinfo-details-v1:0.12.0
+  - image: docker.io/maistra/examples-bookinfo-ratings-v1:0.12.0
+  - image: docker.io/maistra/examples-bookinfo-reviews-v1:0.12.0
+  - image: docker.io/maistra/examples-bookinfo-reviews-v2:0.12.0
+  - image: docker.io/maistra/examples-bookinfo-reviews-v3:0.12.0
+  - image: docker.io/maistra/examples-bookinfo-productpage-v1:0.12.0
+  # Book Info images, don't transfer below versions, grab latest
+  - image: (stack|digital.mod.uk|docker.io)/(preda|dso-project)/(examples-bookinfo-details-v1|details-full):1.16.2
+  - image: (stack|digital.mod.uk|docker.io)/(preda|dso-project)/(examples-bookinfo-ratings-v1|ratings-full):1.16.2
+  - image: (stack|digital.mod.uk|docker.io)/(preda|dso-project)/(examples-bookinfo-reviews-v1|reviews-full):1.16.2
+  - image: (stack|digital.mod.uk|docker.io)/(preda|dso-project)/(examples-bookinfo-reviews-v2|reviews-v2-full):1.16.2
+  - image: (stack|digital.mod.uk|docker.io)/(preda|dso-project)/(examples-bookinfo-reviews-v3|reviews-v3-full):1.16.2
+  - image: (stack|digital.mod.uk|docker.io)/(preda|dso-project)/(examples-bookinfo-productpage-v1|productpage-v1-full):1.16.2
+
+  - image: quay.io/openshift/origin-cli:latest # Transfer latest over 
+  - image: quay.io/openshift/origin-cli:${params.VERSION} # Make this pull latest
+  - image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest # May be same as above
+
+  - image: mikefarah/yq:3.4.1 # Not being used
+  - image: docker.io/mikefarah/yq:3.3.4 # Transfer this version over
+
+  - image: lachlanevenson/k8s-kubectl # Not being used
+
+
+  - image: gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/git-init:v0.12.1
+  - image: quay.io/shoop/node-chrome
+  - image: gcr.io/kaniko-project/executor # Not in use
+  - image: curlimages/curl
+  - image: zshusers/zsh:4.3.15
+  - image: owasp/zap2docker-stable:2.11.0
+  - image: registry.access.redhat.com/ubi8/ubi-minimal:8.2
+  - image: docker.io/sonarsource/sonar-scanner-cli:latest@sha256:5b09af200f24ea231dedef48c0106db817088ccb5466742c60130a1814b16598

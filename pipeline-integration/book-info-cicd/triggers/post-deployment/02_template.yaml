@@ -1,0 +1,45 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: bookinfo-pd-trigger
+spec:
+  params:
+  - name: git-repo-url
+    description: The git repository url
+  - name: git-revision
+    description: The git revision
+    default: master
+  - name: git-repo-name
+    description: The name of the deployment to be created / patched
+
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: bookinfo-pd-run-
+    spec:
+      serviceAccountName: pipeline
+      pipelineRef:
+        name: dso-pd-pl-bookinfo
+      params:
+        - name: GIT_URL
+          value: https://github.com/AccenturePreda/dso-pipeline-integration.git
+        - name: REPO_NAME
+          value: dso-pipeline-integration
+        - name: REVISION
+          value: main
+      workspaces:
+        - name: post-deployment-workspace
+          volumeClaimTemplate:
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              creationTimestamp: null
+              name: bookinfo-pd-ci-cd      
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 1Gi
+            status: {}

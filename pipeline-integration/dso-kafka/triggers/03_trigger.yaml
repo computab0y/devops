@@ -1,0 +1,37 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: Trigger
+metadata:
+  name: kafka-trigger
+spec:
+  serviceAccountName: pipeline
+  interceptors:
+    - ref:
+        name: "github"
+      params:
+        - name: "secretRef"
+          value:
+            secretName: kafka-trigger-secret
+            secretKey: secretToken
+        - name: "eventTypes"
+          value: ["push"]
+  bindings:
+    - ref: kafka-trigger
+  template:
+    ref: kafka-trigger
+---
+apiVersion: kubernetes-client.io/v1
+kind: ExternalSecret
+metadata:
+  name: kafka-trigger-secret
+  namespace: dev-kafka-edaapp
+spec:
+  backendType: vault
+  template:
+    type: Opaque
+  data:
+    # inside Hashicorp it will be pathed as secret/github-trigger-secret - requires /data/ here
+    - key: secret/data/github-trigger-secret
+      name: secretToken
+      property: secretToken
+  vaultMountPoint: kubernetes
+  vaultRole: github-trigger-secret

@@ -1,0 +1,20 @@
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: argo-fy-doer-rb
+  namespace: petclinic
+  labels:
+    app.kubernetes.io/managed-by: argo-fy
+    app.kubernetes.io/name: argo-fy-doer
+    app.kubernetes.io/part-of: argo-fy
+  annotations:
+    argocds.argoproj.io/name: argo-fy
+    argocds.argoproj.io/namespace: argo-fy
+subjects:
+  - kind: ServiceAccount
+    name: argo-fy-doer
+    namespace: argo-fy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo-fy-doer-clusterrole

@@ -1,0 +1,141 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: dso-pl-juice-shop
+spec:
+  params:
+  - name: GIT_URL
+    type: string
+    description: The git source code repository URL to clone from.
+    default: needs-repo-name
+  - name: MANIFEST_GIT_URL
+    type: string
+    description: The git infra as code repository URL to clone from.
+    default: needs-repo-name
+  - name: REVISION
+    type: string
+    description: The git branch to clone.
+  - name: SERVICE_NAME
+    type: string  
+    default: juice-shop
+  - name: SERVICE_VERSION
+    type: string
+    default: latest
+  - name: IMAGE_REPOSITORY
+    type: string
+    default: quay.io/connor
+  - name: REPO_NAME
+    type: string
+    default: needs-repo-name
+  - name: KUSTOMIZATION_PATH
+    type: string
+    default: dso-pipeline-integration/juice-shop/Manifests
+  - name: DEFAULT_IMAGE
+    type: string
+    default: juice-shop:latest
+  - name: APP_URL
+    type: string
+    default: <Application URL>
+  - name: minutes
+    type: string
+    default: '5'
+  workspaces:
+  - name: shared-data
+    description: |
+      This workspace will receive the cloned git repo and be passed
+      to the next Task for the repo's README.md file to be read.
+  tasks:
+  - name: fetch-repo
+    params:
+      - name: GIT_URL
+        value: $(params.GIT_URL)
+      - name: REVISION
+        value: $(params.REVISION)
+    taskRef:
+      name: git-clone
+    workspaces:
+      - name: output
+        workspace: shared-data
+
+  - name: sonarqube-scanner
+    params:
+    - name: SONAR_HOST_URL
+      value: <SonarQube URL>
+    - name: SONAR_PROJECT_KEY
+      value: juice-shop
+    - name: REPO_NAME
+      value: "$(params.REPO_NAME)"
+    taskRef:
+      name: sonarqube-scanner
+    workspaces:
+    - name: source-dir
+      workspace: shared-data
+    - name: sonar-settings
+      workspace: shared-data
+    runAfter:
+    - fetch-repo
+
+  - name: build-service
+    taskRef:
+      name: build-service
+    params:
+      - name: SERVICE_NAME
+        value: "$(params.SERVICE_NAME)"
+      - name: IMAGE_REPOSITORY
+        value: "$(params.IMAGE_REPOSITORY)"
+      - name: SERVICE_VERSION
+        value: "$(params.SERVICE_VERSION)"
+      - name: REPO_NAME
+        value: "$(params.REPO_NAME)"          
+    workspaces:
+      - name: source
+        workspace: shared-data
+    runAfter: 
+      - sonarqube-scanner
+
+  - name: fetch-manifest-repo
+    params:
+      - name: url
+        value: "$(params.MANIFEST_GIT_URL)"
+      - name: revision
+        value: "$(params.REVISION)"
+    taskRef:
+      kind: ClusterTask
+      name: git-clone
+    workspaces:
+      - name: output
+        workspace: shared-data
+    runAfter:
+      - build-service
+
+  - name: juice-shop-manifest-update
+    params:
+      - name: KUSTOMIZATION_PATH
+        value: $(params.KUSTOMIZATION_PATH)
+      - name: DEFAULT_IMAGE
+        value: $(params.DEFAULT_IMAGE)
+      - name: IMAGE_REPOSITORY
+        value: $(params.IMAGE_REPOSITORY)
+      - name: SERVICE_NAME
+        value: $(params.SERVICE_NAME)
+      - name: SERVICE_VERSION
+        value: $(params.SERVICE_VERSION)
+    runAfter:
+      - fetch-manifest-repo
+    taskRef:
+      kind: ClusterTask
+      name: git-update-deployment
+    workspaces:
+      - name: workspace
+        workspace: shared-data
+
+  - name: owasp-zap
+    params:
+      - name: APP_URL
+        value: $(params.APP_URL)
+      - name: minutes
+        value: $(params.minutes)
+    taskRef: 
+      name: owasp-zap
+    runAfter: 
+      - juice-shop-manifest-update

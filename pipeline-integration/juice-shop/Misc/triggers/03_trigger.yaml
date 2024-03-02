@@ -1,0 +1,28 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: Trigger
+metadata:
+  name: juice-shop-trigger
+spec:
+  serviceAccountName: pipeline
+  interceptors:
+    - ref:
+        name: "github"
+      params:
+        - name: "secretRef"
+          value:
+            secretName: juice-shop-trigger-secret
+            secretKey: secretToken
+        - name: "eventTypes"
+          value: ["push"]
+  bindings:
+    - ref: juice-shop-trigger
+  template:
+    ref: juice-shop-trigger
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: juice-shop-trigger-secret
+type: Opaque
+stringData:
+  secretToken: ""

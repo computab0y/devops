@@ -1,0 +1,85 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: edaapp-cluster
+  namespace: dev-kafka-edaapp
+spec:
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+  kafka:
+    config:
+      inter.broker.protocol.version: '2.8'
+      log.message.format.version: '2.8'
+      offsets.topic.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      transaction.state.log.replication.factor: 3
+    listeners:
+      - name: plain
+        port: 9092
+        tls: false
+        type: internal
+      - name: tls
+        port: 9093
+        tls: true
+        type: internal
+    replicas: 3
+    storage:
+      size: 1Gi
+      type: persistent-claim
+    version: 2.8.0
+  zookeeper:
+    replicas: 3
+    storage:
+      size: 1Gi
+      type: persistent-claim
+status:
+  clusterId: sJPmy3w9SGeGfyGs1BgjhQ
+  conditions:
+    - lastTransitionTime: '2021-11-25T15:54:56.335Z'
+      status: 'True'
+      type: Ready
+  listeners:
+    - addresses:
+        - host: edaapp-cluster-kafka-bootstrap.dev-kafka-edaapp.svc
+          port: 9092
+      bootstrapServers: 'edaapp-cluster-kafka-bootstrap.dev-kafka-edaapp.svc:9092'
+      type: plain
+    - addresses:
+        - host: edaapp-cluster-kafka-bootstrap.dev-kafka-edaapp.svc
+          port: 9093
+      bootstrapServers: 'edaapp-cluster-kafka-bootstrap.dev-kafka-edaapp.svc:9093'
+      certificates:
+        - |
+          -----BEGIN CERTIFICATE-----
+          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
+          -----END CERTIFICATE-----
+      type: tls
+  observedGeneration: 1

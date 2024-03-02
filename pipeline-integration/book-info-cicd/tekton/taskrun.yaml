@@ -1,0 +1,10 @@
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  generateName: clone-deploy-
+spec:
+  taskRef:
+    name: clone-deploy
+  params:
+    - name: GIT_URL
+      value: none

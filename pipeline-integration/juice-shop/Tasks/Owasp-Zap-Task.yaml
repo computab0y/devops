@@ -1,0 +1,25 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: owasp-zap
+  namespace: dso-juice-shop
+spec:
+  params:
+    - name: APP_URL
+      type: string
+      default: <App URL /profile>
+      description: "The Applications URL to scan"
+    - name: minutes
+      type: string
+      default: '10'
+      description: "The number of minutes to spider for"
+  steps:
+    - command:
+        - zap-full-scan.py
+        - '-t'
+        - "$(params.APP_URL)"
+        - '-m'
+        - "$(params.minutes)"
+        - '-j'
+      image: owasp/zap2docker-stable:2.11.0
+      name: 'run-scan'

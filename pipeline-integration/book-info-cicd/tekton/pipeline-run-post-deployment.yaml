@@ -1,0 +1,19 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: bookinfo-pd-run-
+spec:
+  serviceAccountName: pipeline
+  pipelineRef:
+    name: dso-pd-pl-bookinfo
+  params:
+    - name: GIT_URL
+      value: https://github.com/AccenturePreda/dso-pipeline-integration.git
+    - name: REPO_NAME
+      value: dso-pipeline-integration
+    - name: REVISION
+      value: main
+  workspaces:
+    - name: post-deployment-workspace
+      persistentVolumeClaim:
+        claimName: bookinfo-pd-ci-cd

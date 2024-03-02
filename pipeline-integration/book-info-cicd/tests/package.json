@@ -1,0 +1,24 @@
+{
+    "name": "bookinfo-cucumber-tests",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "cucumber-js -f json:report/output/cucumber_report.json",
+        "html-report": "node report/html_report.js",
+        "cli-report": "node report/cli_report.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "@cucumber/cucumber": "^8.0.0-rc.1",
+        "cucumber-html-reporter": "^5.5.0"
+    },
+    "dependencies": {
+        "assert": "^2.0.0",
+        "chromedriver": "^96.0.0",
+        "geckodriver": "^2.0.4",
+        "selenium-webdriver": "^4.1.0"
+    }
+}

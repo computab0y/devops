@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argo-fy
+  annotations:
+    openshift.io/display-name: 'Argo FY'
+    openshift.io/description: "Argo Fu<k Yourself"

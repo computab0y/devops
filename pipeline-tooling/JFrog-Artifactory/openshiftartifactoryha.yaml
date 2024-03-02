@@ -1,0 +1,47 @@
+apiVersion: charts.helm.k8s.io/v1
+kind: OpenshiftArtifactoryHa
+metadata:
+  name: openshiftartifactoryha
+  namespace: dso-tooling-jfrog
+spec:
+  artifactory-ha:
+    artifactory:
+      image:
+        registry: registry.connect.redhat.com
+        repository: jfrog/artifactory-pro
+        tag: 7.27.3-1
+      joinKey: 636ae72bf2bc3ff57ca42c168cfd3a53b233cce332158923e38c4841977469cf
+      masterKey: 3ff56aa840d96a9e4a1c5ef4cfe6044a855cf98af7648aa429cb1412001ff2f4
+      uid: '1000721030'
+      node:
+        replicaCount: 2
+        waitForPrimaryStartup:
+          enabled: false
+    databaseUpgradeReady: true
+    database:
+      driver: org.postgresql.Driver
+      password: artifactory
+      type: postgresql
+      url: 'jdbc:postgresql://172.30.158.7:5432/artifactory'
+      user: artifactory
+    initContainerImage: >-
+      registry.connect.redhat.com/jfrog/init@sha256:164b41720a37f75c6129c8a28d05cc56f821022313d44ff918cce4a2146d93e8
+    nginx:
+      uid: '1000720104'
+      gid: '1000720107'
+      http:
+        externalPort: 80
+        internalPort: 8080
+      https:
+        externalPort: 443
+        internalPort: 8443
+      image:
+        registry: registry.redhat.io
+        repository: rhel8/nginx-116
+        tag: latest
+      service:
+        ssloffload: false
+      tlsSecretName: app-certs-001
+    postgresql:
+      enabled: false
+    waitForDatabase: true

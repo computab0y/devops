@@ -1,0 +1,12 @@
+# add comments here
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: voter-ui-source-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ocs-storagecluster-cephfs
+  resources:
+    requests:
+      storage: 500Mi

@@ -1,0 +1,13 @@
+apiVersion: registry.apicur.io/v1
+kind: ApicurioRegistry
+metadata:
+  name: dev-registry-edaapp
+  namespace: dev-kafka-edaapp
+spec:
+  configuration:
+    kafkasql:
+      bootstrapServers: 'edaapp-cluster-kafka-bootstrap.dev-kafka-edaapp.svc:9092'
+    persistence: kafkasql
+  deployment:
+    host: >-
+      dev-registry-edaapp.dev-kafka-edaapp.router-default.apps.ocp1.azure.dso.digital.mod.uk

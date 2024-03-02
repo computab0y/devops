@@ -1,0 +1,12 @@
+resources:
+- deployment.yaml
+- route.yaml
+- service.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# commonLabels:
+#   version: v1
+images:
+- name: juice-shop:latest
+  newName: <Image URL>
+  newTag: v10

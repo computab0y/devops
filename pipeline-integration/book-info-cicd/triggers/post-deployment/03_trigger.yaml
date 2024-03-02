@@ -1,0 +1,11 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: Trigger
+metadata:
+  name: bookinfo-pd-trigger
+spec:
+  serviceAccountName: pipeline
+  name: "tekton"
+  bindings:
+    - ref: bookinfo-pd-trigger
+  template:
+    ref: bookinfo-pd-trigger

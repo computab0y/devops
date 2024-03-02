@@ -1,0 +1,52 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: kafka-trigger
+spec:
+  params:
+  - name: git-repo-url
+    description: The git repository url
+  - name: git-revision
+    description: The git revision
+    default: master
+  - name: git-repo-name
+    description: The name of the deployment to be created / patched
+  - name: git-commit-message
+    description: The comment message of the deployment to be created
+    default: needs_commit_message_summary
+    
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: kafka-run-pipeline-$(tt.params.git-commit-message)-
+    spec:
+      serviceAccountName: build-bot-kafka
+      pipelineRef:
+        name: dso-kafka-pipeline
+      params:
+        - name: GIT_URL
+          value: https://github.com/AccenturePreda/dso-project-kafka.git
+        - name: MANIFEST_GIT_URL
+          value: https://github.com/AccenturePreda/dso-pipeline-integration.git         
+        - name: REPO_NAME
+          value: dso-project-kafka
+        - name: CONTEXT
+          value: spring-boot-example
+#        - name: BUILDER_IMAGE
+#          value: https://quay.io/buildah/stable:v1.14.0
+        - name: REVISION
+          value: main
+        - name: SERVICE_NAME
+          value: dso-kafka
+        - name: IMAGE_REPOSITORY
+          value: dso-quay-registry-quay-quay-enterprise.apps.ocp1.azure.dso.digital.mod.uk/dso-project
+        - name: SERVICE_VERSION
+          value: $(tt.params.git-commit-message)
+      workspaces:
+        - name: kafka-workspace
+          persistentVolumeClaim:
+            claimName: pipeline-jfrog-test
+        - name: maven-settings
+          persistentVolumeClaim:
+            claimName: pipeline-jfrog-test

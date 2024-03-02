@@ -1,0 +1,19 @@
+apiVersion: kubernetes-client.io/v1
+kind: ExternalSecret
+metadata:
+  name: basic-user-auth-kafka
+  namespace: dev-kafka-edaapp
+spec:
+  backendType: vault
+  template:
+    type: kubernetes.io/basic-auth
+  data:
+    # inside Hashicorp it will be pathed as secret/dso-quey-robot - requires /data/ here
+    - key: secret/data/dso-quey-robot
+      name: username
+      property: username
+    - key: secret/data/dso-quey-robot
+      name: password
+      property: password
+  vaultMountPoint: kubernetes
+  vaultRole: dso-quey-robot

@@ -1,0 +1,59 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: juice-shop-trigger
+spec:
+  params:
+  - name: git-repo-url
+    description: The git repository url
+  - name: git-revision
+    description: The git revision
+    default: master
+  - name: git-repo-name
+    description: The name of the deployment to be created / patched
+  - name: git-commit-message
+    description: The comment message of the deployment to be created
+    default: needs_commit_message_summary
+    
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: dso-pl-juice-shop-$(tt.params.git-commit-message)-
+    spec:
+      pipelineRef:
+        name: dso-pl-juice-shop
+      params:
+      - name: GIT_URL
+        value: <GitHub URL>
+      - name: MANIFEST_GIT_URL
+        value: <Manifest GitHub URL>
+      - name: REVISION
+        value: main
+      - name: IMAGE_REPOSITORY
+        value: <Quay Image Repo>
+      - name: SERVICE_VERSION
+        value: $(tt.params.git-commit-message)
+      - name: REPO_NAME
+        value: dso-project-juiceshop
+      - name: SERVICE_NAME
+        value: juice-shop
+      - name: KUSTOMIZATION_PATH
+        value: juice-shop/Manifests
+      - name: DEFAULT_IMAGE
+        value: juice-shop:latest
+      serviceAccountName: build-bot
+      workspaces:
+      - name: shared-data
+        volumeClaimTemplate:
+          spec:
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi
+      - name: shared-workspace
+        persistentvolumeclaim:
+          claimName: sonar-source-pvc
+      - name: sonar-settings
+        emptyDir: {}

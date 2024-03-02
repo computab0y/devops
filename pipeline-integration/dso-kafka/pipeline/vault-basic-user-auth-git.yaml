@@ -1,0 +1,24 @@
+apiVersion: kubernetes-client.io/v1
+kind: ExternalSecret
+metadata:
+  name: basic-user-auth-git
+  namespace: dev-kafka-edaapp
+  annotations:
+      tekton.dev/git-0: 'https://github.com'
+spec:
+  backendType: vault
+  template:
+    type: kubernetes.io/basic-auth
+    metadata:
+      annotations:
+        tekton.dev/git-0: 'https://github.com'
+  data:
+    # inside Hashicorp it will be pathed as secret/dso-github-user - requires /data/ here
+    - key: secret/data/dso-github-user
+      name: username
+      property: username
+    - key: secret/data/dso-github-user
+      name: password
+      property: password
+  vaultMountPoint: kubernetes
+  vaultRole: dso-github-user

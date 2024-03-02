@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bookinfo-app
+#  namespace: openshift-gitops    #scratch
+#  namespace: preda-devops-istio-argocd    #scratch
+  namespace: dev-bookinfo  
+  
+spec:
+  destination:
+    namespace: dev-bookinfo
+    server: https://kubernetes.default.svc  # kube endpoint target api
+  project: default
+  source:
+    path: manifests
+#    path: manifests-modace
+#    repoURL: https://github.com/semirmussa1/ci-cd-istio-tekton_pvt   #scratch
+    repoURL: https://github.com/AccenturePreda/dso-project-bookinfo
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

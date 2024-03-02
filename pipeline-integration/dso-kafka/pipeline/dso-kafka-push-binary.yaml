@@ -1,0 +1,22 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: dso-kafka-push-binary 
+spec:
+  workspaces:
+  - name: source
+  params:
+  - name: REPO_NAME
+    description: Repository name
+    default: dso-project-kafka
+         
+  steps:
+    - args:
+        - '-u'
+        - 'admin:SuperJfr0gXray'
+        - '-T'
+        - $(workspaces.source.path)/spring-boot-example/target/dso-kafka.jar
+        - "https://openshiftartifactoryha-nginx-https2-dso-tooling-jfrog.apps.ocp1.azure.dso.digital.mod.uk/artifactory/dso-project-kafka/dso-kafka.jar"
+      image: curlimages/curl
+      name: curl
+      resources: {}

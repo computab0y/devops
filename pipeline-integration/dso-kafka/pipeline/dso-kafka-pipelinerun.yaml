@@ -1,0 +1,32 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: dso-kafka-pipelinerun
+spec:
+  serviceAccountName: build-bot-kafka
+  pipelineRef:
+    name: dso-kafka-pipeline
+  params:
+    - name: GIT_URL
+      value: https://github.com/AccenturePreda/dso-project-kafka.git
+    - name: MANIFEST_GIT_URL
+      value: https://github.com/AccenturePreda/dso-pipeline-integration.git
+    - name: REPO_NAME
+      value: dso-project-kafka
+    - name: CONTEXT
+      value: spring-boot-example
+    - name: REVISION
+      value: main
+    - name: SERVICE_NAME
+      value: dso-kafka
+    - name: IMAGE_REPOSITORY
+      value: dso-quay-registry-quay-quay-enterprise.apps.ocp1.azure.dso.digital.mod.uk/dso-project
+    - name: SERVICE_VERSION
+      value: v18
+  workspaces:
+    - name: kafka-workspace
+      persistentVolumeClaim:
+        claimName: pipeline-jfrog-test
+    - name: maven-settings
+      persistentVolumeClaim:
+        claimName: pipeline-jfrog-test

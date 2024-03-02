@@ -1,0 +1,28 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: run-node-test
+spec:
+  params:
+    - name: REPO_NAME
+      type: string 
+  stepTemplate:
+    env:
+      - name: "BOOKINFO_URL"
+        value: "http://istio-ingressgateway-istio-system.apps.ocp1.azure.dso.digital.mod.uk/productpage"
+  steps:
+    - name: cucumber-tests
+      image: quay.io/shoop/node-chrome
+      script: |
+        cd $(workspaces.output.path)
+        cd "$(params.REPO_NAME)"
+        cd book-info-cicd/tests
+
+        npm install
+
+        npm run test
+
+        npm run cli-report
+  workspaces:
+    - name: output
+      description: Location of output code

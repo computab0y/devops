@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dev-bookinfofull-argocd2
+  namespace: dev-bookinfofull-argocd
+  
+spec:
+  destination:
+    namespace: dev-bookinfofull
+    server: https://kubernetes.default.svc  # kube endpoint target api
+  project: default
+  source:
+    path: test-deploy
+    repoURL: https://github.com/AccenturePreda/dso-project-bookinfofull
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,47 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: voterui-trigger
+spec:
+  params:
+  - name: git-repo-url
+    description: The git repository url
+  - name: git-revision
+    description: The git revision
+    default: master
+  - name: git-repo-name
+    description: The name of the deployment to be created / patched
+
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: build-deploy-$(tt.params.git-repo-name)-
+    spec:
+      serviceAccountName: pipeline
+      pipelineRef:
+        name: dso-pl-voterui        #scratch.
+      params:
+        - name: IMAGE
+          value: >-
+            image-registry.openshift-image-registry.svc:5000/ocp-test-project/pipelines-vote-api
+        - name: deployment-name
+          value: pipelines-vote-api
+        - name: git-url
+          value: 'https://github.com/openshift/pipelines-vote-api.git'
+      workspaces:
+        - name: shared-workspace
+          volumeClaimTemplate:
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              creationTimestamp: null
+              name: voter-ui-source-pvc          
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              storageClassName: ocs-storagecluster-cephfs
+              resources:
+                requests:
+                  storage: 500Mi 
+            status: {}

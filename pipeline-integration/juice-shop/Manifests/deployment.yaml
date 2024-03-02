@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: juice-shop-deployment
+  labels:
+    app: juice-shop
+#     version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: juice-shop
+#       version: v1
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: juice-shop
+#         version: v1
+    spec:
+      containers:
+        - name: juice-shop
+          image: juice-shop:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000

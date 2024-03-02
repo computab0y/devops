@@ -1,0 +1,32 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: el-voterui-trigger
+  namespace: ocp-test-project
+  labels:
+    app.kubernetes.io/managed-by: EventListener
+    app.kubernetes.io/part-of: Triggers
+    eventlistener: voterui-trigger
+  annotations:
+    openshift.io/host.generated: 'true'
+spec:
+  host: >-
+    el-voterui-trigger-ocp-test-project.apps.ocpcluster1.ocp.stackpoc.com
+
+  to:
+    kind: Service
+    name: el-voterui-trigger
+    weight: 100
+  port:
+    targetPort: http-listener
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+status:
+  ingress:
+    - host: >-
+        el-voterui-trigger-ocp-test-project.apps.ocpcluster1.ocp.stackpoc.com
+      routerName: default
+      wildcardPolicy: None
+      routerCanonicalHostname: router-default.apps.ocpcluster1.ocp.stackpoc.com

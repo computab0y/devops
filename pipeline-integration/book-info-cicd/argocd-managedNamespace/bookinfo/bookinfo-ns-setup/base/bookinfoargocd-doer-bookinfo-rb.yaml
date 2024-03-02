@@ -1,0 +1,20 @@
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: bookinfoargocd-doer-rb
+  namespace: dso-bookinfo
+  labels:
+    app.kubernetes.io/managed-by: bookinfoargocd
+    app.kubernetes.io/name: bookinfoargocd-doer
+    app.kubernetes.io/part-of: bookinfoargocd
+  annotations:
+    argocds.argoproj.io/name: bookinfoargocd
+    argocds.argoproj.io/namespace: bookinfoargocd
+subjects:
+  - kind: ServiceAccount
+    name: bookinfoargocd-doer
+    namespace: bookinfoargocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: bookinfoargocd-doer-clusterrole

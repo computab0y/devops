@@ -1,0 +1,42 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: dso-pd-pl-bookinfo
+spec:
+  workspaces:
+    - name: post-deployment-workspace
+  params:
+    - name: GIT_URL
+      type: string 
+      # default: https://github.com/AccenturePreda/dso-project-bookinfo.git
+    - name: REPO_NAME
+      type: string
+      default: dso-project-bookinfo   
+    - name: REVISION
+      type: string  
+      default: main
+  tasks:
+    - name: git-clone
+      taskRef:
+        name: git-clone
+      params: 
+        - name: GIT_URL
+          value: "$(params.GIT_URL)"
+        - name: REPO_NAME
+          value: "$(params.REPO_NAME)"
+        - name: REVISION
+          value: "$(params.REVISION)"
+      workspaces:
+        - name: output
+          workspace: post-deployment-workspace
+    - name: run-node-test
+      taskRef:
+        name: run-node-test
+      runAfter:
+        - git-clone
+      params: 
+        - name: REPO_NAME
+          value: "$(params.REPO_NAME)"
+      workspaces:
+        - name: output
+          workspace: post-deployment-workspace

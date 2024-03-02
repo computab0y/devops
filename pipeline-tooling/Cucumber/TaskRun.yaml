@@ -1,0 +1,13 @@
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  generateName: mytaskrun-
+spec:
+  workspaces:
+  - name: temp
+    emptyDir: {}
+  taskRef:
+    name: cucumber
+  params:
+    - name: featurefile
+      value: "examples"

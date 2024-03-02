@@ -1,0 +1,33 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: dso-pl-voterui-run
+spec:
+  params:
+    - name: IMAGE
+      value: >-
+        image-registry.openshift-image-registry.svc:5000/ocp-test-project/pipelines-vote-api
+    - name: deployment-name
+      value: pipelines-vote-api
+    - name: git-url
+      value: 'https://github.com/openshift/pipelines-vote-api.git'
+  pipelineRef:
+    name: dso-pl-voterui
+  serviceAccountName: pipeline
+  timeout: 1h0m0s
+  workspaces:
+    - name: shared-workspace
+      volumeClaimTemplate:
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          creationTimestamp: null
+          name: voter-ui-source-pvc
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: ocs-storagecluster-cephfs
+          resources:
+            requests:
+              storage: 500Mi
+        status: {}

@@ -1,0 +1,22 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: cucumber
+spec:
+  workspaces:
+  - name: temp
+  steps:
+    - name: git
+      image: alpine/git
+      args: ["clone", "https://github.com/timretout/docker-cucumber-js.git", $(workspaces.temp.path)]
+    - name: ls
+      image: alpine
+      command: [ls]
+      args: [$(workspaces.temp.path)]
+    - name: cucumber
+      workingDir: /app
+      image: av3ragej0e/cucumber
+      args: [$(workspaces.temp.path)/examples]
+  params:
+    - name: featurefile
+      description: The path to the feature files that contain the code used for testing the application

@@ -1,0 +1,22 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  creationTimestamp: '2021-11-25T16:03:50Z'
+  generation: 1
+  labels:
+    strimzi.io/cluster: edaapp-cluster
+  name: events
+  namespace: dev-kafka-edaapp
+spec:
+  config:
+    retention.ms: 604800000
+    segment.bytes: 1073741824
+  partitions: 10
+  replicas: 3
+status:
+  conditions:
+    - lastTransitionTime: '2021-11-25T16:03:51.204995Z'
+      status: 'True'
+      type: Ready
+  observedGeneration: 1
+  topicName: events

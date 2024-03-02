@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dso-kafka-application
+  namespace: dev-kafka-edaapp
+spec:
+  destination:
+    namespace: dev-kafka-edaapp
+    server: 'https://kubernetes.default.svc'
+  source:
+    path: dso-kafka/manifests
+    repoURL: 'https://github.com/AccenturePreda/dso-pipeline-integration'
+    targetRevision: HEAD
+  project: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

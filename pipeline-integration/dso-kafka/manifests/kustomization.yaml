@@ -1,0 +1,10 @@
+resources:
+- deployment-dso-kafka.yaml
+- route-dso-kafka.yaml
+- service-dso-kafka.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+- name: dso-project/dso-kafka
+  newName: dso-quay-registry-quay-quay-enterprise.apps.ocp1.azure.dso.digital.mod.uk/dso-project/dso-kafka
+  newTag: v26

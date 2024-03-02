@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dso-kafka
+  labels:
+    app: dso-kafka
+#     version: v4
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dso-kafka
+#       version: v4
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: dso-kafka
+#         version: v4
+    spec:
+      containers:
+        - name: dso-kafka
+          image: dso-project/dso-kafka
+          imagePullPolicy: IfNotPresent
+          ports:
+          - containerPort: 8082
+          env:
+            - name: SPRING_KAFKA_PRODUCER_BOOTSTRAP-SERVERS
+              value: edaapp-cluster-kafka-bootstrap.dev-kafka-edaapp.svc:9092
+            - name: SPRING_KAFKA_PRODUCER_PROPERTIES_APICURIO_REGISTRY_URL
+              value: http://dev-registry-edaapp.dev-kafka-edaapp.router-default.apps.ocp1.azure.dso.digital.mod.uk/apis/registry/v2
+            - name: SPRING_KAFKA_CONSUMER_BOOTSTRAP-SERVERS
+              value: edaapp-cluster-kafka-bootstrap.dev-kafka-edaapp.svc:9092
+            - name: SPRING_KAFKA_CONSUMER_PROPERTIES_APICURIO_REGISTRY_URL
+              value: http://dev-registry-edaapp.dev-kafka-edaapp.router-default.apps.ocp1.azure.dso.digital.mod.uk/apis/registry/v2

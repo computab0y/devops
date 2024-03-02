@@ -1,0 +1,32 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: git-clone
+spec:
+  params:
+    - name: GIT_URL
+      type: string
+      default: juice-shop
+    - name: REPO_NAME
+      type: string
+      default: dso-project-juiceshop
+    - default: master
+      name: REVISION
+      type: string
+  steps:
+    - image: 'gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/git-init:v0.12.1'
+      name: git-clone
+      resources: {}
+      script: |
+        cd $(workspaces.output.path)
+        rm -rf "$(params.REPO_NAME)"  
+        git clone -b "$(params.REVISION)" "$(params.GIT_URL)"
+        cd "$(params.REPO_NAME)"
+        RESULT_SHA="$(git rev-parse HEAD | tr -d '\n')"
+        pwd
+        echo -n "$RESULT_SHA"
+      securityContext:
+        privileged: true
+  workspaces:
+    - description: Location of output code
+      name: output

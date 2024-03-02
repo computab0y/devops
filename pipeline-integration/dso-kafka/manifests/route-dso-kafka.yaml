@@ -1,0 +1,17 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: dso-kafka-service
+  namespace: dev-kafka-edaapp
+spec:
+  host: dso-kafka-service-dev-kafka-edaapp.apps.ocp1.azure.dso.digital.mod.uk
+  to:
+    kind: Service
+    name: dso-kafka-service
+    weight: 100
+  port:
+    targetPort: 8082
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
