@@ -1,0 +1,52 @@
+apiVersion: v1
+data:
+  policy.csv: |
+    g, system:cluster-admins, role:admin
+    g, cluster-admins, role:admin
+  policy.default: ""
+  scopes: '[groups]'
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/name: argocd-rbac-cm
+    app.kubernetes.io/part-of: argocd
+  name: argocd-rbac-cm
+  namespace: openshift-gitops
+spec:
+ rbac:
+   policy: |-
+     g, system:cluster-admins, role:admin
+     g, cluster-admins, role:admin
+     g, , role:all-actions
+     p, role:all-actions, applications, create, */*, allow
+     p, role:all-actions, applications, sync, */*, allow
+     p, role:all-actions, applications, get, */*, allow
+     p, role:all-actions, applications, update, */*, allow
+     p, role:all-actions, applications, override, */*, allow
+     p, role:all-actions, applications, delete, */*, allow
+spec:
+ rbac:
+   policy: |-
+     g, system:cluster-admins, role:admin
+     g, cluster-admins, role:admin
+     g, , role:all-actions
+     p, role:all-actions, applications, *, */*, allow
+spec:
+ rbac:
+   policy: |-
+     g, system:cluster-admins, role:admin
+     g, cluster-admins, role:admin
+     g, , role:admin
+spec:
+ rbac:
+   policy: |-
+     g, system:cluster-admins, role:admin
+     g, cluster-admins, role:admin
+     g, , role:all-actions
+     p, role:all-actions, applications, create, */*, allow
+     p, role:all-actions, applications, sync, */*, allow
+     p, role:all-actions, applications, get, */*, allow
+     p, role:all-actions, applications, update, */*, allow
+     p, role:all-actions, applications, override, */*, allow
+     p, role:all-actions, applications, delete, */*, allow
+
