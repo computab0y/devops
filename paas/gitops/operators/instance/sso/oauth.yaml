@@ -1,0 +1,52 @@
+apiVersion: v1
+items:
+- apiVersion: config.openshift.io/v1
+  kind: OAuth
+  metadata:
+    annotations:
+      include.release.openshift.io/ibm-cloud-managed: "true"
+      include.release.openshift.io/self-managed-high-availability: "true"
+      include.release.openshift.io/single-node-developer: "true"
+      release.openshift.io/create-only: "true"
+    name: cluster
+  spec:
+    identityProviders:
+    - mappingMethod: claim
+      name: AzureActiveDirectory
+      openID:
+        claims:
+          email:
+          - email
+          name:
+          - name
+          preferredUsername:
+          - email
+          - upn
+        clientID: 94bb37a7-c2ae-4943-8314-87d0c17bbd61
+        clientSecret:
+          name: openid-client-secret-azuread
+        extraAuthorizeParameters:
+          include_granted_scopes: "true"
+        extraScopes:
+        - email
+        - profile
+        issuer: https://login.microsoftonline.com/f98a6a53-25f3-4212-901c-c7787fcd3495
+      type: OpenID
+    - mappingMethod: claim
+      name: sso-obp
+      openID:
+        ca:
+          name: openid-ca-5g2p8
+        claims:
+          email:
+          - email
+          name:
+          - name
+          preferredUsername:
+          - preferred_username
+        clientID: sso-obp
+        clientSecret:
+          name: openid-client-secret-vnlvx
+        extraScopes: []
+        issuer: https://keycloak-sso.apps.devops.balancing.nationalgrideso.com/auth/realms/OBPSSOPoc
+      type: OpenID

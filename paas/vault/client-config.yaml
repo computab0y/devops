@@ -1,0 +1,84 @@
+
+global:
+  openshift: true
+  tlsDisable: false
+
+
+injector:
+  enabled: true
+  replicas: 1
+
+  # External vault server address for the injector to use. Setting this will
+  # disable deployment of a vault server along with the injector.
+  externalVaultAddr: "https://vault.apps.management.balancing.nationalgrideso.com/"
+
+  # Mount Path of the Vault Kubernetes Auth Method.
+  authPath: "auth/kubernetes"
+
+  logLevel: "info"  # trace, debug, info, warn, error
+  logFormat: "standard"
+
+  # See https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#matching-requests-namespaceselector
+  # namespaceSelector is the selector for restricting the webhook to only
+  namespaceSelector: 
+    matchLabels:
+      sidecar-injector: enabled
+  
+  # # objectSelector is the selector for restricting the webhook to only
+  # objectSelector: 
+  #    matchLabels:
+  #      vault-sidecar-injector: enabled
+
+  # Configures failurePolicy of the webhook. The "unspecified" default behaviour deoends on the
+  failurePolicy: Fail # Ignore or Fail
+
+  # Extra annotations to attach to the webhook
+  webhookAnnotations: {}
+
+  certs:
+    # secretName is the name of the secret that has the TLS certificate and
+    # private key to serve the injector webhook. If this is null, then the
+    # injector will default to its automatic management mode that will assign
+    # a service account to the injector to generate its own certificates.
+    secretName: null
+
+    # caBundle is a base64-encoded PEM-encoded certificate bundle for the CA
+    # that signed the TLS certificate that the webhook serves. This must be set
+    # if secretName is non-null, unless an external service like cert-manager is
+    # keeping the caBundle updated.
+    caBundle: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVZVENDQTBtZ0F3SUJBZ0lVTzNOYnJyMm5TcDk3SlpzckZtVFZmcDR1SW5Bd0RRWUpLb1pJaHZjTkFRRUwKQlFBd2diOHhDekFKQmdOVkJBWVRBa2RDTVJNd0VRWURWUVFJREFwTllXNWphR1Z6ZEdWeU1Rc3dDUVlEVlFRSApEQUl0TFRFVk1CTUdBMVVFQ2d3TVRtRjBhVzl1WVd4SGNtbGtNUXd3Q2dZRFZRUUxEQU5GVTA4eE9qQTRCZ05WCkJBTU1NV1IxYlcxNUxXTmhMbTFoYm1GblpXMWxiblF1WW1Gc1lXNWphVzVuTG01aGRHbHZibUZzWjNKcFpHVnoKYnk1amIyMHhMVEFyQmdrcWhraUc5dzBCQ1FFV0htcHZjMlZ3YUM1amFHRnVaSGxBYm1GMGFXOXVZV3huY21sawpMbU52YlRBZUZ3MHlNVEV5TURVeE1qRXlNelphRncweU5qRXlNRFF4TWpFeU16WmFNSUcvTVFzd0NRWURWUVFHCkV3SkhRakVUTUJFR0ExVUVDQXdLVFdGdVkyaGxjM1JsY2pFTE1Ba0dBMVVFQnd3Q0xTMHhGVEFUQmdOVkJBb00KREU1aGRHbHZibUZzUjNKcFpERU1NQW9HQTFVRUN3d0RSVk5QTVRvd09BWURWUVFERERGa2RXMXRlUzFqWVM1dApZVzVoWjJWdFpXNTBMbUpoYkdGdVkybHVaeTV1WVhScGIyNWhiR2R5YVdSbGMyOHVZMjl0TVMwd0t3WUpLb1pJCmh2Y05BUWtCRmg1cWIzTmxjR2d1WTJoaGJtUjVRRzVoZEdsdmJtRnNaM0pwWkM1amIyMHdnZ0VpTUEwR0NTcUcKU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRRE5UWXJMekY5eEp3RkpVSmF3dEhmak1BLzZmcWd4TWhGbwpLN1NyeGJsSUdZd2NtQ3hGaXlsdnljZnRKVDAxUmZQZjB1N0owT0VZQ2FEMks4eFZsVllJNE55OUpoSnVIWUFECnlIYmNNVUVMTkNOLzBUZmdvTHNSY0xheFlzdTdvWk5DN1B2ZUNzMEc0WUVjd2ZlR3FQSHM1Q2tmV0dOQjVDcDgKSU1pa3B4QllyZVA2ekFGY2RLeGhQaEQvWE1XcThXbW9Eb0pzNWtjSXpHZTRDZkVTaGdUSnBPT3d3eUtHREFuaAo4dkhEUHhubnlIVjNhNDkrVDI1TXZZQTVtbTI1WVJET0xRRm9RUDRMR0ZXV200eUhUa2RqVXZmcitPdHZqZkIxCi83T3dycVNWdlQ2eUkvMkU2YndTaURsemU4TkxoSitsMHpadlNEWFBwMTVLMjZpTWtXMVhBZ01CQUFHalV6QlIKTUIwR0ExVWREZ1FXQkJSejhQVnJYSlVxalJxME5qdk94bXFwamE4VTRqQWZCZ05WSFNNRUdEQVdnQlJ6OFBWcgpYSlVxalJxME5qdk94bXFwamE4VTRqQVBCZ05WSFJNQkFmOEVCVEFEQVFIL01BMEdDU3FHU0liM0RRRUJDd1VBCkE0SUJBUUFqVjlnZU5WNCt1cHVhQUx6WWo4a0JFT1JPUVZOWDhWMzBURVdIQUFuNEsycmZPK2RBbGdTalFxZCsKYXB6cG54aU9YdlY5SU85N2FVL29pWldYeDVORXpIMTJTSlB3UHFMZnVXbjRWd28rWkdKYnlHTnAxeUY1T0ZUdApzN1dJdEZ6cFd1Z1dHeVJLa1ZtcGErRnZRTTExbXhWN05McmJJSFdFT0tWQmZHV1JNbUNiUVlFMUluNWZoeFZQCnh4alM1eFJtaVFMZDFxZ1IvUHE1MXN4STljWmJha1RWVGVDbkRiaWdkRDBnUUlNZXh2Q2JIWmRTeGF5V3g2dzAKWEdVL3ZZanNRNGRXREZ0eVdCWlRXR2tTQkMzbndJT3FYaHY2VWorRHlGRVdMU25oWmhJb0FkcTFpS1c3WjlsbQpzemFuam5DTmthdmVCMjRhOFpqYit1aXF3cjc1Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0="
+
+    # certName and keyName are the names of the files within the secret for
+    # the TLS cert and private key, respectively. These have reasonable
+    # defaults but can be customized if necessary.
+    certName: tls.crt
+    keyName: tls.key
+
+  
+  # Injector service specific config
+  service:
+    # Extra annotations to attach to the injector service
+    annotations: {}
+
+# Toleration Settings for injector pods
+# This should be either a multi-line string or YAML matching the Toleration array
+# in a PodSpec.
+  tolerations: 
+  - key: node.workload.openshift.io/infra
+    effect: NoSchedule
+    value: "true"
+
+# nodeSelector labels for server pod assignment, formatted as a multi-line string or YAML map.
+# ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+# Example:
+# nodeSelector:
+#   beta.kubernetes.io/arch: amd64
+  nodeSelector: 
+    node-role.kubernetes.io/infra: ""
+
+  extraEnvironmentVars: {}
+
+server:
+  enabled: false
+
+

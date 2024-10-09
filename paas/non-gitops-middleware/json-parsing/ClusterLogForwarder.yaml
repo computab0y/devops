@@ -1,0 +1,25 @@
+apiVersion: logging.openshift.io/v1
+kind: ClusterLogForwarder
+metadata:
+ name: instance
+ namespace: openshift-logging
+spec:
+ inputs:
+ - name: application-logs
+   application:
+     namespaces:
+     - demo-app
+ outputDefaults:
+   elasticsearch:
+     structuredTypeKey: kubernetes.labels.app
+     structuredTypeName: nologformat
+ pipelines:
+ - name: application-logs
+   inputRefs:
+   - application
+   - audit
+   outputRefs:
+   - default
+   parse: json
+   labels:
+    app: httpd-one # index: app-httpd-one-write, targeting pod app-number-on in demo-app project for Test 

@@ -1,0 +1,35 @@
+apiVersion: logging.openshift.io/v1
+kind: ClusterLogForwarder
+metadata:
+ name: instance
+ namespace: openshift-logging
+ annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+ inputs:
+ - name: obp-applications
+   application:
+     selector:
+      matchLabels:
+        appLogType: json
+ outputDefaults:
+   elasticsearch:
+     structuredTypeKey: kubernetes.labels.logFormat
+     structuredTypeName: nologformat
+ pipelines:
+ - name: obp-applications
+   inputRefs:
+   - obp-applications
+   outputRefs:
+   - default
+   parse: json
+ - name: application-logs
+   inputRefs:
+   - application
+   outputRefs:
+   - default
+ - name: infrastructure-logs
+   inputRefs:
+   - infrastructure
+   outputRefs:
+   - default

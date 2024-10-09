@@ -1,0 +1,31 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: pr-deletion-params
+  namespace: dev-int
+data:
+  verbose: 'true'
+  depth: '1'
+  sslVerify: 'true'
+  gitrepo-url: >-
+    ssh://git@bitbucket-ssh.uk.ngridtools.com:7999/efd/bulk-dispatch-optimiser.git
+  submodules: 'true'
+  secret-sonar-settings: dev-pr-python-creation-pipeline-config
+  userHome: /tekton/home
+  secret-ssh-directory: my-ssh-credentials
+  GIT_IMAGE: >-
+    jfrog.uk.ngridtools.com/public-proxy-registry-redhat-io/openshift-pipelines/pipelines-git-init-rhel8:sha256__5d1c919446ea31029566a7dce78928f94b699ce7a141f25948e143fca2fc0e71
+  pullreq-repo-name: bulk-dispatch-optimiser
+  output.yaml: |
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 400Mi
+      storageClassName: ocs-storagecluster-cephfs
+      volumeMode: Filesystem
+  deleteExisting: 'true'
+  git-revision: Devops-Pipeline-Validation-DO-NOT-DELETE
+  pullreq-number: '81'
+  secret-dockerconfig: artifactory-image-pull

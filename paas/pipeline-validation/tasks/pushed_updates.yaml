@@ -1,0 +1,60 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: anything-to-validate
+  namespace: dev-int
+spec:
+  description: >-
+    Plan the pipeline validation
+  results:
+    - name: file_changes
+      description: The files changed in the triggering push
+    - name: nothing_to_validate
+      description: Does anything need to be validated with this commit
+  params:
+    - name: branch
+      type: string 
+    - description: The commit hash.
+      name: commit_hash
+      type: string
+    - name: gitInitImage
+      type: string
+    - name: git_repo_name
+      type: string
+  steps:
+    - name: plan
+      image: $(params.gitInitImage)  
+      resources: {}
+      script: >
+        #!/usr/bin/env sh
+
+        set -eu
+
+        
+        cd $(workspaces.output.path)
+
+
+        git checkout -b $(params.branch)
+
+
+        HASH=$(params.commit_hash)
+
+        if [ $(params.git_repo_name) = 'appdev-cluster-config' ]; then
+           search_path="common-tekton-artifacts/cluster-tasks.*yaml$"
+        elif [ $(params.git_repo_name) = 'env-dev-int' ]; then
+           search_path="services/tekton/pipelines/.*yaml$"
+        fi
+
+        git diff ${HASH}^ ${HASH} --name-only | tee $(results.file_changes.path)
+
+        if ! grep -q $search_path $(results.file_changes.path); then
+           echo "No relevant changes found"
+           echo -n "true" > $(results.nothing_to_validate.path)
+        else
+           echo -n "false" > $(results.nothing_to_validate.path)
+        fi
+
+  workspaces:
+    - description: The git repo will be cloned onto the volume backing this Workspace.
+      name: output
+   

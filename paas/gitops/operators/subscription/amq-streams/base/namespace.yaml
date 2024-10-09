@@ -1,0 +1,8 @@
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  name: amq-streams
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    openshift.io/node-selector: "node-role.kubernetes.io/infra="
+    scheduler.alpha.kubernetes.io/defaultTolerations: '[{"Key": "node.workload.openshift.io/infra", "Operator": "Equal", "Value": "true", "Effect": "NoSchedule"}]'

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: internal-app
+  namespace: default
+---
+apiVersion: v1
+data:
+  ca.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVZVENDQTBtZ0F3SUJBZ0lVTzNOYnJyMm5TcDk3SlpzckZtVFZmcDR1SW5Bd0RRWUpLb1pJaHZjTkFRRUwKQlFBd2diOHhDekFKQmdOVkJBWVRBa2RDTVJNd0VRWURWUVFJREFwTllXNWphR1Z6ZEdWeU1Rc3dDUVlEVlFRSApEQUl0TFRFVk1CTUdBMVVFQ2d3TVRtRjBhVzl1WVd4SGNtbGtNUXd3Q2dZRFZRUUxEQU5GVTA4eE9qQTRCZ05WCkJBTU1NV1IxYlcxNUxXTmhMbTFoYm1GblpXMWxiblF1WW1Gc1lXNWphVzVuTG01aGRHbHZibUZzWjNKcFpHVnoKYnk1amIyMHhMVEFyQmdrcWhraUc5dzBCQ1FFV0htcHZjMlZ3YUM1amFHRnVaSGxBYm1GMGFXOXVZV3huY21sawpMbU52YlRBZUZ3MHlNVEV5TURVeE1qRXlNelphRncweU5qRXlNRFF4TWpFeU16WmFNSUcvTVFzd0NRWURWUVFHCkV3SkhRakVUTUJFR0ExVUVDQXdLVFdGdVkyaGxjM1JsY2pFTE1Ba0dBMVVFQnd3Q0xTMHhGVEFUQmdOVkJBb00KREU1aGRHbHZibUZzUjNKcFpERU1NQW9HQTFVRUN3d0RSVk5QTVRvd09BWURWUVFERERGa2RXMXRlUzFqWVM1dApZVzVoWjJWdFpXNTBMbUpoYkdGdVkybHVaeTV1WVhScGIyNWhiR2R5YVdSbGMyOHVZMjl0TVMwd0t3WUpLb1pJCmh2Y05BUWtCRmg1cWIzTmxjR2d1WTJoaGJtUjVRRzVoZEdsdmJtRnNaM0pwWkM1amIyMHdnZ0VpTUEwR0NTcUcKU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRRE5UWXJMekY5eEp3RkpVSmF3dEhmak1BLzZmcWd4TWhGbwpLN1NyeGJsSUdZd2NtQ3hGaXlsdnljZnRKVDAxUmZQZjB1N0owT0VZQ2FEMks4eFZsVllJNE55OUpoSnVIWUFECnlIYmNNVUVMTkNOLzBUZmdvTHNSY0xheFlzdTdvWk5DN1B2ZUNzMEc0WUVjd2ZlR3FQSHM1Q2tmV0dOQjVDcDgKSU1pa3B4QllyZVA2ekFGY2RLeGhQaEQvWE1XcThXbW9Eb0pzNWtjSXpHZTRDZkVTaGdUSnBPT3d3eUtHREFuaAo4dkhEUHhubnlIVjNhNDkrVDI1TXZZQTVtbTI1WVJET0xRRm9RUDRMR0ZXV200eUhUa2RqVXZmcitPdHZqZkIxCi83T3dycVNWdlQ2eUkvMkU2YndTaURsemU4TkxoSitsMHpadlNEWFBwMTVLMjZpTWtXMVhBZ01CQUFHalV6QlIKTUIwR0ExVWREZ1FXQkJSejhQVnJYSlVxalJxME5qdk94bXFwamE4VTRqQWZCZ05WSFNNRUdEQVdnQlJ6OFBWcgpYSlVxalJxME5qdk94bXFwamE4VTRqQVBCZ05WSFJNQkFmOEVCVEFEQVFIL01BMEdDU3FHU0liM0RRRUJDd1VBCkE0SUJBUUFqVjlnZU5WNCt1cHVhQUx6WWo4a0JFT1JPUVZOWDhWMzBURVdIQUFuNEsycmZPK2RBbGdTalFxZCsKYXB6cG54aU9YdlY5SU85N2FVL29pWldYeDVORXpIMTJTSlB3UHFMZnVXbjRWd28rWkdKYnlHTnAxeUY1T0ZUdApzN1dJdEZ6cFd1Z1dHeVJLa1ZtcGErRnZRTTExbXhWN05McmJJSFdFT0tWQmZHV1JNbUNiUVlFMUluNWZoeFZQCnh4alM1eFJtaVFMZDFxZ1IvUHE1MXN4STljWmJha1RWVGVDbkRiaWdkRDBnUUlNZXh2Q2JIWmRTeGF5V3g2dzAKWEdVL3ZZanNRNGRXREZ0eVdCWlRXR2tTQkMzbndJT3FYaHY2VWorRHlGRVdMU25oWmhJb0FkcTFpS1c3WjlsbQpzemFuam5DTmthdmVCMjRhOFpqYit1aXF3cjc1Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+kind: Secret
+metadata:
+  name: vault-server-tls
+  namespace: default
+type: Opaque
+--- 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: devwebapp-with-annotations
+  namespace: default
+  labels:
+    app: devwebapp-with-annotations
+  annotations:
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: 'devweb-app'
+    vault.hashicorp.com/tls-skip-verify: "false"
+    vault.hashicorp.com/tls-secret: vault-server-tls
+    vault.hashicorp.com/ca-cert: /vault/tls/ca.crt
+    vault.hashicorp.com/agent-inject-secret-credentials.txt: 'secret/data/devwebapp/config'
+spec:
+  serviceAccountName: internal-app
+  containers:
+    - name: app
+      image: jfrog.uk.ngridtools.com/docker-proxy/bitnami/nginx 
+      env:
+        - name: VAULT_ADDR
+          value: "https://vault.apps.management.balancing.nationalgrideso.com"
+        - name: VAULT_TOKEN
+          value: root

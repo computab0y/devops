@@ -1,0 +1,64 @@
+apiVersion: machine.openshift.io/v1beta1
+kind: MachineSet
+metadata:
+  labels:
+    machine.openshift.io/cluster-api-cluster: devops-nfk2l
+    machine.openshift.io/cluster-api-machine-role: storage
+    machine.openshift.io/cluster-api-machine-type: storage
+  name: storage-machineset-zone3
+  namespace: openshift-machine-api
+spec:
+  replicas: 1 
+  selector:
+    matchLabels:
+      machine.openshift.io/cluster-api-cluster: devops-nfk2l
+      machine.openshift.io/cluster-api-machineset: storage-machineset-zone3
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        machine.openshift.io/cluster-api-cluster: devops-nfk2l
+        machine.openshift.io/cluster-api-machine-role: storage
+        machine.openshift.io/cluster-api-machine-type: storage
+        machine.openshift.io/cluster-api-machineset: storage-machineset-zone3
+        cluster.ocs.openshift.io/openshift-storage: ""
+    spec:
+      taints:
+        - effect: NoSchedule
+          key: node.ocs.openshift.io/storage
+          value: "true"
+      metadata:
+        creationTimestamp: null
+        labels:
+          cluster.ocs.openshift.io/openshift-storage: ""
+          node-role.kubernetes.io/storage: ""
+      providerSpec:
+        value:
+          apiVersion: azureproviderconfig.openshift.io/v1beta1
+          credentialsSecret:
+            name: azure-cloud-credentials
+            namespace: openshift-machine-api
+          image:
+            offer: ""
+            publisher: ""
+            resourceID: /resourceGroups/eso-dev-uks-devops-rg/providers/Microsoft.Compute/images/devops-nfk2l
+            sku: ""
+            version: ""
+          internalLoadBalancer: ""          
+          kind: AzureMachineProviderSpec
+          location: uksouth
+          managedIdentity: devops-nfk2l-identity
+          networkResourceGroup: 5690-dev-uks-spokenetwork-rg
+          osDisk:
+            diskSizeGB: 160
+            managedDisk:
+              storageAccountType: Premium_LRS
+            osType: Linux
+          publicIP: false
+          resourceGroup: eso-dev-uks-devops-rg     # from Azure
+          subnet: lz5690-DEV-uks-worker-snet-01         # from Azure
+          userDataSecret:
+            name: worker-user-data
+          vmSize: Standard_F16s_v2
+          vnet: 5690-dev-uks-vnet-02
+          zone: "3"

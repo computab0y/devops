@@ -1,0 +1,40 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: rook-ceph-operator-config
+  namespace: openshift-storage
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+data:
+  CSI_ENABLE_CSIADDONS: "true"
+  CSI_LOG_LEVEL: '5'
+  CSI_PLUGIN_TOLERATIONS: |-
+    - effect: NoSchedule
+      key: node.workload.openshift.io/logging
+      operator: Equal
+      value: "true"
+    - effect: NoSchedule
+      key: node.workload.openshift.io/infra
+      operator: Equal
+      value: "true"
+    - effect: NoSchedule
+      key: node.ocs.openshift.io/storage
+      operator: Equal
+      value: "true"
+    - effect: NoSchedule
+      key: node.workload.openshift.io/servicemesh-elasticsearch
+      operator: Equal
+      value: "true"
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/worker-cni-qz
+      operator: Equal
+      value: "true"
+    - effect: NoSchedule
+      key: node.workload.openshift.io/styra-das
+      operator: Equal
+      value: "true"
+  CSI_PROVISIONER_TOLERATIONS: |-
+    - key: node.ocs.openshift.io/storage
+      operator: Equal
+      value: "true"
+      effect: NoSchedule

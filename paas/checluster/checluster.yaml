@@ -1,0 +1,52 @@
+apiVersion: org.eclipse.che/v1
+kind: CheCluster
+metadata:
+  name: codeready-workspaces # must be called 'codeready-workspaces'
+  namespace: openshift-workspaces
+spec:
+  auth:
+    identityProviderURL: ''
+    identityProviderRealm: ''
+    oAuthSecret: ''
+    identityProviderPassword: ''
+    oAuthClientName: ''
+    initialOpenShiftOAuthUser: true
+    identityProviderClientId: ''
+    identityProviderAdminUserName: ''
+    externalIdentityProvider: false
+    nativeUserMode: false
+  database:
+    chePostgresUser: ''
+    externalDb: false
+    chePostgresHostName: ''
+    chePostgresPassword: ''
+    chePostgresDb: ''
+    chePostgresPort: ''
+  metrics:
+    enable: true
+  server:
+    # devfileRegistryImage: 'jfrog.uk.ngridtools.com/eso-fob-docker/che-devfile-registry:1c2835d' 
+    customCheProperties:
+      CHE_LIMITS_WORKSPACE_IDLE_TIMEOUT: "14400000"   # value in milliseconds (default is 30 mins, current is 4 hrs)
+      CHE_LIMITS_USER_WORKSPACES_RUN_COUNT: "5"
+      CHE_LIMITS_USER_WORKSPACES_COUNT: "10"
+    proxyURL: ''
+    cheClusterRoles: ''
+    proxyPassword: ''
+    nonProxyHosts: ''
+    proxyPort: ''
+    tlsSupport: true
+    allowUserDefinedWorkspaceNamespaces: false
+    serverTrustStoreConfigMapName: ''
+    proxyUser: ''
+    cheWorkspaceClusterRole: ''
+    workspaceNamespaceDefault: <username>-codeready
+    serverExposureStrategy: ''
+    gitSelfSignedCert: false
+    cheFlavor: codeready
+  storage:
+    postgresPVCStorageClassName: 'ocs-storagecluster-cephfs'
+    preCreateSubPaths: true
+    pvcClaimSize: 10Gi
+    pvcStrategy: per-workspace
+    workspacePVCStorageClassName: 'ocs-storagecluster-cephfs'

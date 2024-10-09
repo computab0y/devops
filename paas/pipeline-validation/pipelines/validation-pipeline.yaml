@@ -1,0 +1,188 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: pipeline-validation-pipeline
+  namespace: dev-int
+spec:
+  params:
+    - name: git_repo_http_url
+      type: string
+      description: The git repository URL to clone from. 
+    - name: git_repo_name
+      description: The git repository name
+      type: string
+    - name: git_branch
+      description: The git branch to clone.
+      type: string
+    - name: git_commit_hash
+      description: The commit hash.
+      type: string
+    - name: user-name
+      type: string
+      description: user name
+    - name: user-email
+      type: string
+      description: user email
+    - name: git_project_key
+      type: string
+  tasks:
+    - name: git-clone
+      params:
+        - name: url
+          value: $(params.git_repo_http_url)
+        - name: git_repo_name
+          value: $(params.git_repo_name)
+        - name: revision
+          value: $(params.git_branch)
+        - name: project_key
+          value: $(params.git_project_key)
+        - name: depth
+          value: '5'
+      taskRef:
+        kind: ClusterTask
+        name: fob-git-clone
+      workspaces:
+        - name: output
+          workspace: output
+    - name: force-argocd-sync
+      when:
+        - input: $(tasks.anything-to-validate.results.nothing_to_validate)
+          operator: in
+          values: [ "false" ]
+      params:
+        - name: git_repo_name
+          value: $(params.git_repo_name)
+      taskRef:
+        kind: Task
+        name: force-argocd-sync
+    - name: clone-dev-int
+      when:
+        - input: $(params.git_repo_name)
+          operator: in
+          values: [ "appdev-cluster-config" ]
+        - input: $(tasks.anything-to-validate.results.nothing_to_validate)
+          operator: in
+          values: [ "false" ]
+      params:
+        - name: url
+          value: "ssh://git@bitbucket-ssh.uk.ngridtools.com:7999/efe/env-dev-int.git"
+        - name: git_repo_name
+          value: "env-dev-int"
+        - name: revision
+          value: pipeline-validation
+        - name: depth
+          value: '1'
+        - name: project_key
+          value: 'EFE'
+      taskRef:
+        kind: ClusterTask
+        name: fob-git-clone
+      workspaces:
+        - name: output
+          workspace: output1
+    - name: anything-to-validate
+      params:
+        - name: branch
+          value: $(params.git_branch)
+        - name: git_repo_name
+          value: $(params.git_repo_name)
+        - name: commit_hash
+          value: $(params.git_commit_hash)
+        - name: gitInitImage
+          value: >-
+            jfrog.uk.ngridtools.com/public-proxy-registry-redhat-io/openshift-pipelines/pipelines-git-init-rhel8:sha256__5d1c919446ea31029566a7dce78928f94b699ce7a141f25948e143fca2fc0e71
+      taskRef:
+        kind: Task
+        name: anything-to-validate
+      runAfter:
+        - git-clone
+      workspaces:
+        - name: output
+          workspace: output
+    - name: setup-venv
+      params:
+        - name: updates
+          value: $(tasks.anything-to-validate.results.file_changes)
+      taskRef:
+        kind: Task
+        name: setup-venv
+      runAfter:
+        - force-argocd-sync
+      workspaces:
+        - name: python-ws
+          workspace: python-ws
+    - name: validation-plan
+      params:
+        - name: updates
+          value: $(tasks.anything-to-validate.results.file_changes)
+        - name: git_repo_name
+          value: $(params.git_repo_name)
+      runAfter:
+        - setup-venv
+      taskRef:
+        kind: Task
+        name: validation-plan
+      workspaces:
+        - name: python-ws
+          workspace: python-ws
+        - name: output
+          workspace: output
+        - name: output1
+          workspace: output1
+    - name: execute-validation
+      when:
+        - input: $(tasks.validation-plan.results.validation_required)
+          operator: in
+          values: [ "yes" ]
+      params:
+        - name: user-name
+          value: $(params.user-name)
+        - name: user-email
+          value: $(params.user-email)
+        - name: affected_pipelines
+          value: $(tasks.validation-plan.results.affected_pipelines)
+      #runAfter:
+      #  - validation-plan
+      taskRef:
+        kind: Task
+        name: execute-validation
+      workspaces:
+        - name: pvc-template
+          workspace: pvc-template
+        - name: pr-python-creation
+          workspace: pr-python-creation
+        - name: pr-java-creation
+          workspace: pr-java-creation
+        - name: pr-dotnet-creation
+          workspace: pr-dotnet-creation
+        - name: pr-nodejs-react-creation
+          workspace: pr-nodejs-react-creation
+        - name: ci-python-build
+          workspace: ci-python-build
+        - name: ci-java-build
+          workspace: ci-java-build
+        - name: ci-dotnet-build
+          workspace: ci-dotnet-build
+        - name: ci-nodejs-react-build
+          workspace: ci-nodejs-react-build
+        - name: pr-python-update
+          workspace: pr-python-update
+        - name: pr-deletion
+          workspace: pr-deletion
+  workspaces:
+    - name: pvc-template
+    - name: output
+    - name: output1
+    - name: python-ws
+    - name: pr-python-creation
+    - name: pr-java-creation
+    - name: pr-dotnet-creation
+    - name: pr-nodejs-react-creation
+    - name: ci-python-build
+    - name: ci-java-build
+    - name: ci-dotnet-build
+    - name: ci-nodejs-react-build
+    - name: pr-python-update
+    - name: pr-deletion    
+
+

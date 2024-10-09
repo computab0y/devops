@@ -1,0 +1,14 @@
+apiVersion: operator.tekton.dev/v1alpha1
+kind: TektonChain
+metadata:
+  name: chain
+spec:
+  targetNamespace: openshift-pipelines
+  config:
+     nodeSelector:
+       node-role.kubernetes.io/infra: ''
+     tolerations:
+       - key: "node.workload.openshift.io/infra"
+         operator: "Equal"
+         value: "true"
+         effect: "NoSchedule"

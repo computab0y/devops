@@ -1,0 +1,21 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: ClusterTriggerBinding
+metadata:
+  name: pipeline-validation-trigger-binding
+spec:
+  params:
+    - name: user-name
+      value: $(body.actor.slug)
+    - name: user-email
+      value: $(body.actor.emailAddress)
+    - name: git-repo-http-url
+      value: '$(body.repository.links.clone[0].href)'
+    - name: git-branch
+      value: '$(body.changes[0].ref.displayId)'
+    - name: git-repo-name
+      value: $(body.repository.name)
+    - name: git-commit-hash
+      value: $(body.changes[0].toHash)
+    - name: git-project-key
+      value: $(body.repository.project.key)
+

@@ -1,0 +1,53 @@
+# ServiceEntry enables adding additional entries into Istio’s internal service 
+# registry, so that auto-discovered services in the mesh can access/route to 
+# these manually specified services. A service entry describes the properties 
+# of a service (DNS name, VIPs, ports, protocols, endpoints). These services 
+# could be external to the mesh (e.g., web APIs) or mesh-internal services that 
+# are not part of the platform’s service registry (e.g., a set of VMs talking 
+# to services in Kubernetes).
+
+# This manifests configures a connection that enables connection to edb cluster 
+# hosted outside the mesh
+
+kind: ServiceEntry
+apiVersion: networking.istio.io/v1alpha3
+metadata:
+  # name: {{edb-instance-name}}-rw
+  name: styra-postgres-any
+  namespace: styra-das
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  hosts:
+    # hostname where the endpoint can be reached
+    # - "{{edb-instance-name}}-rw.{{edb-instance-namespace}}.svc
+    - edb-postgresql-styra-rw.styra-das.svc.cluster.local
+  exportTo:
+    - "."
+  ports:
+    # Port details of the target service
+    - name: postgres
+      number: 5432
+      protocol: TCP
+      targetPort: 5432
+  # Specify whether the service should be considered external to the mesh 
+  # or part of the mesh.
+  # MESH_EXTERNAL, MESH_INTERNAL
+  # https://istio.io/latest/docs/reference/config/networking/service-entry/#ServiceEntry-Location
+  location: MESH_EXTERNAL
+  resolution: DNS
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  # name: {{edb-instance-name}}-rw
+  name: styra-postgres-rw
+  namespace: styra-das
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  # "{{edb-instance-name}}-rw.{{edb-instance-namespace}}.svc
+  host: edb-postgresql-styra-rw.styra-das.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: DISABLE # SIMPLE #ISTIO_MUTUAL

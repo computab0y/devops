@@ -1,0 +1,64 @@
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  name: fob-check-app-properties
+spec:
+  description: >-
+     This task verifies whether the repo has a DB folder. If so, it would set a variable to TRUE in order to run a guarded task 
+     create-edb-schema-and-users
+  results:
+    - name: db_dir_exists
+      description: db_dir_exists for db folder 
+    - name: sa_name
+      description: service account name
+    - name: language
+      description: service account name 
+  params:
+    - description: name of git repository
+      name: REPO_NAME
+      type: string
+    - description: directory
+      name: directory
+      type: string
+      default: k8s/argocd/overlay/dev-pr/params
+  workspaces:
+    - description: The git repo will be cloned onto the volume backing this Workspace.
+      name: output    
+  steps:
+    - name: fob-check-db-folder
+      image: >-
+        jfrog-dev.uk.ngridtools.com/docker-public-proxy/liquibase/liquibase:latest
+      script: |
+        #!/usr/bin/env bash
+        
+        sa_name () { (source $(params.REPO_NAME)/$(params.directory)/application.properties; echo -n "$application") }
+
+        echo "service account name is:"
+        
+        
+        sa_name
+
+        sa_name > $(results.sa_name.path)
+
+
+        language () { (source $(params.REPO_NAME)/$(params.directory)/application.properties; echo -n "$language") }
+
+        echo "this application is:"
+        
+        language
+
+        language > $(results.language.path)
+
+        database_required () { (source $(params.REPO_NAME)/$(params.directory)/application.properties; echo -n "$database_required") }
+
+        echo "does this application require a database:"
+
+        
+        database_required
+
+
+        database_required > $(results.db_dir_exists.path)
+
+
+      workingDir: $(workspaces.output.path)
+    

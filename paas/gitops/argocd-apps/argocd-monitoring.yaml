@@ -1,0 +1,58 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-monitoring
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://bitbucket.uk.ngridtools.com/scm/efe/devops-cluster-config.git
+    targetRevision: master
+    path: gitops/app-monitoring/
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-gitops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+# ---
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: dev-a-pr-amq-streams-metrics-grafana-install
+#   namespace: openshift-gitops
+# spec:
+#   project: default
+#   source:
+#     repoURL: https://bitbucket.uk.ngridtools.com/scm/efe/devops-cluster-config.git
+#     targetRevision: master
+#     path: gitops/app-monitoring/dev-a-pr-amq-streams-metrics/grafana-install
+#   destination:
+#     server: https://kubernetes.default.svc
+#     namespace: openshift-gitops
+#   syncPolicy:
+#     automated:
+#       prune: true
+#       selfHeal: true
+
+# ---
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: dev-a-pr-amq-streams-metrics-prometheus-install
+#   namespace: openshift-gitops
+# spec:
+#   project: default
+#   source:
+#     repoURL: https://bitbucket.uk.ngridtools.com/scm/efe/devops-cluster-config.git
+#     targetRevision: master
+#     path: gitops/app-monitoring/dev-a-pr-amq-streams-metrics/prometheus-install
+#   destination:
+#     server: https://kubernetes.default.svc
+#     namespace: openshift-gitops
+#   syncPolicy:
+#     automated:
+#       prune: true
+#       selfHeal: true

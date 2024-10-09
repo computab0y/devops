@@ -1,0 +1,5 @@
+resources:
+  - ci-dotnet-build-params.yaml
+  - ci-java-build-params.yaml
+  - ci-nodejs-react-build-params.yaml
+  - ci-python-build-params.yaml

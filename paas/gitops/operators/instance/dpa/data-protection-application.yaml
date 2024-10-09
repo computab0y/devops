@@ -1,0 +1,26 @@
+apiVersion: oadp.openshift.io/v1alpha1
+kind: DataProtectionApplication
+metadata:
+  name: devopscluster-dpa
+  namespace: openshift-adp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  backupImages: false
+  configuration:
+    restic:
+      enable: true   # to take pvc backup
+      podConfig:     # to create restic pod 
+        tolerations:
+          - effect: NoSchedule
+            key: node.workload.openshift.io/infra
+            operator: Exists
+          - effect: NoSchedule
+            key: node.workload.openshift.io/master
+            operator: Exists
+    velero:
+      defaultPlugins:
+        - azure
+        - openshift
+      noDefaultBackupLocation: true # backup location created as a separate bsl file

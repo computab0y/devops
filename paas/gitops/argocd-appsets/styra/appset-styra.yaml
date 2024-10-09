@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: styra-appset
+  namespace: openshift-gitops
+spec:
+  generators:
+  - list:
+      elements:
+      - application: 'styra-das-init'
+        url: https://kubernetes.default.svc
+        path: gitops/styra/das-init
+        repo: devops-cluster-config.git
+        syncwave: "0"
+      - application: 'styra-das'
+        url: https://kubernetes.default.svc
+        path: 'charts/styra-das'
+        repo: styra-das-helm.git
+        syncwave: "1"
+  template:
+    metadata:
+      name: '{{application}}'
+      namespace: styra-das
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{syncwave}}"
+    spec:
+      destination:
+        namespace: styra-das
+        server: https://kubernetes.default.svc
+      project: default
+      source:
+        repoURL: https://bitbucket.uk.ngridtools.com/scm/efe/{{repo}}
+        path: '{{path}}'
+        targetRevision: master
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+      ignoreDifferences:
+        - kind: ServiceAccount
+          jsonPointers:
+          - /secrets
+          - /imagePullSecrets

@@ -1,0 +1,26 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: ci-python-build-params
+  namespace: dev-int
+data:
+  python_requirements_file: requirements/prod.txt
+  validation_mode: 'true'
+  secret-sonar-settings: dev-pr-python-creation-pipeline-config
+  git_repo_name: bulk-dispatch-optimiser
+  dev-ci-build-ws.yaml: |
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 400Mi
+      storageClassName: ocs-storagecluster-cephfs
+      volumeMode: Filesystem
+  git_branch: Devops-Pipeline-Validation-DO-NOT-DELETE
+  dockerfile-path: Dockerfile
+  python_image: 'jfrog.uk.ngridtools.com/public-proxy-dockerhub/python:3.8.8'
+  git_repo_http_url: >-
+    ssh://git@bitbucket-ssh.uk.ngridtools.com:7999/efd/bulk-dispatch-optimiser.git
+  context_dir: .
+  secret-dockerconfig: artifactory-image-pull

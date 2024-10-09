@@ -1,0 +1,67 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: Node-stuck
+  namespace: openshift-monitoring
+spec:
+  groups:
+  - name: NodeStuck
+    rules:
+    - alert: NodeUnschedulable
+      annotations:
+        description: Node {{ $labels.node }} has changed to an unschedulable state in OpenShift.
+      expr: sum(kube_node_status_condition{condition="Ready",status!="true"}) > 0
+      for: 5m
+      labels:
+        severity: critical
+        receiver: 'line'
+    - alert: KubeNodeNotReady
+      annotations:
+        description: "{{ $labels.node }} in {{ $labels.cluster}} has been unready for more than 15 minutes.
+      expr: kube_node_status_condition{job="kube-state-metrics",condition="Ready",status="true"} == 0
+      for: PT15M
+      labels:
+        severity: critical
+        receiver: 'line'
+    - alert: KubeNodeReadinessFlapping
+      annotations:
+        description: The readiness status of node {{ $labels.node }} in {{ $labels.cluster}} has changed more than 2 times in the last 15 minutes.
+      expr: sum(changes(kube_node_status_condition{status="true",condition="Ready"}[15m])) by (cluster, node) > 2
+      for: PT15M
+      labels:
+        severity: critical
+        receiver: 'line'
+    - alert: Average node CPU utilization is greater than 85%
+      annotations:
+        description: Average node CPU utilization is greater than 85%
+      expr: ((1 - rate(node_cpu_seconds_total{job="node", mode="idle"}[5m])) / ignoring(cpu) group_left count without (cpu)( node_cpu_seconds_total{job="node",mode="idle"}) ) > .85
+      for: PT5M
+      labels:
+        severity: critical
+        receiver: 'line'
+    - alert: Average node memory utilization is greater than 85%
+      annotations:
+        description: Average node memory utilization is greater than 85%
+        summary: Node memory usage high
+      expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.85
+      for: 5m
+      labels:
+        severity: critical
+        receiver: 'line'
+    - alert: Disk utilization is greater than 85%
+      annotations:
+        description: Disk utilization is greater than 85%
+        summary: Node disk usage high
+      expr: node_filesystem_used_percent > 85
+      for: 5m
+      labels:
+        severity: critical
+        receiver: 'line'
+    - alert: Insufficient Node Disk Space
+      annotations:
+        description: Node {{ $labels.node }} has insufficient disk space.
+      expr: node_filesystem_free_bytes / node_filesystem_size_bytes < 0.15
+      for: 5m
+      labels:
+        severity: critical
+        receiver: 'line'

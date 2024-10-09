@@ -1,0 +1,13 @@
+apiVersion: postgresql.k8s.enterprisedb.io/v1
+kind: ScheduledBackup
+metadata:
+  name: schedule-backup-edb-postgresql-dev-pr-1
+  namespace: edb-postgresql-dev-pr-1
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  backupOwnerReference: cluster
+  cluster:
+    name: edb-postgresql-dev-pr-1
+  schedule: "0 0 17 * * *" # backup schedule currently setup daily at 10:55 hrs
+  immediate: true # for immediate backup and comment out schedule 

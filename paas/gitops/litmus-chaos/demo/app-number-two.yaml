@@ -1,0 +1,49 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-number-two
+  namespace: demo-app
+spec:
+  selector:
+    matchLabels:
+      app: httpd-two
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: httpd-two
+        litmuschaos.io/chaos: 'true'
+    spec:
+      containers:
+        - name: httpd-two
+          image: >-
+            image-registry.openshift-image-registry.svc:5000/openshift/httpd:latest
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-number-two
+  namespace: demo-app
+spec:
+  selector:
+    app: httpd-two
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: app-number-two
+  namespace: demo-app
+spec:
+  path: /
+  to:
+    kind: Service
+    name: app-number-two
+  port:
+    targetPort: 8080

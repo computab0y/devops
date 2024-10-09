@@ -1,0 +1,19 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  name: pgadmin
+  namespace: pgadmin
+spec:
+  host: pgadmin.apps.devops.balancing.nationalgrideso.com
+  to:
+    kind: Service
+    name: pgadmin-service
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

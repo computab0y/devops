@@ -1,0 +1,46 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: pr-nodejs-react-creation-params
+  namespace: dev-int
+data:
+  GOALS: $(params.GOALS)
+  pullreq-html-url: >-
+    https://bitbucket.uk.ngridtools.com/projects/EFD/repos/fe-container-app/pull-requests/91
+  verbose: 'true'
+  dev-image: $(params.dev-image)
+  depth: '1'
+  gitrepo-url-https: 'https://bitbucket.uk.ngridtools.com/scm/efd/fe-container-app.git'
+  pullreq-title: Pipeline_Validation_DO_NOT_REMOVE
+  sslVerify: 'true'
+  maven-settings: emptyDir
+  gitrepo-url: 'ssh://git@bitbucket-ssh.uk.ngridtools.com:7999/efd/fe-container-app.git'
+  submodules: 'true'
+  secret-sonar-settings: sonar-login
+  userHome: /tekton/home
+  secret-ssh-directory: my-ssh-credentials
+  GIT_IMAGE: >-
+    jfrog.uk.ngridtools.com/public-proxy-registry-redhat-io/openshift-pipelines/pipelines-git-init-rhel8:sha256__5d1c919446ea31029566a7dce78928f94b699ce7a141f25948e143fca2fc0e71
+  url: $(params.gitrepo-url)
+  pullreq-repo-name: fe-container-app
+  output.yaml: |
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+      storageClassName: ocs-storagecluster-cephfs
+      volumeMode: Filesystem
+  bitbucket-project-key: EFD
+  PATH_CONTEXT: $(params.PATH_CONTEXT)
+  deleteExisting: 'true'
+  git-revision: Pipeline-Validation-DO-NOT-REMOVE
+  pullreq-sha: aee5bd1d3f9402ac4d1984d95de7be35c0ba93fe
+  IMAGE: $(params.IMAGE)
+  revision: Pipeline-Validation-DO-NOT-REMOVE
+  app-or-init-image: $(params.app-or-init-image)
+  user-type: NORMAL
+  pullreq-state: OPEN
+  pullreq-number: '91'
+  secret-dockerconfig: artifactory-image-pull

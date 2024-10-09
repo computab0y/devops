@@ -1,0 +1,73 @@
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  annotations:
+    sidecar.istio.io/inject: 'true'
+    argocd.argoproj.io/sync-wave: "2"
+  generation: 1
+  name: elasticsearch-styra-das
+  namespace: styra-das
+spec:
+  auth: {}
+  http:
+    service:
+      metadata: {}
+      spec: {}
+    tls:
+      certificate: {}
+      selfSignedCertificate:
+        disabled: true
+  image: 'jfrog.uk.ngridtools.com/public-proxy-dockerhub/elasticsearch:8.6.0'
+  monitoring:
+    logs: {}
+    metrics: {}
+  nodeSets:
+    - config:
+        node.attr.attr_name: attr_value
+        node.roles:
+          - master
+          - data
+        node.store.allow_mmap: false
+      count: 3
+      name: styra-das-es
+      podTemplate:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: 'true'
+            traffic.sidecar.istio.io/excludeInboundPorts: '9300'
+            traffic.sidecar.istio.io/excludeOutboundPorts: '9300'
+            traffic.sidecar.istio.io/includeInboundPorts: '*'
+          creationTimestamp: null
+          labels:
+            foo: bar
+        spec:
+          automountServiceAccountToken: true
+          containers:
+            - name: elasticsearch
+              resources:
+                limits:
+                  cpu: '2'
+                  memory: 4Gi
+                requests:
+                  cpu: '1'
+                  memory: 4Gi
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 250Gi
+            storageClassName: ocs-storagecluster-cephfs
+          status: {}
+  transport:
+    service:
+      metadata: {}
+      spec: {}
+    tls:
+      certificate: {}
+  updateStrategy:
+    changeBudget: {}
+  version: 8.6.0

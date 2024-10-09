@@ -1,0 +1,31 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: ci-dotnet-build-params
+  namespace: dev-int
+data:
+  goals: build
+  dockerconfig: emptyDir
+  sonar-scan-enable: 'True'
+  validation_mode: 'true'
+  secret-sonar-settings: sonar-project-properties-dotnet
+  git_repo_name: model-answer-net
+  dev-ci-build-ws.yaml: |
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 200Mi
+      storageClassName: ocs-storagecluster-cephfs
+      volumeMode: Filesystem
+  csproj: model-answer-net.csproj
+  path_context_project: .
+  git_branch: Pipeline-Validation-DO-NOT-REMOVE
+  path_context: Project
+  git_repo_http_url: 'https://bitbucket.uk.ngridtools.com/scm/efd/model-answer-java.git'
+  image: jfrog.uk.ngridtools.com/public-proxy-registry-redhat-io/rhel8/dotnet-60
+  git_repo_https_url: 'ssh://git@bitbucket-ssh.uk.ngridtools.com:7999/efd/model-answer-java.git'
+  path_context_test: tests
+  secret-dockerconfig: artifactory-image-pull
+  sonar_image: 'jfrog.uk.ngridtools.com/eso-fob-docker/ng-dotnet-sonar:6.0-5.5.3'

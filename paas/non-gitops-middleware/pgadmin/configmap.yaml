@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgadmin-config
+  namespace: pgadmin
+data:
+  servers.json: |
+    {
+       "Servers": {
+         "1": {
+           "Name": "PostgreSQL DEV A PR",
+           "Group": "Servers",
+           "Port": 5432,
+           "Username": "dev-a-pr-admin",
+           "Host": "edb-postgresql-dev-pr-rw.edb-postgresql-dev-pr.svc",
+           "SSLMode": "prefer",
+           "MaintenanceDB": "postgres"
+         }
+       }
+    }

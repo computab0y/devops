@@ -1,0 +1,12 @@
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: all-developers-edit-sso
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: AZ-APP-OBP All Developers SSO
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit

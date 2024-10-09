@@ -1,0 +1,40 @@
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: openshift-user-workload-monitoring1
+  namespace: openshift-adp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  config:                                    # Azure Storage account configuration
+    resourceGroup: eso-dev-uks-edbbackup-rg
+    storageAccount: esodevuksedbbackup
+    storageAccountKeyEnvVar: AZURE_STORAGE_ACCOUNT_ACCESS_KEY
+    subscriptionId: 7b4738c8-68b5-4c75-ac10-9682cbc4b398
+  credential:                                    # Azure Storage account credential
+    key: cloud
+    name: cloud-credentials-azure
+  objectStorage:
+    bucket: openshift-user-workload-monitoring1 # Azure blob container name
+    prefix: openshift-user-workload-monitoring        # repository to store the backup in the container
+  provider: azure
+
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: openshift-user-workload-monitoring1
+  namespace: openshift-adp
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  schedule: 30 17 * * * # backup schedule currently setup daily at 02:30 hrs
+  template:
+    defaultVolumesToRestic: true
+    includedNamespaces:
+      - openshift-user-workload-monitoring
+    includedResources:
+      - pods  
+    storageLocation: openshift-user-workload-monitoring1
+    ttl: 168h0m0s  # retention period for the backup is 7 days 
+

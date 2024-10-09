@@ -1,0 +1,68 @@
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  name: git-clone-vault
+spec:
+  description: Clone environment repositories
+  params:
+    - description: >-
+        The bitbucket repo name of the environment that the application is being
+        promoted from (e.g. env-dev-int, env-st-1)
+      name: lower-environment-repo-name
+      type: string
+    - description: >-
+        The repo branch of the environment that the application is being
+        promoted from (e.g. master, develop)
+      name: lower-environment-branch
+      type: string
+    - description: >-
+        The bitbucket project key for the repo the application is being promoted
+        from (e.g. EFD, EFE)
+      name: lower-environment-bitbucket-project-key
+      type: string
+    - default: bitbucket-ssh.uk.ngridtools.com
+      description: Base URL of the Bitbucket instance where the repos are hosted
+      name: bitbucket-base-url
+      type: string
+  steps:
+    - image: jfrog.uk.ngridtools.com/eso-fob-docker/rhel-git-plus-find
+      name: migrate-application-manifests-across-environment-repos
+      resources: {}
+      script: >
+        #!/bin/bash
+
+        # Needed to allow EDB Task later in ST Promotion pipeline to mkdir
+        within the output workspace
+
+        chmod ugo+rwx $PWD
+
+        # On with the manifest movement across environment repos
+
+        display_variables () {
+            echo "General Info - Variables"
+
+            echo "lower-environment-repo-name: $(params.lower-environment-repo-name)"
+
+            echo "lower-environment-branch: $(params.lower-environment-branch)"
+
+            echo "lower-environment-bitbucket-project-key: $(params.lower-environment-bitbucket-project-key)"
+
+            echo "bitbucket-base-url: $(params.bitbucket-base-url)"
+        }
+
+        display_variables
+
+        ####################################################### ###############
+        CLONE ENVIRONMENT REPOS ###############
+        #######################################################
+
+        # Clone lower environment repo (copy application manifests from here)
+
+        /ko-app/git-init
+        -url="ssh://git@$(params.bitbucket-base-url):7999/$(params.lower-environment-bitbucket-project-key)/$(params.lower-environment-repo-name)"
+        -revision="$(params.lower-environment-branch)"
+        -path="$(workspaces.tf-vault.path)/$(params.lower-environment-repo-name)"
+        -sslVerify="true" -submodules="true" -depth="1"
+      workingDir: $(workspaces.tf-vault.path)
+  workspaces:
+    - name: tf-vault

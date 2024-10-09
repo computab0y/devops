@@ -1,0 +1,22 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: ci-nodejs-react-build-params
+  namespace: dev-int
+data:
+  context_dir: .
+  dev-ci-build-ws.yaml: |
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+      storageClassName: ocs-storagecluster-cephfs
+      volumeMode: Filesystem
+  git_branch: Pipeline-Validation-DO-NOT-REMOVE
+  git_repo_http_url: 'https://bitbucket.uk.ngridtools.com/scm/efd/fe-container-app.git'
+  git_repo_name: fe-container-app
+  secret-dockerconfig: artifactory-image-pull
+  secret-sonar-settings: sonar-login
+  validation_mode: 'true'

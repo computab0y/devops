@@ -1,0 +1,7 @@
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  name: istio-ctlplane-elasticsearch-01
+  annotations:
+    openshift.io/node-selector: "node-role.kubernetes.io/servicemesh-elasticsearch="
+    scheduler.alpha.kubernetes.io/defaultTolerations: '[{"Key": "node.workload.openshift.io/servicemesh-elasticsearch", "Operator": "Equal", "Value": "true", "Effect": "NoSchedule"}]' 

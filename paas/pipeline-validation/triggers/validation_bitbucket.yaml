@@ -1,0 +1,106 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: pipeline-validation-trigger-template
+  namespace: dev-int
+spec:
+  params:
+    - name: user-name
+    - name: user-email
+    - name: git-branch
+    - name: git-repo-http-url
+    - name: git-repo-name
+    - name: git-commit-hash
+    - name: git-project-key
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        generateName: pipeline-validation-$(tt.params.user-name)-
+        namespace: dev-int
+      spec:
+        params:
+          - name: git_branch
+            value: $(tt.params.git-branch)
+          - name: git_repo_http_url
+            value: $(tt.params.git-repo-http-url)
+          - name: git_repo_name
+            value: $(tt.params.git-repo-name)
+          - name: git_commit_hash
+            value: $(tt.params.git-commit-hash)
+          - name: user-name
+            value: $(tt.params.user-name)
+          - name: user-email
+            value: $(tt.params.user-email)
+          - name: git_project_key
+            value: $(tt.params.git-project-key)
+        pipelineRef:
+          name: pipeline-validation-pipeline
+        serviceAccountName: pipeline  
+        workspaces:
+          - name: output
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 20Mi
+                storageClassName: ocs-storagecluster-cephfs
+                volumeMode: Filesystem
+          - name: output1
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 20Mi
+                storageClassName: ocs-storagecluster-cephfs
+                volumeMode: Filesystem
+          - name: python-ws
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 120Mi
+                storageClassName: ocs-storagecluster-cephfs
+                volumeMode: Filesystem
+          - name: pvc-template
+            secret:
+              items:
+                - key: volume-template.yaml
+                  path: volume-template.yaml
+              secretName: pvc-template
+          - name: pr-python-creation
+            configmap:
+              name: pr-python-creation-params     
+          - name: pr-java-creation
+            configmap:
+              name: pr-java-creation-params
+          - name: pr-dotnet-creation
+            configmap:
+              name: pr-dotnet-creation-params
+          - name: pr-nodejs-react-creation
+            configmap:
+              name: pr-nodejs-react-creation-params
+          - name: ci-python-build
+            configmap:
+              name: ci-python-build-params
+          - name: ci-java-build
+            configmap:
+              name: ci-java-build-params
+          - name: ci-dotnet-build
+            configmap:
+              name: ci-dotnet-build-params
+          - name: ci-nodejs-react-build
+            configmap:
+              name: ci-nodejs-react-build-params
+          - name: pr-python-update
+            configmap:
+              name: pr-python-update-params
+          - name: pr-deletion
+            configmap:
+              name: pr-deletion-params

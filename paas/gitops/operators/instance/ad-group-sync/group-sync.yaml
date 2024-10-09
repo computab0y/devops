@@ -1,0 +1,38 @@
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: GroupSync
+metadata:
+  name: azure-groupsync
+  namespace: group-sync-operator
+spec:
+  schedule: "0 * * * *"
+  providers:
+    - azure:
+        credentialsSecret:
+          kind: Secret
+          name: azure-group-sync
+          namespace: group-sync-operator
+        baseGroups:
+          - AZ-APP-OBP Platform Development Cluster Viewer
+          # - AZ-APP-OBP BVS 3 Developers - Common Display
+          - AZ-APP-OBP DevSecOps L2 Support
+          # - AZ-APP-OBP Platform Development Cluster Viewer
+          # - AZ-APP-OBP BVS 1 Developers - Secure Networks
+          # - AZ-APP-OBP BVS 3 Developer leads - Common Display
+          # - AZ-APP-OBP BVS 1 Developer leads - Secure Networks
+          # - AZ-APP-OBP Management Cluster Viewer
+          # - AZ-APP-OBP BVS 4 Developers - Pai & Optimiser Squad
+          - AZ-APP-OBP DevSecOps L3 Support
+          # - AZ-APP-OBP BVS 2 Developers - Market Services
+          # - AZ-APP-OBP Test Team
+          # - AZ-APP-OBP QA Cluster Viewer
+          # - AZ-APP-OBP BVS 4 Developer leads - Pai & Optimiser Squad
+          - AZ-APP-OBP DevSecOps L1 Support
+          # - AZ-APP-OBP All Developers
+          # - AZ-APP-OBP BVS 5 Developers
+          # - AZ-APP-OBP BVS 2 Developer leads - Market Services
+          - AZ-APP-OBP DevSecOps L3 Support-ClusterAdmin
+          # - AZ-APP-OBP BVS 5 Developer leads
+          - AZ-APP-OBP Architects
+        insecure: false
+        prune: true
+      name: azure

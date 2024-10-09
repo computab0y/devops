@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+  labels:
+    app: pgadmin
+    manifest-kind: deploy
+  name: pgadmin
+  namespace: pgadmin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgadmin
+  template:
+    metadata:
+      labels:
+        app: pgadmin
+      name: pgadmin
+    spec:
+      volumes:
+        - name: pgadmin-config
+          configMap:
+            name: pgadmin-config
+            defaultMode: 420
+        - name: pgadmin-data
+          persistentVolumeClaim:
+            claimName: pgadmin-data
+      containers:
+        - image: jfrog.uk.ngridtools.com/public-proxy-dockerhub/dpage/pgadmin4:7.0
+          imagePullPolicy: Always
+          name: pgadmin
+          serviceName: pgadmin-service
+          resources:
+            limits:
+              memory: 2G
+              cpu: 1000m
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - name: pgadmin-config
+              readOnly: true
+              mountPath: /pgadmin4/servers.json
+              subPath: servers.json
+            - name: pgadmin-data
+              mountPath: /var/lib/pgadmin
+          terminationMessagePolicy: File
+          env:
+            - name: PGADMIN_DEFAULT_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: pgadmin-oauth
+                  key: PGADMIN_DEFAULT_EMAIL
+            - name: CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: pgadmin-oauth
+                  key: CLIENT_ID
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: pgadmin-oauth
+                  key: CLIENT_SECRET  
+            - name: TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: pgadmin-oauth
+                  key: TENANT_ID
+            - name: PGADMIN_DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pgadmin-oauth
+                  key: PASSWORD
+            - name: PGADMIN_PORT
+              value: "80"
+            - name: PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED
+              value: "False"
+            - name: PGADMIN_CONFIG_AUTHENTICATION_SOURCES
+              value: "['oauth2','internal']"
+            - name: PGADMIN_CONFIG_OAUTH2_AUTO_CREATE_USER
+              value: "True"
+            - name: PGADMIN_CONFIG_OAUTH2_CONFIG
+              value: |
+                [ 
+                  {
+                    'OAUTH2_NAME': 'azure',
+                    'OAUTH2_DISPLAY_NAME': 'Azure Active Directory',
+                    'OAUTH2_CLIENT_ID': '$(CLIENT_ID)',
+                    'OAUTH2_CLIENT_SECRET': '$(CLIENT_SECRET)',
+                    'OAUTH2_TOKEN_URL': 'https://login.microsoftonline.com/$(TENANT_ID)/oauth2/v2.0/token',
+                    'OAUTH2_AUTHORIZATION_URL': 'https://login.microsoftonline.com/$(TENANT_ID)/oauth2/v2.0/authorize',
+                    'OAUTH2_API_BASE_URL': 'https://graph.microsoft.com/v1.0',
+                    'OAUTH2_USERINFO_ENDPOINT': 'https://graph.microsoft.com/oidc/userinfo',
+                    'OAUTH2_SCOPE': 'User.Read email openid profile',
+                    'OAUTH2_SERVER_METADATA_URL': 'https://login.microsoftonline.com/$(TENANT_ID)/v2.0/.well-known/openid-configuration'
+                  }
+                ]  

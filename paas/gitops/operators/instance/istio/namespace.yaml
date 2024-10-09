@@ -1,0 +1,7 @@
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  name: istio-ctlplane-01
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    openshift.io/node-selector: "node-role.kubernetes.io/worker="

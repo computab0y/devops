@@ -1,0 +1,118 @@
+apiVersion: "autoscaling.openshift.io/v1beta1"
+kind: "MachineAutoscaler"
+metadata:
+  name: infra-machineautoscaler-zone1
+  namespace: openshift-machine-api
+spec:
+  minReplicas: 1 
+  maxReplicas: 2 
+  scaleTargetRef: 
+    apiVersion: machine.openshift.io/v1beta1
+    kind: MachineSet 
+    name: infra-machineset-zone1
+---
+apiVersion: "autoscaling.openshift.io/v1beta1"
+kind: "MachineAutoscaler"
+metadata:
+  name: infra-machineautoscaler-zone2
+  namespace: openshift-machine-api
+spec:
+  minReplicas: 1 
+  maxReplicas: 2 
+  scaleTargetRef: 
+    apiVersion: machine.openshift.io/v1beta1
+    kind: MachineSet 
+    name: infra-machineset-zone2
+---
+apiVersion: "autoscaling.openshift.io/v1beta1"
+kind: "MachineAutoscaler"
+metadata:
+  name: infra-machineautoscaler-zone3
+  namespace: openshift-machine-api
+spec:
+  minReplicas: 1 
+  maxReplicas: 2 
+  scaleTargetRef: 
+    apiVersion: machine.openshift.io/v1beta1
+    kind: MachineSet 
+    name: infra-machineset-zone3
+# ---
+# apiVersion: "autoscaling.openshift.io/v1beta1"
+# kind: "MachineAutoscaler"
+# metadata:
+#   name: logging-machineautoscaler-zone1
+#   namespace: openshift-machine-api
+# spec:
+#   minReplicas: 0 
+#   maxReplicas: 2 
+#   scaleTargetRef: 
+#     apiVersion: machine.openshift.io/v1beta1
+#     kind: MachineSet 
+#     name: logging-machineset-zone1
+# ---
+# apiVersion: "autoscaling.openshift.io/v1beta1"
+# kind: "MachineAutoscaler"
+# metadata:
+#   name: logging-machineautoscaler-zone2
+#   namespace: openshift-machine-api
+# spec:
+#   minReplicas: 0 
+#   maxReplicas: 2 
+#   scaleTargetRef: 
+#     apiVersion: machine.openshift.io/v1beta1
+#     kind: MachineSet 
+#     name: logging-machineset-zone2
+# ---
+# apiVersion: "autoscaling.openshift.io/v1beta1"
+# kind: "MachineAutoscaler"
+# metadata:
+#   name: logging-machineautoscaler-zone3
+#   namespace: openshift-machine-api
+# spec:
+#   minReplicas: 0 
+#   maxReplicas: 2 
+#   scaleTargetRef: 
+#     apiVersion: machine.openshift.io/v1beta1
+#     kind: MachineSet 
+#     name: logging-machineset-zone3
+---
+apiVersion: "autoscaling.openshift.io/v1beta1"
+kind: "MachineAutoscaler"
+metadata:
+  name: worker-machineautoscaler-zone1
+  namespace: openshift-machine-api
+spec:
+  minReplicas: 1 
+  maxReplicas: 3 
+  scaleTargetRef: 
+    apiVersion: machine.openshift.io/v1beta1
+    kind: MachineSet 
+    name: devops-nfk2l-worker-uksouth1
+
+---
+apiVersion: "autoscaling.openshift.io/v1beta1"
+kind: "MachineAutoscaler"
+metadata:
+  name: worker-machineautoscaler-zone2
+  namespace: openshift-machine-api
+spec:
+  minReplicas: 1 
+  maxReplicas: 3 
+  scaleTargetRef: 
+    apiVersion: machine.openshift.io/v1beta1
+    kind: MachineSet 
+    name: devops-nfk2l-worker-uksouth2
+---
+apiVersion: "autoscaling.openshift.io/v1beta1"
+kind: "MachineAutoscaler"
+metadata:
+  name: worker-machineautoscaler-zone3
+  namespace: openshift-machine-api
+spec:
+  minReplicas: 1 
+  maxReplicas: 3 
+  scaleTargetRef: 
+    apiVersion: machine.openshift.io/v1beta1
+    kind: MachineSet 
+    name: devops-nfk2l-worker-uksouth3
+---

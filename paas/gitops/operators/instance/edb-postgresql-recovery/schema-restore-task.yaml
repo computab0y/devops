@@ -1,0 +1,60 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: pg-dump-schema-restore
+  namespace: edb-postgresql-recovery
+spec:
+  params:
+    - name: source-db-host
+      description: The host of the source database.
+    - name: source-db-name
+      description: The name of the source database to backup.
+    - name: schema-name
+      description: The name of the schema to backup and restore.
+    - name: target-db-host
+      description: The host of the target database.
+  steps:
+    - name: pg-dump
+      image: jfrog.uk.ngridtools.com/eso-fob-docker/fob-openshift-utility-image:latest
+      env:
+        - name: PGHOST
+          value: $(params.source-db-host)
+        - name: PGPORT
+          value: "5432"  # Replace with the actual source database port
+        - name: PGDATABASE
+          value: $(params.source-db-name)
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: source-db-secret
+              key: username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: source-db-secret
+              key: password
+      command: ["/bin/sh", "-c"]
+      args: ["pg_dump -s -U $PGUSER -h $PGHOST -p $PGPORT $PGDATABASE -n $(params.schema-name) > /$(workspaces.pgdata.path)/schema.sql"]
+    - name: pg-restore
+      image: jfrog.uk.ngridtools.com/eso-fob-docker/fob-openshift-utility-image:latest
+      env:
+        - name: PGHOST
+          value: $(params.target-db-host)
+        - name: PGPORT
+          value: "5432"  # Replace with the actual target database port
+        - name: PGDATABASE
+          value: $(params.source-db-name)
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: target-db-secret
+              key: username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: target-db-secret
+              key: password
+      command: ["/bin/sh", "-c"]
+      args: ["psql -U $PGUSER -h $PGHOST -p $PGPORT -d $PGDATABASE -f /$(workspaces.pgdata.path)/schema.sql"]
+  volumes:
+    - name: pgdata

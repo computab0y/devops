@@ -1,0 +1,12 @@
+apiVersion: velero.io/v1
+kind: Backup
+metadata:
+  name: backup-manual
+  namespace: openshift-adp
+  labels:
+    velero.io/storage-location: example-dpa-1
+spec:
+  includedNamespaces:
+    - <namespace>
+  storageLocation: example-dpa-1
+  ttl: 720h0m0s

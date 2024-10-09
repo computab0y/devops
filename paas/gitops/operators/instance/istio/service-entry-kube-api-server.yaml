@@ -1,0 +1,17 @@
+kind: ServiceEntry
+apiVersion: networking.istio.io/v1alpha3
+metadata:
+  name: api-server
+  namespace: istio-ctlplane-01
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  hosts:
+    - kubernetes.default.svc.cluster.local
+  ports:
+    - name: http
+      number: 80
+      protocol: HTTP
+      targetPort: 80
+  location: MESH_EXTERNAL
+  resolution: DNS

@@ -1,0 +1,72 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: splunk-operator
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: system:openshift:scc:nonroot
+  namespace: splunk-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:nonroot
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: splunk-operator
+
+---  
+apiVersion: enterprise.splunk.com/v3
+kind: Standalone
+metadata:
+  name: s1
+  namespace: splunk-operator
+  finalizers:
+  - enterprise.splunk.com/delete-pvc
+
+## For splunk instances
+# oc adm policy add-scc-to-user nonroot -z default -n splunk-operator
+
+
+---
+
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: splunk
+  namespace: splunk-operator
+spec:
+  host: splunk-s1.apps.devops.balancing.nationalgrideso.com
+  to:
+    kind: Service
+    name: splunk-s1-standalone-service
+    weight: 100
+  port:
+    targetPort: http-splunkweb
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+
+---
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: splunk-s1-hec
+  namespace: splunk-operator
+spec:
+  host: splunk-s1-hec-splunk-operator.apps.devops.balancing.nationalgrideso.com
+  to:
+    kind: Service
+    name: splunk-s1-standalone-service
+    weight: 100
+  port:
+    targetPort: http-hec
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

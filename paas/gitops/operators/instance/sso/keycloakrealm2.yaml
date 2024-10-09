@@ -1,0 +1,125 @@
+apiVersion: keycloak.org/v1alpha1 
+kind: KeycloakRealm
+metadata:
+  name: obpssopoc
+  namespace: sso
+  labels:
+    app: sso-obp
+    realm: obpssopoc
+spec:
+  realm:
+    id: obpssopoc
+    realm: obpssopoc
+    enabled: True
+    displayName: "OBPSSOPoC"
+    registrationAllowed: true
+    resetPasswordAllowed: true
+    editUsernameAllowed: true
+    rememberMe: true
+    verifyEmail: true
+    loginWithEmailAllowed: true 
+    userFederationProviders:
+      - displayName: "ldap"
+        providerName: "ldap"
+        config:
+          vendor: "Active Directory"
+          connectionUrl: "ldap://openshift.internal"
+          bindType: "simple"
+          bindDn: "service,OU=OBP,DC=openshift,DC=internal"
+          bindCredential: ""
+          usersDn: "OU=OBP,DC=openshift,DC=internal"
+          usernameLDAPAttribute: "sAMAccountName"
+          uuidLDAPAttribute: "objectGUID"
+          searchScope: "2" # sub
+          useTruststoreSpi: "ldapsOnly"
+          importUsers: "on"
+          trustEmail: "false"
+          userObjectClasses: "person, organizationalPerson, user"
+          rdnLDAPAttribute: "sAMAccountName"
+          editMode: "READ_ONLY"
+          # debug: "false"
+  instanceSelector:
+    matchLabels:
+      app: sso-obp
+    userFederationMappers:
+      - name: email
+        federationProviderDisplayName: ldap
+        federationMapperType: user-attribute-ldap-mapper
+        config:
+          always.read.value.from.ldap: 'false'
+          is.binary.attribute: 'false'
+          is.mandatory.in.ldap: 'false'
+          ldap.attribute: mail
+          read.only: 'true'
+          user.model.attribute: email
+      - name: creation date
+        federationProviderDisplayName: ldap
+        federationMapperType: user-attribute-ldap-mapper
+        config:
+          user.model.attribute: createTimestamp
+          ldap.attribute: whenCreated
+          always.read.value.from.ldap: 'true'
+          is.binary.attribute: 'false'
+          is.mandatory.in.ldap: 'false'
+          read.only: 'true'
+      - name: last name
+        federationProviderDisplayName: ldap
+        federationMapperType: user-attribute-ldap-mapper
+        config:
+          always.read.value.from.ldap: 'true'
+          is.binary.attribute: 'false'
+          is.mandatory.in.ldap: 'true'
+          ldap.attribute: sn
+          read.only: 'true'
+          user.model.attribute: lastName
+      - name: modify date
+        federationProviderDisplayName: ldap
+        federationMapperType: user-attribute-ldap-mapper
+        config:
+          user.model.attribute: modifyTimestamp
+          always.read.value.from.ldap: 'true'
+          is.binary.attribute: 'false'
+          is.mandatory.in.ldap: 'false'
+          ldap.attribute: whenChanged
+          read.only: 'true'
+      - name: username
+        federationProviderDisplayName: ldap
+        federationMapperType: user-attribute-ldap-mapper
+        config:
+          always.read.value.from.ldap: 'false'
+          is.binary.attribute: 'false'
+          is.mandatory.in.ldap: 'true'
+          ldap.attribute: sAMAccountName
+          read.only: 'true'
+          user.model.attribute: username
+      - name: first name
+        federationProviderDisplayName: ldap
+        federationMapperType: user-attribute-ldap-mapper
+        config:
+          user.model.attribute: firstName
+          ldap.attribute: givenName
+          read.only: 'true'
+          always.read.value.from.ldap: 'true'
+          is.binary.attribute: 'false'
+          is.mandatory.in.ldap: 'true'
+      - name: MSAD account controls
+        federationProviderDisplayName: ldap
+        federationMapperType: msad-user-account-control-mapper
+        config:
+          ldap.password.policy.hints.enabled: 'false'
+      - name: ldap-group-sync
+        federationProviderDisplayName: ldap-group-sync
+        federationMapperType: group-ldap-mapper
+        config:
+          ldap.groups.dn: OU=groups,OU=OBP,DC=openshift,DC=internal
+          membership.attribute.type: DN
+          group.name.ldap.attribute: cn
+          membership.user.ldap.attribute: cn
+          preserve.group.inheritance: 'true'
+          mode: READ_ONLY
+          user.roles.retrieve.strategy: LOAD_GROUPS_BY_MEMBER_ATTRIBUTE
+          membership.ldap.attribute: member
+          memberof.ldap.attribute: memberOf
+          group.object.classes: group
+          drop.non.existing.groups.during.sync: 'false'
+          groups.path: /

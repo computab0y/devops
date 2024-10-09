@@ -1,0 +1,7 @@
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  name: json-parsing-demo
+  annotations:
+    openshift.io/node-selector: "node-role.kubernetes.io/worker="
+    scheduler.alpha.kubernetes.io/defaultTolerations: '[{"Key": "node.workload.openshift.io/worker", "Operator": "Equal", "Value": "true", "Effect": "NoSchedule"}]' 

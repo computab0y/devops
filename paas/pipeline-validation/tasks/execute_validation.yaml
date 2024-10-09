@@ -1,0 +1,297 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: execute-validation
+  namespace: dev-int
+spec:
+  description: This task performs operations on Tekton resources using tkn
+  params:
+    - name: user-name
+      type: string
+    - name: user-email
+      type: string
+    - name: TKN_IMAGE
+      default: >-
+        registry.redhat.io/openshift-pipelines/pipelines-cli-tkn-rhel8@sha256:cc8bbdb079578605a66447529d7de76f32882dc2ada571e39ff18e483cdbdf49
+      description: tkn CLI container image to run this task
+    - name: affected_pipelines
+      type: string
+  steps:
+    - image: $(params.TKN_IMAGE)
+      name: perform-validation
+      resources: {}
+      script: >
+        #!/usr/bin/env bash
+
+        set -eu
+
+        function RunPipeline {
+
+        parse_pipeline="dev-((ci|pr)-((.*?)-)?(.*?))-pipeline"
+
+        if [[ $1 =~ $parse_pipeline ]]
+
+        then
+
+           # config_map_workspace = ci_java_build for example
+
+           config_map_workspace="${BASH_REMATCH[1]}"
+
+           ci_or_pr="${BASH_REMATCH[2]}"
+
+           if [[ $ci_or_pr == 'pr' ]]
+
+           then
+
+              return
+
+           fi
+
+           action="${BASH_REMATCH[5]}"
+
+        else
+
+           return
+
+        fi
+
+        tkn_args="pipeline start ${BASH_REMATCH[0]}"
+
+        #Now loop through the entries in the configMap attached to the workspace
+
+        for key in $(ls /workspace/$config_map_workspace)
+        
+        do
+          
+          key_file="/workspace/$config_map_workspace/$key"
+
+          key_value=$(cat $key_file)
+
+          if grep -q storageClassName $key_file
+          
+          then
+              
+              # If this is a PVC template
+
+              ws=$(echo $key|cut -d. -f1)
+
+              tkn_args="${tkn_args} -w name=$ws,volumeClaimTemplateFile=$key_file"
+
+          elif grep -q emptyDir $key_file
+
+          then
+
+              tkn_args="${tkn_args} -w name=$key,emptyDir="""
+
+          elif echo $key | grep -q "task-serviceaccount"
+          
+          then
+
+              tkn_args="${tkn_args} --task-serviceaccount"
+
+              for task_account in $(cat $key_file)
+
+              do
+ 
+                tkn_args="${tkn_args} ${task_account}"
+
+              done
+
+          else
+
+              parse_key="secret-(.*)"
+
+              if [[ $key =~ $parse_key ]]
+
+              then
+
+                 tkn_args="${tkn_args} -w name=${BASH_REMATCH[1]},secret=$key_value"
+
+              else
+
+                tkn_args="${tkn_args} -p $key=$key_value"
+
+              fi
+
+          fi
+        
+        done
+
+        if [[ $ci_or_pr == 'pr' ]]
+
+        then
+        
+          tkn_args="${tkn_args} -p user-name=$(params.user-name)"
+
+          if [[ $action != 'deletion' ]]
+          
+          then
+
+              tkn_args="${tkn_args} -p user-email=$(params.user-email)"
+
+          fi
+
+        fi
+
+        echo "tkn_args: $tkn_args"
+
+        output=$(tkn $tkn_args)
+
+        echo $1
+
+        echo $output
+
+        # Create an entry in the associative array of the form pipeline => pipelinerun_id 
+
+        pipelineruns[$1]=$(echo $output|grep -oP "(?<=:\s)(${1}-run-[a-z0-9]{5})")
+
+        }
+
+        PipelineFinished () {
+          local e match="$1"
+          shift
+          for e; do [[ "$e" == "$match" ]] && return 0; done
+          return 1
+        }
+
+
+        # Main body of the task
+
+        echo "The affected pipelines are:"
+        
+        echo "$(params.affected_pipelines)"
+
+        readarray -t pips <<< "$(params.affected_pipelines)"
+
+        declare -A pipelineruns
+
+        pipelineruns=()
+
+        for pip in "${pips[@]}"
+
+        do
+
+              echo "Processing pipeline $pip"
+
+              RunPipeline $pip
+
+        done
+
+        if [[ ${#pipelineruns[@]} -eq 0 ]]
+
+        then
+
+          echo "There are no pipelines to process, exiting"
+
+          exit 0
+
+        fi
+
+        for key in "${!pipelineruns[@]}"; do echo "$key => ${pipelineruns[$key]}"; done
+
+        declare -i stat_count=0
+
+        declare -i success_count=0
+
+        declare -i poll_count=0
+
+        declare -i poll_max=60
+
+        finished_pipelines=()
+
+        sleep 5
+
+        while [[ $stat_count -lt ${#pipelineruns[@]} && $poll_count -lt $poll_max ]]
+        
+        do
+
+           for pip in "${!pipelineruns[@]}"
+
+           do
+
+               if PipelineFinished $pip "${finished_pipelines[@]}"; then
+
+                  continue
+
+               fi
+
+               pipeline_status_check="tkn pipelinerun ls $pip -n dev-int"
+
+               echo "Running command: ${pipeline_status_check}"
+        
+               stat=$($pipeline_status_check)
+
+               if echo $stat|grep -oP "${pipelineruns[$pip]}.*?$pip"
+
+               then
+
+                   status=$(echo $stat|grep -oP "${pipelineruns[$pip]}.*?$pip"|grep -oP "(\w+)(?= $pip)")
+
+               else
+
+                   # If this is the only active pipelinerun in the namespace, the grep
+                   # command needs to be different
+
+                   status=$(echo $stat|grep -oP "(\w+)$")
+
+               fi
+
+               if [[ $status != 'Running' ]]
+
+               then
+
+                  finished_pipelines+=( $pip )
+
+                  ((stat_count+=1))
+
+                  if [[ $status == 'Succeeded' ]]
+
+                  then
+
+                    ((success_count+=1))
+
+                  fi
+
+               fi
+
+           done
+           
+           ((poll_count+=1))
+           
+           sleep 10
+        
+        done
+
+        if [[ $success_count -eq ${#pipelineruns[@]} ]]
+
+        then
+
+            exit 0
+
+        else
+
+            exit 1
+
+        fi
+  workspaces:
+    - description: >-
+        An optional workspace that allows you to provide a .kube/config file for
+        tkn to access the cluster. The file should be placed at the root of the
+        Workspace with name kubeconfig.
+      name: kubeconfig
+      optional: true
+    - name: pvc-template
+    - name: pr-python-creation
+    - name: pr-java-creation
+    - name: pr-dotnet-creation
+    - name: pr-nodejs-react-creation
+    - name: ci-python-build
+    - name: ci-java-build
+    - name: ci-dotnet-build
+    - name: ci-nodejs-react-build
+    - name: pr-python-update
+    - name: pr-deletion
+
+
+
+

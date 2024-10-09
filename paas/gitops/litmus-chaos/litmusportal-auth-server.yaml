@@ -1,0 +1,98 @@
+### litmusportal-auth-server  Manifests
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litmusportal-auth-server
+  namespace: litmus
+  labels:
+    component: litmusportal-auth-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: litmusportal-auth-server
+  template:
+    metadata:
+      labels:
+        component: litmusportal-auth-server
+    spec:
+      automountServiceAccountToken: false
+      initContainers:
+        - name: wait-for-mongodb
+          image: jfrog.uk.ngridtools.com/public-proxy-dockerhub/litmuschaos/curl:3.0.0-beta3
+          command: ["/bin/sh", "-c"]
+          args:
+            [
+              "while [[ $(curl -sw '%{http_code}' http://mongo-service:27017 -o /dev/null) -ne 200 ]]; do sleep 5; echo 'Waiting for the MongoDB to be ready...'; done; echo 'Connection with MongoDB established'",
+            ]
+          resources:
+            requests:
+              memory: "150Mi"
+              cpu: "25m"
+              ephemeral-storage: "500Mi"
+            limits:
+              memory: "225Mi"
+              cpu: "250m"
+              ephemeral-storage: "1Gi"
+      containers:
+        - name: auth-server
+          image: jfrog.uk.ngridtools.com/public-proxy-dockerhub/litmuschaos/litmusportal-auth-server:3.0.0-beta3
+          volumeMounts:
+            - name: ng-root-ca
+              readOnly: true
+              mountPath: /etc/ssl/certs/
+          envFrom:
+            - configMapRef:
+                name: litmus-portal-admin-config
+            - secretRef:
+                name: litmus-portal-admin-secret
+          env:
+            - name: STRICT_PASSWORD_POLICY
+              value: "false"
+            - name: ADMIN_USERNAME
+              value: "admin"
+            - name: ADMIN_PASSWORD
+              value: "litmus"
+            - name: LITMUS_GQL_GRPC_ENDPOINT
+              value: "litmusportal-server-service.litmus.svc.cluster.local"
+            - name: LITMUS_GQL_GRPC_PORT
+              value: ":8000"
+          resources:
+            requests:
+              memory: "250Mi"
+              cpu: "225m"
+              ephemeral-storage: "500Mi"
+            limits:
+              memory: "712Mi"
+              cpu: "550m"
+              ephemeral-storage: "1Gi"
+          ports:
+            - containerPort: 3000
+            - containerPort: 3030
+          imagePullPolicy: Always
+      volumes:
+        - name: ng-root-ca
+          configMap:
+            name: config-trusted-cabundle
+            items:
+              - key: ca-bundle.crt
+                path: ca-certificates.crt
+            defaultMode: 420
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: litmusportal-auth-server-service
+  namespace: litmus
+spec:
+  type: ClusterIP
+  ports:
+    - name: auth-server
+      port: 9003
+      targetPort: 3000
+    - name: auth-rpc-server
+      port: 3030
+      targetPort: 3030
+  selector:
+    component: litmusportal-auth-server

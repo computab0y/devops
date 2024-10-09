@@ -1,0 +1,29 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: ci-java-build-params
+  namespace: dev-int
+data:
+  task-serviceaccount: |
+    fob-kaniko=fob-task-anyuid
+  dockerconfig: emptyDir
+  maven-settings: emptyDir
+  maven_image: 'jfrog.uk.ngridtools.com/docker-proxy/maven:3.8.4-openjdk-11'
+  validation_mode: 'true'
+  secret-sonar-settings: sonar-project-properties
+  git_repo_name: model-answer-java
+  dev-ci-build-ws.yaml: |
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 200Mi
+      storageClassName: ocs-storagecluster-cephfs
+      volumeMode: Filesystem
+  git_branch: Pipeline-Validation-DO-NOT-REMOVE
+  settings_dir: .mvn
+  git_repo_http_url: 'https://bitbucket.uk.ngridtools.com/scm/efd/model-answer-java.git'
+  git_repo_https_url: 'ssh://git@bitbucket-ssh.uk.ngridtools.com:7999/efd/model-answer-java.git'
+  context_dir: .
+  secret-dockerconfig: artifactory-image-pull

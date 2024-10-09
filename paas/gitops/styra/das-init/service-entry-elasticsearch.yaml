@@ -1,0 +1,43 @@
+# ServiceEntry enables adding additional entries into Istio’s internal service 
+# registry, so that auto-discovered services in the mesh can access/route to 
+# these manually specified services. A service entry describes the properties 
+# of a service (DNS name, VIPs, ports, protocols, endpoints). These services 
+# could be external to the mesh (e.g., web APIs) or mesh-internal services that 
+# are not part of the platform’s service registry (e.g., a set of VMs talking 
+# to services in Kubernetes).
+
+# This manifests configures a connection that enables connection to edb cluster 
+# hosted outside the mesh
+
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: elasticsearch
+  namespace: styra-das
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  exportTo:
+    - .
+  hosts:
+    - elasticsearch-styra-das-es-http.styra-das-2.svc.cluster.local
+  location: MESH_EXTERNAL
+  ports:
+    - name: elasticsearch
+      number: 9200
+      protocol: TCP
+      targetPort: 9200
+  resolution: DNS
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: elasticsearch
+  namespace: styra-das
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  host: elasticsearch-styra-das-es-http.styra-das-2.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: DISABLE

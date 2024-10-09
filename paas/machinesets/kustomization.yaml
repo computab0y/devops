@@ -1,0 +1,10 @@
+resources:
+- storage-machineset/ocs-machine-set-zone1.yaml
+- storage-machineset/ocs-machine-set-zone2.yaml
+- storage-machineset/ocs-machine-set-zone3.yaml
+- infra-machineset/infra-machine-set-zone1.yaml
+- infra-machineset/infra-machine-set-zone2.yaml
+- infra-machineset/infra-machine-set-zone3.yaml
+- styra-das-machineset/styra-das-machine-set-zone1.yaml
+- styra-das-machineset/styra-das-machine-set-zone2.yaml
+- styra-das-machineset/styra-das-machine-set-zone3.yaml

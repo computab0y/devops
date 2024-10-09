@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dev-a-pr-kafka-ui
+  namespace: dev-a-pr-amq-streams
+  labels:
+    app: dev-a-pr-kafka-ui
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dev-a-pr-kafka-ui
+  template:
+    metadata:
+      labels:
+        app: dev-a-pr-kafka-ui
+    spec:
+      containers:
+      - name: kafka-ui
+        image: jfrog.uk.ngridtools.com/docker-proxy/provectuslabs/kafka-ui:latest
+        env:
+        - name: KAFKA_CLUSTERS_0_NAME
+          value: "K8 Kafka Cluster"
+        - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+          value: dev-a-pr-amq-streams-kafka-bootstrap:9092
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1024Mi"
+            cpu: "1000m"
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dev-a-pr-kafka-ui
+  namespace: dev-a-pr-amq-streams
+  labels:
+    app: dev-a-pr-kafka-ui
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  selector:
+    app: dev-a-pr-kafka-ui
+  type: NodePort
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 31006
+
+--- 
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: kafka-ui
+  namespace: dev-a-pr-amq-streams
+  labels:
+    app: dev-a-pr-kafka-ui
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+spec:
+  port:
+    targetPort: 8080
+  to:
+    kind: Service
+    name: dev-a-pr-kafka-ui
+    weight: 100
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

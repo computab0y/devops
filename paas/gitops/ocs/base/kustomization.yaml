@@ -1,0 +1,6 @@
+resources:
+- namespace.yaml
+- operator-group.yaml
+- subscription.yaml
+- config-map-customisation.yaml
+- storagecluster.yaml

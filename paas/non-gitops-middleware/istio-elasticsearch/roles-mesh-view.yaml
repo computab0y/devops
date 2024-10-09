@@ -1,0 +1,84 @@
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: mesh-control-plane-ro
+  namespace: istio-ctlplane-elasticsearch-01
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+rules:
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - authentication.istio.io
+      - config.istio.io
+      - networking.istio.io
+      - rbac.istio.io
+      - security.istio.io
+      - authentication.maistra.io
+      - rbac.maistra.io
+    resources:
+      - '*'
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - maistra.io
+    resources:
+      - servicemeshextensions
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - kiali.io
+    resources:
+      - kialis
+  - verbs:
+      - get
+      - watch
+      - list
+    apiGroups:
+      - ''
+    resources:
+      - namespaces
+      - pods
+  - verbs:
+      - get
+      - watch
+      - list
+    apiGroups:
+      - project.openshift.io
+    resources:
+      - projects
+
+---
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: mesh-workload-ro
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+rules:
+  - verbs:
+      - get
+      - watch
+      - list
+    apiGroups:
+      - ''
+    resources:
+      - namespaces
+      - pods
+  - verbs:
+      - get
+      - watch
+      - list
+    apiGroups:
+      - project.openshift.io
+    resources:
+      - projects
+

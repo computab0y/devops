@@ -1,0 +1,6 @@
+resources:
+  - pushed_updates.yaml
+  - setup_venv.yaml
+  - validation_plan.yaml
+  - execute_validation.yaml
+  - force_argocd_sync.yaml

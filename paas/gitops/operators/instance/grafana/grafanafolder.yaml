@@ -1,0 +1,13 @@
+apiVersion: integreatly.org/v1alpha1
+kind: GrafanaFolder
+metadata:
+  name: sandbox
+  namespace: grafana-operator
+  labels:
+    dashboard: grafana
+spec:
+  title: sandbox
+  permissions:
+    - permissionLevel: 2
+      permissionTarget: Editor
+      permissionTargetType: role

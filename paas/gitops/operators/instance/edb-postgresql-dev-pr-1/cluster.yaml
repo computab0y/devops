@@ -1,0 +1,68 @@
+apiVersion: postgresql.k8s.enterprisedb.io/v1
+kind: Cluster
+metadata:
+  name: edb-postgresql-dev-pr-1
+  namespace: edb-postgresql-dev-pr-1
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    categories: database
+  labels:
+    environment: dev-pr
+    workload: database
+spec:
+  imageName: jfrog.uk.ngridtools.com/public-proxy-quayio/enterprisedb/postgresql:14.4
+  description: "Dev-PR EDB Cluster"
+  instances: 1
+  startDelay: 300
+  stopDelay: 300
+  primaryUpdateStrategy: unsupervised
+  logLevel: info
+  nodeMaintenanceWindow:
+    inProgress: false
+    reusePVC: true
+  monitoring:
+    enablePodMonitor: true
+
+  postgresql:
+    parameters:
+      shared_buffers: 256MB
+      pg_stat_statements.max: '10000'
+      pg_stat_statements.track: all
+      auto_explain.log_min_duration: '10s'
+    pg_hba:
+      - host all all 10.128.0.0/14 md5
+  bootstrap:
+    initdb:
+      database: dev-a-pr
+      owner: "dev_a_pr_admin"
+      secret:
+        name: edb-postgres-dev-a-pr-db-owner # created secret manually, in the absence of vault.
+      postInitSQL:
+        - ALTER USER "dev_a_pr_admin" CREATEDB CREATEROLE
+  storage:          
+    size: 100Gi      
+    storageClass: ocs-storagecluster-ceph-rbd
+  backup:                 
+    barmanObjectStore:
+      destinationPath: "https://esodevuksedbbackup.blob.core.windows.net/edbbackup"
+      azureCredentials:
+        connectionString:
+          name: azure-creds
+          key: AZURE_STORAGE_CONNECTION_STRING
+      wal:
+        compression: gzip
+        maxParallel: 8
+        encryption: AES256
+      # data:
+      #   compression: gzip
+      #   encryption: AES256
+      #   jobs: 2
+    retentionPolicy: "3d" #  automated deletion of backup files from the backup object store, using retention policies based on the recovery window.
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "2"
+    limits:
+      memory: "6Gi"
+      cpu: "4"

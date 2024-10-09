@@ -1,0 +1,17 @@
+# This manifests is responsible for adding pods within the current namespace
+# that have `sidecar.istio.io/inject: "true"` annotation in to the specified
+# service mesh
+
+apiVersion: maistra.io/v1
+kind: ServiceMeshMember
+metadata:
+  name: default  # do not change
+  namespace: styra-das
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  controlPlaneRef:
+    # name of service-mesh control plane. This is uniqe per environemnt.
+    name: ctlplane-01
+    # namespace where service-mesh control plane lives. This is uniqe per environemnt.
+    namespace: istio-ctlplane-01

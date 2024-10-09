@@ -1,0 +1,269 @@
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  name: fob-edb-schema-deploy-vault
+spec:
+  description: >-
+    This task takes build environment, repo name and pull request number to
+    dynamically generate a liquibase configuration file. The output workspace
+    would have been populated with 'git-clone' task and model answer would have
+    been coped to output workspace. Task pick the EDB connection details from
+    edb-schema-config config map and liquibase execute the configuration
+    menifest again this EDB connection.
+  params:
+    - default: pr
+      description: |-
+        name of build environment. Default is pr environment. 
+        eg. pr
+        eg. int
+      name: BUILD_ENVIRONMENT
+      type: string
+    - description: name of git repository
+      name: REPO_NAME
+      type: string
+    - description: pull request number
+      name: PULLREQ_NUMBER
+      type: string
+      
+  steps:
+    - env:
+        - name: DB_URL
+          valueFrom:
+            configMapKeyRef:
+              key: db.url
+              name: edb-schema-config
+        - name: DB_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              key: db.username
+              name: edb-schema-config
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: db.password
+              name: edb-db-owner-secret
+              optional: false
+      image: >-
+        jfrog-dev.uk.ngridtools.com/docker-public-proxy/liquibase/liquibase:latest
+      name: database-updater
+      resources: {}
+      script: |
+        #!/usr/bin/env bash
+        cd ../
+        if [ -d "output/$(params.REPO_NAME)/db" ] ; then
+          echo "Creating manifests for EDB Secrets"
+
+          set +x
+           
+
+          # read vault generated schema owner password from mounted path
+          vault_schema_owner_password=$(</tmp/vault-schema-owner/edb-secret-admin-password)
+          
+          #echo "$vault_schema_owner_password"
+          
+          # read vault generated schema user password from mounted path
+          vault_schema_user_password=$(</tmp/vault-schema-user/edb-secret-user-password)
+          
+          #echo "$vault_schema_user_password"
+          
+
+          export SCHEMA_OWNER_PASSWORD="$vault_schema_owner_password"
+
+
+          export SCHEMA_USER_ROLE_PASSWORD="$vault_schema_user_password"
+
+          # set schema name  
+
+          echo "Setting schema name"
+
+          if [ "$(params.BUILD_ENVIRONMENT)" = "pr" ] ; then
+              export SCHEMA_NAME="$(params.REPO_NAME)-dev-a-pr-$(params.PULLREQ_NUMBER)"
+          else
+              export SCHEMA_NAME="$(params.REPO_NAME)"
+          fi
+
+
+          #generating changlog filename
+
+          echo "generating changlog filename"
+
+          mkdir -p output/$(params.REPO_NAME)/edbtmp
+
+          if [ "$(params.BUILD_ENVIRONMENT)" = "pr" ] ; then
+              changelog_filename="${SCHEMA_NAME}.xml" 
+              cp "/tmp/liquibasexml/edb-schema-creation.xml" "output/$(params.REPO_NAME)/edbtmp/$changelog_filename"
+          else
+              changelog_filename="${SCHEMA_NAME}_$(date +"%T").xml"
+              cp "/tmp/liquibasexml/edb-schema-creation.xml" "output/$(params.REPO_NAME)/edbtmp/$changelog_filename"
+          fi
+
+
+
+          echo changelog_filename
+
+          # Update CHANGELOG_FILE ENV Variable
+
+          export CHANGELOG_FILE="output/$(params.REPO_NAME)/edbtmp/$changelog_filename"
+
+          # set user role name 
+
+          echo "Setting user role name"
+
+          if [ "$(params.BUILD_ENVIRONMENT)" = "pr" ] ; then
+              export SCHEMA_OWNER_ROLE="$(params.REPO_NAME)-dev-a-pr-$(params.PULLREQ_NUMBER)"
+              export SCHEMA_USER_ROLE="$(params.REPO_NAME)-dev-a-pr-$(params.PULLREQ_NUMBER)-app"
+          else
+              export SCHEMA_OWNER_ROLE="$(params.REPO_NAME)"
+              export SCHEMA_USER_ROLE="$(params.REPO_NAME)-app"
+          fi
+
+
+          # run liquibase configuration update 
+
+          echo "Running liquibase configuration update" 
+
+          bash /liquibase/docker-entrypoint.sh --changelog-file=${CHANGELOG_FILE} --url=${DB_URL} --username=${DB_USERNAME} --password=${DB_PASSWORD} --log-level=INFO update -Dschema.name=${SCHEMA_NAME} -Dschema.owner.role=${SCHEMA_OWNER_ROLE} -Dschema.owner.password=${SCHEMA_OWNER_PASSWORD} -Dschema.user.role=${SCHEMA_USER_ROLE} -Dschema.user.password=${SCHEMA_USER_ROLE_PASSWORD} -Dschema.pullrequest.number=$(params.PULLREQ_NUMBER)
+
+          if [ "$(params.BUILD_ENVIRONMENT)" = "pr" ] ; then
+            dburl="jdbc:postgresql://edb-postgresql-dev-pr-rw.edb-postgresql-dev-pr.svc:5432/dev-a-pr"
+            dbhost="edb-postgresql-dev-pr-rw.edb-postgresql-dev-pr.svc"
+            dbport="5432"
+            dbname="dev-a-pr"
+          else
+            dburl="jdbc:postgresql://edb-postgresql-dev-int-rw.edb-postgresql-dev-int.svc:5432/dev-a-int"
+            dbhost="edb-postgresql-dev-int-rw.edb-postgresql-dev-int.svc"
+            dbport="5432"
+            dbname="dev-a-int"
+          fi
+
+
+          set +x 
+          
+
+          #*******************************************************************************************************************
+          # *************** SECRET GENERATION ON OPENSHIFT IS NO LONGER NEED POST VAULT IMPLEMENTATION ***********************
+          #*******************************************************************************************************************
+          
+
+
+          # generate configmap 
+
+          cat > output/$(params.REPO_NAME)/edbtmp/edb-config.yaml << EOF
+
+          kind: ConfigMap
+
+          apiVersion: v1 
+
+          metadata:
+            name: edb-config 
+          data:
+            db.host: >-
+              $dbhost
+            db.port: >-
+              $dbport
+            db.name: >-
+              $dbname
+            db.url: >-
+              $dburl
+            db.schema: >-
+              ${SCHEMA_NAME}
+          type: Opaque
+
+        EOF
+          
+          echo "EDB Secret manifest creation complete"
+
+         else
+
+           echo "EDB not required for this Microservice, nothing to do"
+
+         fi  
+      volumeMounts:
+        - mountPath: /tmp/liquibasexml
+          name: liquibase-create-configmap
+        - mountPath: /tmp/vault-schema-owner
+          name: vault-edb-secrets-admin-volume
+        - mountPath: /tmp/vault-schema-user
+          name: vault-edb-secrets-user-volume
+      workingDir: $(workspaces.output.path)
+    - name: generate-schema-secrets
+      image: 'quay.io/openshift/origin-cli:4.10'
+      workingDir: $(workspaces.output.path)
+      resources: {}
+      script: >
+
+        cd ../
+
+        ns=dev-pr-$(params.REPO_NAME)-$(params.PULLREQ_NUMBER)
+
+        echo $ns
+
+        if [ -z $ns ]; then
+
+          echo "No namespace was given";
+          exit 1
+
+        fi
+
+        exists="false"
+        
+
+        while [ "$exists" != "true" ] 
+
+        do
+          echo Checking namespace - $ns
+          oc get ns $ns
+          
+          countns=$(oc get ns $ns --no-headers | wc -l)
+          
+          if [ $countns -gt 0 ]; then
+            echo "Found namespace"
+            
+            if [ -d "output/$(params.REPO_NAME)/db" ] ; then
+
+              echo "DEV A PR Namespace requires EDB Secrets"
+
+              if [ "$(params.BUILD_ENVIRONMENT)" = "pr" ] ; then
+                echo "creating secret in $ns NAMESPACE" 
+
+                oc apply -f output/$(params.REPO_NAME)/edbtmp --namespace $ns 
+
+                echo "Secrets generated successfully" 
+              
+              fi
+
+            else
+            
+              echo "EDB not required for this Microservice, nothing to do"
+            
+            fi
+
+            exists="true"
+
+          else
+            sleep 5
+            echo Awaiting namespace $ns provisioning...
+          fi
+
+        done
+
+
+
+  volumes:
+    - configMap:
+        name: edb-schema-creation
+      name: liquibase-create-configmap
+    - csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: vault-edb-secret-admin-dev-pr-$(params.REPO_NAME)-$(params.PULLREQ_NUMBER)
+      name: vault-edb-secrets-admin-volume
+    - csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: vault-edb-secret-user-dev-pr-$(params.REPO_NAME)-$(params.PULLREQ_NUMBER)
+      name: vault-edb-secrets-user-volume
+  workspaces:
+    - name: output

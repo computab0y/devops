@@ -1,0 +1,25 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: force-argocd-sync
+  namespace: dev-int
+spec:
+  description: This task syncs the resources which have been updated
+  params:
+    - name: git_repo_name
+      type: string
+  steps:
+    - name: force-argo-appset-refresh
+      image: jfrog.uk.ngridtools.com/eso-fob-docker/fob-openshift-utility-image:latest
+      script: | 
+        set +x
+
+        ARGOCD_PASSWORD=$(oc get secret openshift-gitops-cluster -n openshift-gitops -ojsonpath='{.data.admin\.password}' | base64 -d)
+
+        argocd login --username admin --password $ARGOCD_PASSWORD --insecure openshift-gitops-server-openshift-gitops.apps.devops.balancing.nationalgrideso.com:443
+
+        argocd app sync tekton-appdev-cluster-resources
+
+        argocd app sync tekton-pipelines-dev-int
+
+        

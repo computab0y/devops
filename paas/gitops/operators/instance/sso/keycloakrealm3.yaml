@@ -1,0 +1,60 @@
+apiVersion: keycloak.org/v1alpha1 
+kind: KeycloakRealm
+metadata:
+  name: poc-test-realm2
+  namespace: sso
+  labels:
+    app: sso-obp
+    realm: poc-test-realm2
+spec:
+  realm:
+    id: poc-test-realm2
+    realm: poc-test-realm2
+    enabled: True
+    displayName: "PoC-Test-Realm2"
+    registrationAllowed: true
+    resetPasswordAllowed: true
+    editUsernameAllowed: true
+    rememberMe: true
+    verifyEmail: true
+    loginWithEmailAllowed: true 
+    userFederationProviders:
+      - displayName: "ldap2"
+        providerName: "ldap"
+        config:
+          vendor: "Active Directory"
+          connectionUrl: "ldap://openshift.internal"
+          bindType: "simple"
+          bindDn: "service,OU=OBP,DC=openshift,DC=internal"
+          bindCredential: ""
+          usersDn: "OU=OBP,DC=openshift,DC=internal"
+          usernameLDAPAttribute: "sAMAccountName"
+          uuidLDAPAttribute: "objectGUID"
+          searchScope: "2" # sub
+          useTruststoreSpi: "ldapsOnly"
+          importUsers: "on"
+          trustEmail: "false"
+          userObjectClasses: "person, organizationalPerson, user"
+          rdnLDAPAttribute: "sAMAccountName"
+          editMode: "UNSYNCED"
+          # debug: "false"
+  instanceSelector:
+    matchLabels:
+      app: sso-obp
+    userFederationMappers:
+      - name: groups
+        federationProviderDisplayName: ldap
+        federationMapperType: group-ldap-mapper
+        config:
+          membership.attribute.type: DN
+          group.name.ldap.attribute: cn
+          membership.user.ldap.attribute: sAMAccountName
+          preserve.group.inheritance: 'true'
+          groups.dn: DC=example,DC=com
+          mode: READ_ONLY
+          user.roles.retrieve.strategy: GET_GROUPS_FROM_USER_MEMBEROF_ATTRIBUTE
+          groups.ldap.filter: "(cn=EXAMPLE*)" #Only pull in groups that start with prefix EXAMPLE
+          membership.ldap.attribute: 'true'
+          memberof.ldap.attribute: memberOf
+          group.object.classes: group
+          drop.non.existing.groups.during.sync: 'true'

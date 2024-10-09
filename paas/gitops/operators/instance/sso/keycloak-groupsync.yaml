@@ -1,0 +1,19 @@
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: GroupSync
+metadata:
+  name: keycloak-groupsync
+spec:
+  schedule: "0 * * * *"
+  providers:
+  - name: keycloak
+    keycloak:
+      realm: OBPSSOPoc 
+      credentialsSecret:
+        name: keycloak-group-sync
+        namespace: group-sync-operator
+      ca:
+        kind: ConfigMap
+        name: keycloak-certs
+        namespace: group-sync-operator
+        key: ca.crt
+      url: https://keycloak-sso.apps.devops.balancing.nationalgrideso.com/auth

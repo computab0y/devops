@@ -1,0 +1,38 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: app-promote-trigger-template
+  namespace: dev-int
+spec:
+  params:
+    - name: user-name
+    - name: git-repo-name
+    - name: commit-tag
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        generateName: app-promote-$(tt.params.git-repo-name)-
+        namespace: dev-int
+      spec:
+        params:
+          - name: promotion-app
+            value: $(tt.params.git-repo-name)
+          - name: promotion-tag
+            value: $(tt.params.commit-tag)
+          - name: promotion-requester
+            value: $(tt.params.user-name)
+        pipelineRef:
+          name: app-promote
+        serviceAccountName: pipeline
+        workspaces:
+          - name: app-promote-ws
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 20Mi
+                storageClassName: ocs-storagecluster-cephfs
+                volumeMode: Filesystem

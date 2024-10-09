@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: styra-das-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: styra-das
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    path: gitops/argocd-appsets/styra
+    repoURL: https://bitbucket.uk.ngridtools.com/scm/efe/devops-cluster-config.git
+    targetRevision: master
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+  syncOptions:
+    - CreateNamespace=false

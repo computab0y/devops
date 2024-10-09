@@ -1,0 +1,23 @@
+spec:
+  identityProviders:
+  - name: AzureActiveDirectory # ensure this matches the end of the callback URL
+    mappingMethod: claim
+    type: OpenID
+    openID:
+      clientID: <CLIENT ID> # this also be saved to the relevant Azure Vault if not done so
+      clientSecret:
+        name: openid-client-secret-azuread
+      extraScopes:
+      - email
+      - profile
+      extraAuthorizeParameters:
+        include_granted_scopes: "true"
+      claims:
+        preferredUsername:
+        - email
+        - upn
+        name:
+        - name
+        email:
+        - email
+      issuer: https://login.microsoftonline.com/f98a6a53-25f3-4212-901c-c7787fcd3495 # this is the tenant ID and should not change

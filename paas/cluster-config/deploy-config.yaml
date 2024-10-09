@@ -1,0 +1,21 @@
+apiVersion: hive.openshift.io/v1   
+kind: ClusterDeployment
+metadata:
+  name: devops-cluster # name for deployment
+  namespace: devops-cluster # ns for managed cluster creation...needs to exist
+spec:
+  baseDomain: balancing.nationalgrideso.com # Domain for managed cluster....clusterName becomes prefix
+  clusterName: devops # Suitable name...consider domain
+  platform:
+    azure:
+      baseDomainResourceGroupName: 5690-dev-uks-spokenetwork-rg # Resource Group where VNet is hosted
+      credentialsSecretRef:
+        name: azure-service-principal # correctly named secret
+      region: uksouth
+  provisioning:
+    imageSetRef:
+      name: openshift-v4.8.22 # https://quay.io/repository/openshift-release-dev/ocp-release?tab=tags
+    installConfigSecretRef:
+      name: devops-install-config # correctly named secret
+  pullSecretRef:
+    name: pull-secret # correctly named secret

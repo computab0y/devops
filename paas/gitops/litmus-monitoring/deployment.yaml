@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: litmus-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+      name: grafana
+    spec:
+      containers:
+        - image: jfrog.uk.ngridtools.com/public-proxy-dockerhub/grafana/grafana:9.4.3
+          imagePullPolicy: Always
+          name: grafana
+          ports:
+            - containerPort: 3000
+              name: grafana
+              protocol: TCP
+          volumeMounts:
+            - name: grafana-datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: grafana-provisioner
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: grafana-storage
+              mountPath: /var/lib/grafana
+            - name: grafana-dashboard-k8s-resources-namespace
+              mountPath: /var/lib/grafana/dashboards/k8s-resources-namespace
+            - name: grafana-dashboard-chaoscenter
+              mountPath: /var/lib/grafana/dashboards/litmus-chaoscenter
+      volumes:
+        - emptyDir: {}
+          name: grafana-storage
+        - name: grafana-datasources
+          configMap:
+            defaultMode: 420
+            name: litmus-grafana-datasources
+        - name: grafana-provisioner
+          configMap:
+            defaultMode: 420
+            name: litmus-grafana-provisioner
+        - name: grafana-dashboard-k8s-resources-namespace
+          configMap:
+            name: grafana-dashboard-k8s-resources-namespace
+            defaultMode: 420
+        - name: grafana-dashboard-chaoscenter
+          configMap:
+            name: grafana-dashboard-litmus-chaoscenter
+            defaultMode: 420

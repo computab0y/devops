@@ -1,0 +1,30 @@
+apiVersion: keycloak.org/v1alpha1
+kind: KeycloakClient
+metadata:
+  name: sso-obp
+  namespace: sso
+  labels:
+    app: sso-obp
+    realm: OBPSSOPoc
+    client: sso-obp
+spec:
+  realmSelector:
+     matchLabels:
+      app: sso-obp
+      realm: OBPSSOPoc
+  client:
+    # auto-generated if not supplied
+    id: sso-obp
+    clientId: sso-obp
+    name: sso-obp
+    secret: SJc4tsJ6G5sv9bnJkfl3twMxwog8gKl4
+    standardFlowEnabled: true
+    serviceAccountsEnabled: true
+    authorizationServicesEnabled: true
+    frontchannelLogout: true
+    protocol: openid-connect
+    redirectUris:       
+      - "https://oauth-openshift.apps.devops.balancing.nationalgrideso.com/oauth2callback/sso-obp/*"
+    defaultClientScopes:
+      - email
+      - profile

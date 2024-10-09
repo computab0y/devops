@@ -1,0 +1,21 @@
+apiVersion: apps.3scale.net/v1alpha1
+kind: APIManager
+metadata:
+  name: api-manager
+  namespace: three-scale
+spec:
+  system:
+    redisPersistentVolumeClaim:
+      storageClassName: ocs-storagecluster-ceph-rbd
+    database:
+      mysql:
+        persistentVolumeClaim:
+          storageClassName: ocs-storagecluster-ceph-rbd
+    fileStorage:
+      persistentVolumeClaim:
+        storageClassName: ocs-storagecluster-cephfs
+  backend:
+    redisPersistentVolumeClaim:
+      storageClassName: ocs-storagecluster-ceph-rbd
+  wildcardDomain: apps.dev.balancing.nationalgrideso.com
+  resourceRequirementsEnabled: true

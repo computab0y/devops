@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: operator-subscription
+  namespace: openshift-gitops
+spec:
+  generators:
+  - list:
+      elements:
+      - cluster: acs
+        url: https://kubernetes.default.svc 
+      - cluster: elasticsearch
+        url: https://kubernetes.default.svc
+      - cluster: openshift-logging
+        url: https://kubernetes.default.svc
+      - cluster: tekton
+        url: https://kubernetes.default.svc
+      - cluster: devspaces
+        url: https://kubernetes.default.svc
+      - cluster: devworkspaces
+        url: https://kubernetes.default.svc        
+      - cluster: istio   
+        url: https://kubernetes.default.svc
+      - cluster: kiali
+        url: https://kubernetes.default.svc
+      - cluster: jaeger
+        url: https://kubernetes.default.svc
+      - cluster: amq-streams
+        url: https://kubernetes.default.svc
+      - cluster: edb-postgresql
+        url: https://kubernetes.default.svc
+      - cluster: ad-group-sync
+        url: https://kubernetes.default.svc
+      - cluster: oadp
+        url: https://kubernetes.default.svc
+      - cluster: otel
+        url: https://kubernetes.default.svc
+      - cluster: elasticsearch-eck-operator
+        url: https://kubernetes.default.svc
+      - cluster: grafana
+        url: https://kubernetes.default.svc
+      - cluster: sso
+        url: https://kubernetes.default.svc
+  template:
+    metadata:
+      name: operator-subscription-{{cluster}}
+      namespace: openshift-gitops
+    spec:
+      destination:
+        server: https://kubernetes.default.svc
+      project: default
+      source:
+        path: gitops/operators/subscription/{{cluster}}/overlay/env
+        repoURL: https://bitbucket.uk.ngridtools.com/scm/efe/devops-cluster-config.git
+        targetRevision: master
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: false
+        syncOptions:
+        - CreateNamespace=true

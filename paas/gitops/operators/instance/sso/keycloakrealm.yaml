@@ -1,0 +1,23 @@
+apiVersion: keycloak.org/v1alpha1
+kind: KeycloakRealm
+metadata:
+  name: opbssopoc
+  namespace: sso
+  labels:
+    app: sso-obp
+    realm: OBPSSOPoc
+spec:
+  realm:
+    id: "OBPSSOPoc"
+    realm: "OBPSSOPoc"
+    enabled: True
+    displayName: "OBPSSOPoc Realm"
+    registrationAllowed: true
+    resetPasswordAllowed: true
+    editUsernameAllowed: true
+    rememberMe: true
+    verifyEmail: true
+    loginWithEmailAllowed: true
+  instanceSelector:
+    matchLabels:
+      app: sso-obp

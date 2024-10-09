@@ -1,0 +1,7 @@
+resources:
+- namespace.yaml
+- ingress-gateway.yaml
+- service-entry-postgres.yaml
+- service-mesh-member.yaml
+- edb-postgresql-styra/cluster.yaml
+- elasticsearch-styra/elasticsearch-stryra.yaml

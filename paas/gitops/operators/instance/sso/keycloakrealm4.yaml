@@ -1,0 +1,124 @@
+apiVersion: keycloak.org/v1alpha1
+kind: KeycloakRealm
+metadata:
+  labels:
+    app: sso-obp
+    realm: poc-test-realm
+  name: poc-test-realm
+  namespace: sso
+spec:
+  instanceSelector:
+    matchLabels:
+      app: sso-obp
+  realm:
+    displayName: PoC-Test-Realm
+    editUsernameAllowed: true
+    enabled: true
+    id: poc-test-realm
+    loginWithEmailAllowed: true
+    realm: poc-test-realm
+    registrationAllowed: true
+    rememberMe: true
+    resetPasswordAllowed: true
+    userFederationMappers:
+    - config:
+        always.read.value.from.ldap: "false"
+        is.binary.attribute: "false"
+        is.mandatory.in.ldap: "false"
+        ldap.attribute: mail
+        read.only: "true"
+        user.model.attribute: email
+      federationMapperType: user-attribute-ldap-mapper
+      federationProviderDisplayName: ldap
+      name: email
+    - config:
+        always.read.value.from.ldap: "true"
+        is.binary.attribute: "false"
+        is.mandatory.in.ldap: "false"
+        ldap.attribute: whenCreated
+        read.only: "true"
+        user.model.attribute: createTimestamp
+      federationMapperType: user-attribute-ldap-mapper
+      federationProviderDisplayName: ldap
+      name: creation date
+    - config:
+        always.read.value.from.ldap: "true"
+        is.binary.attribute: "false"
+        is.mandatory.in.ldap: "true"
+        ldap.attribute: sn
+        read.only: "true"
+        user.model.attribute: lastName
+      federationMapperType: user-attribute-ldap-mapper
+      federationProviderDisplayName: ldap
+      name: last name
+    - config:
+        always.read.value.from.ldap: "true"
+        is.binary.attribute: "false"
+        is.mandatory.in.ldap: "false"
+        ldap.attribute: whenChanged
+        read.only: "true"
+        user.model.attribute: modifyTimestamp
+      federationMapperType: user-attribute-ldap-mapper
+      federationProviderDisplayName: ldap
+      name: modify date
+    - config:
+        always.read.value.from.ldap: "false"
+        is.binary.attribute: "false"
+        is.mandatory.in.ldap: "true"
+        ldap.attribute: sAMAccountName
+        read.only: "true"
+        user.model.attribute: username
+      federationMapperType: user-attribute-ldap-mapper
+      federationProviderDisplayName: ldap
+      name: username
+    - config:
+        always.read.value.from.ldap: "true"
+        is.binary.attribute: "false"
+        is.mandatory.in.ldap: "true"
+        ldap.attribute: givenName
+        read.only: "true"
+        user.model.attribute: firstName
+      federationMapperType: user-attribute-ldap-mapper
+      federationProviderDisplayName: ldap
+      name: first name
+    - config:
+        ldap.password.policy.hints.enabled: "false"
+      federationMapperType: msad-user-account-control-mapper
+      federationProviderDisplayName: ldap
+      name: MSAD account controls
+    - config:
+        drop.non.existing.groups.during.sync: "false"
+        group.name.ldap.attribute: cn
+        group.object.classes: group
+        groups.path: /
+        ldap.groups.dn: OU=groups,OU=OBP,DC=openshift,DC=internal
+        memberof.ldap.attribute: memberOf
+        membership.attribute.type: DN
+        membership.ldap.attribute: member
+        membership.user.ldap.attribute: cn
+        mode: READ_ONLY
+        preserve.group.inheritance: "true"
+        user.roles.retrieve.strategy: LOAD_GROUPS_BY_MEMBER_ATTRIBUTE
+      federationMapperType: group-ldap-mapper
+      federationProviderDisplayName: ldap-group-sync
+      name: ldap-group-sync
+    userFederationProviders:
+    - config:
+        bindCredential: ""
+        bindDn: service,OU=OBP,DC=openshift,DC=internal
+        bindType: simple
+        connectionUrl: ldap://openshift.internal
+        editMode: UNSYNCED
+        importUsers: "on"
+        rdnLDAPAttribute: sAMAccountName
+        searchScope: "2"
+        trustEmail: "false"
+        useTruststoreSpi: ldapsOnly
+        userObjectClasses: person, organizationalPerson, user
+        usernameLDAPAttribute: sAMAccountName
+        usersDn: OU=OBP,DC=openshift,DC=internal
+        uuidLDAPAttribute: objectGUID
+        vendor: Active Directory
+      displayName: ldap2
+      providerName: ldap
+    verifyEmail: true

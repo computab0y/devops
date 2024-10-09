@@ -1,0 +1,10 @@
+kind: OAuthClient
+apiVersion: oauth.openshift.io/v1
+metadata:
+ name: dex
+# The value that should be utilized as the `client_secret`
+# List of valid addresses for the callback. Ensure one of the values that are provided is `(dex issuer)/callback` 
+secret: ""
+redirectURIs:
+ - "https://dex-oauth-litmus.apps.devops.balancing.nationalgrideso.com/callback"
+grantMethod: prompt

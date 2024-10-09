@@ -1,0 +1,31 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: pipeline-validation-event-listener
+  namespace: dev-int
+spec:
+  serviceAccountName: pipeline
+  triggers:
+    - name: validate-pipeline
+      interceptors:
+        - params:
+            - name: secretRef
+              value: null
+            - name: eventTypes
+              value:
+                - 'repo:refs_changed'
+          ref:
+            kind: ClusterInterceptor
+            name: bitbucket
+        - params:
+            - name: filter
+              value: 'body.changes[0].ref.displayId == "pipeline-validation"'
+          ref:
+            kind: ClusterInterceptor
+            name: cel
+      bindings:
+        - kind: ClusterTriggerBinding
+          ref: pipeline-validation-trigger-binding
+      template:
+        ref: pipeline-validation-trigger-template
+    

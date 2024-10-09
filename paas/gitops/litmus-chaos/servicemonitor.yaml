@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    k8s-app: chaos-exporter
+  name: chaos-exporter
+  namespace: litmus
+spec:
+  endpoints:
+  - interval: 10s
+    metricRelabelings:
+    - replacement: chaos-exporter-service
+      targetLabel: instance
+    port: tcp
+  jobLabel: app
+  namespaceSelector:
+    matchNames:
+    - litmus
+  selector:
+    matchLabels:
+      app: chaos-exporter

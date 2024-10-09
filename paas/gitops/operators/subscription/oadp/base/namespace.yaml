@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-adp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    openshift.io/node-selector: "node-role.kubernetes.io/infra="
+    scheduler.alpha.kubernetes.io/defaultTolerations: '[{"Key": "node.workload.openshift.io/infra", "Operator": "Equal", "Value": "true", "Effect": "NoSchedule"}]'

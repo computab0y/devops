@@ -1,0 +1,45 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: pr-java-creation-params
+  namespace: dev-int
+data:
+  pullreq-html-url: >-
+    https://bitbucket.uk.ngridtools.com/projects/EFD/repos/model-answer-java/pull-requests/236
+  verbose: 'true'
+  dev-image: $(params.dev-image)
+  depth: '1'
+  gitrepo-url-https: 'https://bitbucket.uk.ngridtools.com/scm/efd/model-answer-java.git'
+  pullreq-title: Pipeline_Validation_DO_NOT_DELETE
+  sslVerify: 'true'
+  maven-settings: emptyDir
+  gitrepo-url: 'ssh://git@bitbucket-ssh.uk.ngridtools.com:7999/efd/model-answer-java.git'
+  submodules: 'true'
+  MAVEN_IMAGE: $(params.MAVEN_IMAGE)
+  secret-sonar-settings: sonar-login
+  userHome: /tekton/home
+  secret-ssh-directory: my-ssh-credentials
+  GIT_IMAGE: >-
+    jfrog.uk.ngridtools.com/public-proxy-registry-redhat-io/openshift-pipelines/pipelines-git-init-rhel8:sha256__5d1c919446ea31029566a7dce78928f94b699ce7a141f25948e143fca2fc0e71
+  url: $(params.gitrepo-url)
+  pullreq-repo-name: model-answer-java
+  output.yaml: |
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 200Mi
+      storageClassName: ocs-storagecluster-cephfs
+      volumeMode: Filesystem
+  bitbucket-project-key: EFD
+  deleteExisting: 'true'
+  git-revision: Pipeline-Validation-DO-NOT-REMOVE
+  pullreq-sha: 9fdcc6e72c8a5518a6b719b25a00ded174ce39a1
+  revision: Pipeline-Validation-DO-NOT-REMOVE
+  app-or-init-image: $(params.app-or-init-image)
+  user-type: NORMAL
+  CONTEXT_DIR: $(params.CONTEXT_DIR)
+  pullreq-state: OPEN
+  pullreq-number: '236'
+  secret-dockerconfig: artifactory-image-pull

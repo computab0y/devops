@@ -1,0 +1,33 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: pg-dump-schema-restore-pipeline
+  namespace: edb-postgresql-recovery
+spec:
+  params:
+    - name: source-db-host
+      description: The host of the source database.
+    - name: source-db-name
+      description: The name of the source database to backup.
+    - name: schema-name
+      description: The name of the schema to backup and restore.
+    - name: target-db-host
+      description: The host of the target database.
+  tasks:
+    - name: pg-dump-schema-restore-task
+      taskRef:
+        name: pg-dump-schema-restore
+      params:
+        - name: source-db-host
+          value: $(params.source-db-host)
+        - name: source-db-name
+          value: $(params.source-db-name)
+        - name: schema-name
+          value: $(params.schema-name)
+        - name: target-db-host
+          value: $(params.target-db-host)
+      workspaces:
+        - name: pgdata
+          workspace: pgdata
+  workspaces:
+    - name: pgdata

@@ -1,0 +1,61 @@
+apiVersion: platform.stackrox.io/v1alpha1
+kind: SecuredCluster
+metadata:
+  namespace: stackrox
+  name: secured-cluster
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"  
+spec:
+  clusterName: devops-cluster
+  auditLogs:
+    collection: Auto
+  centralEndpoint: 'central-rhacs-central.apps.management.balancing.nationalgrideso.com:443'
+  admissionControl:
+    listenOnUpdates: true
+    bypass: BreakGlassAnnotation
+    contactImageScanners: DoNotScanInline
+    listenOnCreates: true
+    timeoutSeconds: 15
+    tolerations:
+      - effect: NoSchedule
+        key: node.workload.openshift.io/infra
+        operator: Equal
+        value: 'true'
+    nodeSelector:
+      node-role.kubernetes.io/infra: ""             
+    listenOnEvents: true
+  sensor:
+    tolerations:
+      - key: node.workload.openshift.io/infra
+        effect: NoSchedule
+        operator: Equal
+        value: 'true'
+    nodeSelector:
+      node-role.kubernetes.io/infra: ""             
+  scanner:
+    analyzer:
+      scaling:
+        autoScaling: Enabled
+        maxReplicas: 5
+        minReplicas: 2
+        replicas: 3
+      tolerations:
+        - effect: NoSchedule
+          key: node.workload.openshift.io/infra
+          operator: Equal
+          value: 'true'
+      nodeSelector:
+        node-role.kubernetes.io/infra: ""        
+    db:
+      tolerations:
+        - effect: NoSchedule
+          key: node.workload.openshift.io/infra
+          value: 'true'
+      nodeSelector:
+        node-role.kubernetes.io/infra: ""               
+    scannerComponent: AutoSense
+  perNode:
+    collector:
+      collection: KernelModule
+      imageFlavor: Regular
+    taintToleration: TolerateTaints

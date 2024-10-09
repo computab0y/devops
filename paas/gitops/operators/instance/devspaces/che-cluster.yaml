@@ -1,0 +1,118 @@
+apiVersion: org.eclipse.che/v2
+kind: CheCluster
+metadata:
+  name: codeready-workspaces
+  namespace: openshift-workspaces
+spec:
+  components:
+    cheServer:
+      debug: false
+      deployment:
+
+        containers:
+          - name: devspaces
+            resources:
+                limits:
+                  cpu: '2'
+                  memory: 2Gi
+                request:
+                  cpu: 300m
+                  memory: 1Gi
+      # extraProperties: {}
+      logLevel: INFO
+    dashboard:
+      deployment:
+        containers:
+          - name: devspaces-dashboard
+            resources:
+              limits:
+                cpu: 500m
+                memory: 256Mi
+              request:
+                cpu: 100m
+                memory: 32Mi
+      headerMessage:
+        show: false
+        text: ''
+    database:
+      credentialsSecretName: che-postgres-credentials
+      deployment:
+        containers:
+          - name: postgres
+            resources:
+              limits:
+                cpu: 500m
+                memory: 1Gi
+              request:
+                cpu: 100m
+                memory: 512Mi
+      externalDb: false
+      postgresDb: dbche
+      postgresHostName: postgres
+      postgresPort: '5432'
+      pvc:
+        claimSize: 1Gi
+        storageClass: ocs-storagecluster-cephfs
+    devWorkspace:
+      runningLimit: '10'
+    devfileRegistry:
+      deployment:
+        containers:
+          - name: devfile-registry
+            resources:
+              limits:
+                cpu: 500m
+                memory: 256Mi
+              request:
+                cpu: 100m
+                memory: 32Mi
+      externalDevfileRegistries:
+        - url: https://ng-devfile-registry-openshift-workspaces.apps.devops.balancing.nationalgrideso.com
+    imagePuller:
+      enable: false
+      spec: {}
+    metrics:
+      enable: true
+    pluginRegistry:
+      deployment:
+        containers:
+          - name: plugin-registry
+            resources:
+              limits:
+                cpu: 500m
+                memory: 4Gi
+              request:
+                cpu: 100m
+                memory: 512Mi
+  containerRegistry: {}
+  devEnvironments:
+    containerBuildConfiguration:
+      openShiftSecurityContextConstraint: container-build
+    disableContainerBuildCapabilities: true
+    defaultComponents:
+      - container:
+          # This udi image will need to be updated to latest version with evry operator upgrade. 
+          # Ideally whenever a security patch is released. But best to keep in sync with operator version.
+          image: image-registry.openshift-image-registry.svc:5000/openshift/ng-devspaces-udi-rhel8@sha256:010dfa67ee7b23b309ac7b811f09bb9775865128a74f18d1bd124523aea7442e
+          sourceMapping: /projects
+        name: universal-developer-image
+    defaultEditor: che-incubator/che-code/insiders
+    defaultNamespace:
+      autoProvision: true
+      template: <username>-codeready
+    trustedCerts:
+      gitTrustedCertsConfigMapName: bitbucket-self-signed-cert      
+    secondsOfInactivityBeforeIdling: 18000
+    secondsOfRunBeforeIdling: -1
+    storage:
+      perWorkspaceStrategyPvcConfig:
+        claimSize: 6Gi
+        storageClass: ocs-storagecluster-cephfs
+      pvcStrategy: per-workspace
+  gitServices: {}
+  networking:
+    auth:
+      gateway:
+        configLabels:
+          app: che
+          component: che-gateway-config

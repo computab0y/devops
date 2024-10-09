@@ -1,0 +1,38 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: app-promote
+  namespace: dev-int
+spec:
+  params:
+    - name: promotion-tag
+      type: string
+    - name: promotion-app
+      type: string
+    - name: promotion-requester
+      type: string
+  tasks:
+    - name: validate-tag
+      taskRef:
+        name: validate-app-promotion-tag
+        kind: Task
+      params:
+        - name: commit-tag
+          value: $(params.promotion-tag)
+        - name: promotion-requester
+          value: $(params.promotion-requester)
+    - name: promote-app
+      params:
+        - name: promotion-authoriser
+          value: $(params.promotion-requester)
+        - name: promotion-app
+          value: $(params.promotion-app)
+      taskRef:
+        name: promote-app
+        kind: Task
+      when:
+        - input: $(tasks.validate-tag.results.gate_status)
+          operator: in
+          values: [ "pass" ] 
+  workspaces:
+    - name: app-promote-ws

@@ -1,0 +1,9 @@
+resources:
+  - fob-git-clone.yaml
+  - fob-git-clone-vault-task.yaml
+  - fob-tf-apply-task.yaml
+  - fob-tf-destroy-task.yaml
+  - fob-tf-plan-task.yaml
+  - fob-tf-replace-workspace.yaml
+  - fob-tf-check-app-properties.yaml
+  - fob-edb-schema-deploy-vault.yaml

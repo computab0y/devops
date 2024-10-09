@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-scripts
+  namespace: ocp-etcd-backup
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+immutable: false
+data:
+  backup.sh: |-
+      #!/bin/bash
+
+      function chk_status() {
+        exit_status=$?
+        if [ $exit_status -eq 0 ]; then
+          echo -e "Backup succesful. Proceeding.\n"
+        else
+          echo -e "Backup not succesful. Purging pods and exiting.\n"
+          exit 1
+        fi 
+      }
+
+      function chk_file_upl() {
+        exit_status=$?
+        if [ $exit_status -eq 0 ] && [ -n $1 ]; then
+          echo -e "$(basename $1) uploaded. Proceeding.\n"
+        else
+          echo -e "Backup not succesful. Purging pods and exiting.\n"
+          exit 1
+        fi 
+      }
+      function do_backup() {
+        # get master node and perform backup inside host using oc debug and chroot
+        # derives from original solution by preserving the pods so I can perform copy
+
+        oc debug node/$node --to-namespace=ocp-etcd-backup -- bash -c 'chroot /host sudo -E /usr/local/bin/cluster-backup.sh /home/core/backup/ && chroot /host sudo -E find /home/core/backup/ -type f -mmin +"1" -delete'
+        chk_status
+      }
+
+      function backups_to_pod() {
+
+          oc debug node/$node --to-namespace=ocp-etcd-backup --preserve-pod=true -I -T -o yaml | \
+          sed 's#/bin/sh#"tail"\n    - "-f"\n    - "/dev/null"#' | \
+          oc apply -f -
+          sleep 3
+        # copy backups from node via hostpath
+            mkdir -p /tmp/backups/$node
+            oc cp $node-debug:/host/home/core/backup /tmp/backups/$node/
+      
+
+        # not putting ts here, pods meant to be temporary 
+        ls -ltrhR /tmp/backups/
+
+       # remove debug pod
+      
+        oc delete pod/$node-debug
+    
+
+      }
+
+
+
+      function push_to_azblob() {
+      # variables for container names
+      kuberesources_container_name=$KUBERESOURCES_BUCKET_NAME
+      snapshot_container_name=$SNAPSHOT_BUCKET_NAME
+
+      # Upload Files to Azure Blob Storage Container
+          krfile=$(find /tmp/backups/$node -type f -regex '/*.*static_kuberesources_*.*.tar.gz')
+          az storage blob upload \
+              --container-name "$kuberesources_container_name" \
+              --name backups/$timestamp/$node/$(basename $krfile) \
+              --type block \
+              --file "$krfile"
+
+          chk_file_upl $krfile
+
+          sfile=$(find /tmp/backups/$node -type f -regex '/*.*snapshot_*.*.db')
+          az storage blob upload \
+              --container-name "$snapshot_container_name" \
+              --name backups/$timestamp/$node/$(basename $sfile) \
+              --type block \
+              --file "$sfile"
+
+          chk_file_upl $sfile          
+
+      echo "File upload completed!"        
+      }
+      timestamp=$(date +%s)
+
+      echo -e "Listing master nodes..."
+      # that's bash array, but since req changed to get only one node, we can just access it via $node
+      # it returns node hostnames, w/o preceding type!
+      node=( $(oc get no -l node-role.kubernetes.io/master --no-headers -o name | cut -c6-) )
+      # here an example how to access all elements in array 
+      for unit in ${node[*]}; do echo -e "$unit"; done
+      echo -e "\nStarting ETCD backup...\n"
+      do_backup
+      echo -e "\nProceeding to copy backup from nodes to pod storage...\n"
+      backups_to_pod
+      echo -e "\nNow uploading the file to Azure Blob Storage...\n"
+      push_to_azblob
+      echo -e "\nJob completed succesfully.\n"

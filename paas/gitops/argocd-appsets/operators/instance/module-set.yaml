@@ -1,0 +1,70 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: operator-instance
+  namespace: openshift-gitops
+spec:
+  generators:
+  - list:
+      elements:
+      - cluster: acs
+        url: https://kubernetes.default.svc 
+      - cluster: openshift-logging
+        url: https://kubernetes.default.svc
+      - cluster: ad-group-sync 
+        url: https://kubernetes.default.svc
+      - cluster: istio
+        url: https://kubernetes.default.svc
+      - cluster: dev-a-pr-amq-streams
+        url: https://kubernetes.default.svc
+      # - cluster: edb-postgresql-dev-pr
+      #   url: https://kubernetes.default.svc
+      # - cluster: edb-postgresql-dev-int
+      #   url: https://kubernetes.default.svc
+      - cluster: edb-postgresql-dev-pr-1
+        url: https://kubernetes.default.svc
+      - cluster: edb-postgresql-recovery
+        url: https://kubernetes.default.svc
+      - cluster: otel
+        url: https://kubernetes.default.svc
+      - cluster: monitoring
+        url: https://kubernetes.default.svc
+      - cluster: grafana
+        url: https://kubernetes.default.svc
+      - cluster: tektonchains
+        url: https://kubernetes.default.svc
+      - cluster: edb-postgresql-dev-grafana
+        url: https://kubernetes.default.svc
+      - cluster: dpa
+        url: https://kubernetes.default.svc 
+      - cluster: openshift-monitoring-backup
+        url: https://kubernetes.default.svc
+      - cluster: openshift-monitoring-alerts
+        url: https://kubernetes.default.svc
+      # - cluster: sso
+      #   url: https://kubernetes.default.svc
+  template:
+    metadata:
+      name: operator-instance-{{cluster}}
+      namespace: openshift-gitops
+    spec:
+      destination:
+        server: https://kubernetes.default.svc
+      project: default
+      source:
+        path: gitops/operators/instance/{{cluster}}
+        repoURL: https://bitbucket.uk.ngridtools.com/scm/efe/devops-cluster-config.git
+        targetRevision: master
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true
+      ignoreDifferences:
+      - group: apps
+        kind: Deployment
+        name: ng-devfile-registry
+        namespace: openshift-workspaces
+        jsonPointers:
+        - /spec/template/spec        

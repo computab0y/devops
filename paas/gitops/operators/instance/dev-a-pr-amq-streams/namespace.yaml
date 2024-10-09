@@ -1,0 +1,10 @@
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  name: dev-a-pr-amq-streams
+  labels:
+    app: dev-a-pr-amq-streams
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    openshift.io/node-selector: "node-role.kubernetes.io/worker="
+    scheduler.alpha.kubernetes.io/defaultTolerations: '[{"Key": "node.workload.openshift.io/worker", "Operator": "Equal", "Value": "true", "Effect": "NoSchedule"}]'

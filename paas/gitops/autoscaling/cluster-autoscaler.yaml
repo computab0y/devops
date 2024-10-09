@@ -1,0 +1,31 @@
+# https://docs.openshift.com/container-platform/4.9/machine_management/applying-autoscaling.html
+
+# These values need to be updated for NG clusters
+
+apiVersion: "autoscaling.openshift.io/v1"
+kind: "ClusterAutoscaler"
+metadata:
+  name: "default"
+spec:
+  podPriorityThreshold: -10 
+  resourceLimits:
+    maxNodesTotal: 31
+    cores:
+      min: 100
+      max: 312 
+    memory:
+      min: 350 
+      max: 1536 
+    gpus:
+      - type: nvidia.com/gpu 
+        min: 0 
+        max: 16 
+      - type: amd.com/gpu 
+        min: 0 
+        max: 4 
+  scaleDown: 
+    enabled: true 
+    delayAfterAdd: 10m 
+    delayAfterDelete: 5m 
+    delayAfterFailure: 30s 
+    unneededTime: 5m 

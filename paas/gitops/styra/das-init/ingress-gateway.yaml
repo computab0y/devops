@@ -1,0 +1,52 @@
+---
+# Gateway describes a load balancer operating at the edge of the mesh 
+# receiving incoming or outgoing HTTP/TCP connections. The specification 
+# describes a set of ports that should be exposed, the type of protocol 
+# to use, SNI configuration for the load balancer, etc.
+
+#
+# This manifest is only needed if your microservice needds to be exposed 
+# outside the service mesh
+
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: styra-das-gw
+  namespace: styra-das
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  # Selector to identify the ingress gateway controller to attach to. 
+  # Current config attaches to istio default controller. 
+  # Do not modify unless instructed by mesh admin.
+  selector:
+    istio: ingressgateway
+  # Ports, protocols and hosts to listen for
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP    
+    hosts:
+    # List of fully qualified hostnames to listen for on port 80.
+    # Ensure that this is a unique subdomain of '.apps.dev.balancing.nationalgrideso.com'
+    # - "{{microservice-name}}-{{environment}}.{{cluster-apps-subdomain}}"
+    - "styra-das.apps.devops.balancing.nationalgrideso.com"
+    tls:
+      # sends 301 redirect for http requests    
+      httpsRedirect: true 
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    hosts:
+    # List of fully qualified hostnames to listen for on port 443.
+    # Ensure that this is a unique subdomain of '.apps.dev.balancing.nationalgrideso.com'
+    # - "{{microservice-name}}-{{environment}}.{{cluster-apps-subdomain}}"
+    - "styra-das.apps.devops.balancing.nationalgrideso.com"
+    tls:
+      # Control specific TLs properties. Do not modify.
+      mode: SIMPLE      
+      credentialName: istio-ingressgateway-certs 
+
+      

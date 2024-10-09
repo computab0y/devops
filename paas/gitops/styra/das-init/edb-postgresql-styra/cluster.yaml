@@ -1,0 +1,67 @@
+apiVersion: postgresql.k8s.enterprisedb.io/v1
+kind: Cluster
+metadata:
+  name: edb-postgresql-styra
+  namespace: styra-das
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "2"
+    categories: database
+  labels:
+    workload: database
+spec:
+  imageName: jfrog.uk.ngridtools.com/public-proxy-quayio/enterprisedb/postgresql:14.4
+  description: "Styra-Das EDB Cluster"
+  enableSuperuserAccess: true
+  instances: 1
+  startDelay: 30
+  stopDelay: 30
+  primaryUpdateStrategy: unsupervised
+  logLevel: trace
+  nodeMaintenanceWindow:
+    inProgress: false
+    reusePVC: true
+  minSyncReplicas: 0
+  postgresGID: 26
+  primaryUpdateMethod: switchover
+
+  postgresql:
+    parameters:
+      log_truncate_on_rotation: 'false'
+      archive_mode: 'on'
+      log_filename: postgres
+      archive_timeout: 5min
+      max_replication_slots: '32'
+      log_rotation_size: '0'
+      shared_preload_libraries: ''
+      logging_collector: 'on'
+      wal_receiver_timeout: 5s
+      log_directory: /controller/log
+      log_destination: csvlog
+      wal_sender_timeout: 5s
+      max_worker_processes: '32'
+      max_parallel_workers: '32'
+      log_rotation_age: '0'
+      shared_memory_type: mmap
+      dynamic_shared_memory_type: posix
+      wal_keep_size: 512MB
+  maxSyncReplicas: 0
+  switchoverDelay: 40000000
+  bootstrap:
+    initdb:
+      database: app
+      encoding: UTF8
+      localeCType: C
+      localeCollate: C
+      owner: app
+  storage:
+    resizeInUseVolumes: true          
+    size: 50Gi      
+    storageClass: ocs-storagecluster-cephfs
+  resources:
+    requests:
+      memory: 1Gi
+      cpu: '1'
+    limits:
+      memory: 2Gi
+      cpu: '2'

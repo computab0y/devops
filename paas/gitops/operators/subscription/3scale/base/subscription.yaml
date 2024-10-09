@@ -1,0 +1,13 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: 3scale-operator
+  namespace: three-scale
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  channel: "threescale-2.11"
+  installPlanApproval: Manual
+  name: 3scale-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace

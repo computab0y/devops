@@ -1,0 +1,50 @@
+apiVersion: v1
+baseDomain: balancing.nationalgrideso.com
+controlPlane:
+  hyperthreading: Enabled  
+  name: master
+  platform:
+    azure:
+      osDisk:
+        diskSizeGB: 160
+      type: Standard_D8s_v4
+  replicas: 3
+compute:
+- hyperthreading: Enabled
+  name: worker
+  platform:
+    azure:
+      type: Standard_D8s_v4
+      osDisk:
+        diskSizeGB: 160
+      zones:
+      - "1"
+      - "2"
+      - "3"
+  replicas: 3
+metadata:
+  name: devops
+networking:
+  clusterNetwork:
+  - cidr: 10.128.0.0/14
+    hostPrefix: 23
+  machineNetwork:
+  - cidr: 10.83.76.0/22
+  - cidr: 10.83.74.0/23
+  networkType: OpenShiftSDN
+  serviceNetwork:
+  - 172.30.0.0/16
+platform:
+  azure:
+    baseDomainResourceGroupName: 5690-dev-uks-spokenetwork-rg
+    region: uksouth
+    resourceGroupName: eso-dev-uks-devops-rg
+    networkResourceGroupName: 5690-dev-uks-spokenetwork-rg
+    virtualNetwork: 5690-dev-uks-vnet-02 
+    controlPlaneSubnet: lz5690-DEV-uks-master-snet-01
+    computeSubnet: lz5690-DEV-uks-worker-snet-01
+    outboundType: UserDefinedRouting
+    cloudName: AzurePublicCloud
+sshKey: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQD+SRlW5U35BHX6KHO+R+7S5jJ0LDbTLL3p/OqnTINWjDlDyy7ICevXp70w0SJKRYOLTei/KnC/ydSdOuLp4LCOY0tsYP6Yq9jXYMWiTyBESiaxvCKjrA+Gdr+3av2ea0jfKgumjKfTet9MX9rR8TJ5PnN5GSNX4iinsmTlRL17zdjNVSAdMwJVgSyqi8PDdfSM91jRw+cUBop33mnqSUX2zLVjqtrXg96GlGmNw8VfEueRDeKcHr2HVy6Fyd428fXuHh64co2rdJSmfR05WPD3YPFQRlFZepvOQBxTapB3+er/39kpQMpT+5vHFjG6V2jjpYGLckJ049x/FyEcIwmHXG0uRJRcICOkbjNG2LCXRUG/zBpe1aB5WqNt+SkFzGwwdflGrJ6Fa1+9QrF7Mm+GEjreSE34mbdowu7ccxaqvat0UQ1aBx0FJNCg7rfwTLWz4E1YrU1iulUgHMWmXlVAyBP7uclD5SMB6QyndPz/9a82814duw4P02tpUIu9LoE= openshift-service-management
+fips: false
+publish: Internal 

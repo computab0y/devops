@@ -1,0 +1,37 @@
+apiVersion: maistra.io/v2
+kind: ServiceMeshControlPlane
+metadata:
+  namespace: istio-ctlplane-01
+  name: ctlplane-01
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    # argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  version: v2.4
+  tracing:
+    type: Jaeger
+    sampling: 10000
+  addons:
+    jaeger:
+      name: jaeger
+      install:
+        storage:
+          type: Memory              
+    kiali:
+      enabled: true
+      name: kiali
+    grafana:
+      enabled: true
+    prometheus:
+      enabled: true
+      install:
+        retention: 1d
+  security:
+    controlPlane:
+      mtls: true  
+    dataPlane:
+      mtls: true
+  policy:
+    type: Istiod
+  telemetry:
+    type: Istiod

@@ -1,0 +1,195 @@
+# ConfigMap for DexServer
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dex-server-admin-config
+  namespace: litmus
+data:
+  config.yaml: |
+    issuer: https://dex-oauth-litmus.apps.devops.balancing.nationalgrideso.com  # Replace your domain here
+
+    storage:
+      type: sqlite3
+      config:
+        file: ":memory:"
+
+    web:
+      http: 0.0.0.0:5556
+
+    staticClients:
+      - id: LitmusPortalAuthBackend
+        redirectURIs:
+          - '/auth/dex/callback'
+          - 'https://chaos-center-litmus.apps.devops.balancing.nationalgrideso.com/auth/dex/callback'
+        name: 'LitmusPortalAuthBackend'
+        secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+
+    oauth2:
+        skipApprovalScreen: true
+
+    connectors:
+      - type: openshift
+        # Required field for connector id.
+        id: openshift
+        # Required field for connector name.
+        name: OpenShift
+        config:
+          # OpenShift API
+          issuer: https://api.devops.balancing.nationalgrideso.com:6443
+          # Credentials can be string literals or pulled from the environment.
+          clientID: system:serviceaccount:litmus:dex-oauth
+          clientSecret: $OPENSHIFT_OAUTH_CLIENT_SECRET
+          #redirectURI: https://dex-oauth-litmus.apps.devops.balancing.nationalgrideso.com/dex
+          redirectURI: https://dex-oauth-litmus.apps.devops.balancing.nationalgrideso.com/callback
+          # Optional: Specify whether to communicate to OpenShift without validating SSL ceertificates
+          insecureCA: false
+          # Optional: The location of file containing SSL certificates to commmunicate to OpenShift
+          rootCA: /etc/ssl/openshift.pem
+          # Optional list of required groups a user must be a member of
+          #groups:
+          #  - AZ-APP-OBP DevSecOps L3 Support-ClusterAdmin
+
+---
+# ClusterRole for DexServer
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: litmus-dex-server
+rules:
+  - apiGroups: [dex.coreos.com]
+    resources:
+      [
+        authcodes,
+        authrequests,
+        connectors,
+        devicerequests,
+        connectors,
+        devicerequests,
+        devicetokens,
+        oauth2clients,
+        offlinesessionses,
+        passwords,
+        refreshtokens,
+        signingkeies,
+      ]
+    verbs: [delete, deletecollection, get, list, patch, create, update, watch]
+---
+# ClusterRoleBinding for DexServer
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: litmus-dex-server-crb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: litmus-dex-server
+subjects:
+  - kind: ServiceAccount
+    name: litmus-server-account
+    namespace: litmus
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    serviceaccounts.openshift.io/oauth-redirecturi.dex: https://dex-oauth-litmus.apps.devops.balancing.nationalgrideso.com/callback
+  name: dex-oauth
+  namespace: litmus
+secrets:
+- name: dex-oauth-token
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dex-oauth-token
+  namespace: litmus
+  annotations:
+    kubernetes.io/service-account.name: dex-oauth
+type: kubernetes.io/service-account-token
+---
+# Deployment for DexServer
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litmusportal-dex-server
+  namespace: litmus
+  labels:
+    component: litmusportal-dex-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: litmusportal-dex-server
+  template:
+    metadata:
+      labels:
+        component: litmusportal-dex-server
+    spec:
+      serviceAccountName: litmus-server-account
+      containers:
+        - name: litmus-dex
+          imagePullPolicy: IfNotPresent
+          image: jfrog.uk.ngridtools.com/public-proxy-dockerhub/litmuschaos/litmusportal-dex-server:ci
+          command: ["/usr/local/bin/dex", "serve", "/etc/dex/cfg/config.yaml"]
+          env:
+            - name: OPENSHIFT_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dex-oauth-token
+                  key: token
+          ports:
+            - containerPort: 5556
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dex/cfg
+            - name: openshift-ca
+              readOnly: true
+              mountPath: /etc/ssl/
+      volumes:
+        - name: config
+          configMap:
+            name: dex-server-admin-config
+            items:
+              - key: config.yaml
+                path: config.yaml
+        - name: openshift-ca
+          configMap:
+            name: kube-root-ca.crt
+            items:
+              - key: ca.crt
+                path: openshift.pem
+            defaultMode: 420
+---
+# Exposed service for DexServer
+apiVersion: v1
+kind: Service
+metadata:
+  name: litmusportal-dex-service
+  namespace: litmus
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 5556
+  selector:
+    component: litmusportal-dex-server
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: dex-oauth
+  namespace: litmus
+spec:
+  port:
+    targetPort: http
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+  to:
+    kind: Service
+    name: litmusportal-dex-service
+    weight: 100
+  wildcardPolicy: None

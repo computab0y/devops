@@ -1,0 +1,49 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: pr-dotnet-creation-params
+  namespace: dev-int
+data:
+  git-image: >-
+    jfrog.uk.ngridtools.com/public-proxy-registry-redhat-io/openshift-pipelines/pipelines-git-init-rhel8:sha256__5d1c919446ea31029566a7dce78928f94b699ce7a141f25948e143fca2fc0e71
+  pullreq-html-url: >-
+    https://bitbucket.uk.ngridtools.com/projects/EFD/repos/model-answer-net/pull-requests/35
+  verbose: 'true'
+  depth: '1'
+  gitrepo-url-https: 'https://bitbucket.uk.ngridtools.com/scm/efd/model-answer-net.git'
+  pullreq-title: Pipeline_Validation_DO_NOT_REMOVE
+  sslVerify: 'true'
+  maven-settings: emptyDir
+  dotnet-csproj: ModelAnswer.csproj
+  gitrepo-url: 'ssh://git@bitbucket-ssh.uk.ngridtools.com:7999/efd/model-answer-net.git'
+  submodules: 'true'
+  sonar-scan-enable: 'True'
+  secret-sonar-settings: sonar-login
+  userHome: /tekton/home
+  secret-ssh-directory: my-ssh-credentials
+  path_context_project: .
+  url: $(params.gitrepo-url)
+  pullreq-repo-name: model-answer-net
+  output.yaml: |
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 200Mi
+      storageClassName: ocs-storagecluster-cephfs
+      volumeMode: Filesystem
+  bitbucket-project-key: EFD
+  path_context: Project
+  deleteExisting: 'true'
+  git-revision: Pipeline-Validation-DO-NOT-REMOVE
+  pullreq-sha: b3644c5de45817aa4e0c17ca547e228bdadc6bc3
+  image: jfrog.uk.ngridtools.com/public-proxy-registry-redhat-io/rhel8/dotnet-60
+  revision: Pipeline-Validation-DO-NOT-REMOVE
+  path_context_test: tests
+  user-type: NORMAL
+  pullreq-state: OPEN
+  context_dir: model-answer-net
+  pullreq-number: '35'
+  secret-dockerconfig: artifactory-image-pull
+  sonar_image: 'jfrog.uk.ngridtools.com/eso-fob-docker/ng-dotnet-sonar:6.0-5.5.3'

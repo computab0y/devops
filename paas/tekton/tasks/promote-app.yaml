@@ -1,0 +1,28 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: promote-app
+  namespace: dev-int
+spec:
+  params:
+    - name: promotion-authoriser
+      type: string
+      description: The person requesting (and authorised to make) the app promotion
+    - name: promotion-app
+      type: string
+      description: The application to be promoted
+  description: >-
+    This task is a placeholder for the first task on the promotion
+    pipeline.
+  steps:
+    - image: 'jfrog.uk.ngridtools.com/public-proxy-registry-access-redhat-com/ubi8/ubi-minimal:8.2'  
+      resources: {}
+      script: >
+        #!/bin/bash 
+
+        echo "Promoting $(params.promotion-app)"
+
+        echo "The promotion was authorised by $(params.promotion-authoriser)"
+  workspaces:
+    - description: Holds the output from previous task
+      name: output

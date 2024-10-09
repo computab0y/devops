@@ -1,0 +1,15 @@
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: mesh-control-plane-read-only-binding
+  namespace: istio-ctlplane-01
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: mesh-rbac-ro
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mesh-control-plane-ro

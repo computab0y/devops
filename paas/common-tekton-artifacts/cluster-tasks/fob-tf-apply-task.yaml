@@ -1,0 +1,118 @@
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  name: tf-apply
+  labels:
+    app.kubernetes.io/version: "0.2"
+spec:
+  description: >-
+    Terraform is an open-source infrastructure as code software tool created by
+    HashiCorp.
+
+    It enables users to define and provision a datacenter infrastructure using a
+    high-level configuration language known as Hashicorp Configuration Language
+    (HCL), or optionally JSON
+
+    This Task will do a terraform init before it executes the actual configured
+    ARGS from parameter.
+  workspaces:
+    - name: tf-vault
+  params:
+    - name: ARGS
+      description: The terraform cli commands to run
+      type: array
+      default:
+        - apply 
+        - "plan.output"
+    - name: image
+      description: the terraform image to use
+      type: string
+      default: >-
+        jfrog.uk.ngridtools.com/eso-fob-docker/fob-openshift-utility-image:latest
+    - name: base-directory-path
+      description: the base directory at which to search for virtual vault data
+      type: string
+      default: hashicorp-virtual-vault-orchestration/virtual-vault
+    - name: env-directory-path
+      description: the full environment path for virtual vault data e.g eso-fob-dev
+      type: string
+      default: ''
+    - name: schema_owner_role
+      description: schema_owner_role
+      type: string
+      default: app-ms-energy-profile-calculator-dev-a-pr-311
+    - name: schema_user_role
+      description: schema_user_role
+      type: string
+      default: app-ms-energy-profile-calculator-dev-a-pr-311-app
+  steps:
+    - name: tf-fmt
+      image: $(params.image)
+      workingDir: >-
+        /workspace/tf-vault/$(params.base-directory-path)
+      resources: {}
+      command:
+        - terraform
+      env:
+        - name: TF_CLI_CONFIG_FILE
+          value: /workspace/tf-vault/proxy/.terraform.tfrc
+      volumeMounts:
+        - mountPath: /workspace/tf-vault/proxy
+          name: proxy
+      envFrom:
+        - secretRef:
+            name: terraform-token
+        - secretRef:
+            name: vault-token
+      args:
+        - fmt
+    - name: tf-init
+      image: $(params.image)
+      workingDir: >-
+        /workspace/tf-vault/$(params.base-directory-path)
+      resources: {}
+      command:
+        - terraform
+      env:
+        - name: TF_CLI_CONFIG_FILE
+          value: /workspace/tf-vault/proxy/.terraform.tfrc
+      volumeMounts:
+        - mountPath: /workspace/tf-vault/proxy
+          name: proxy
+      envFrom:
+        - secretRef:
+            name: terraform-token
+        - secretRef:
+            name: vault-token
+      args:
+        - init
+    - resources: {}
+      name: tf-apply
+      command:
+        - terraform
+      env:
+        - name: TF_CLI_CONFIG_FILE
+          value: /workspace/tf-vault/proxy/.terraform.tfrc
+      volumeMounts:
+        - mountPath: /workspace/tf-vault/proxy
+          name: proxy
+      envFrom:
+        - secretRef:
+            name: terraform-token
+        - secretRef:
+            name: vault-token
+        - secretRef:
+            name: tenant-id
+        - secretRef:
+            name: client-id
+        - secretRef:
+            name: client-secret
+      image: $(params.image)
+      workingDir: >-
+        /workspace/tf-vault/$(params.base-directory-path)/
+      args:
+        - $(params.ARGS)
+  volumes:
+    - configMap:
+        name: terraform-proxy
+      name: proxy

@@ -1,0 +1,71 @@
+kind: CronJob
+apiVersion: batch/v1
+metadata:
+  name: openshift-backup
+  namespace: ocp-etcd-backup
+  labels:
+    app: openshift-backup
+  annotations:
+    argocd.argoproj.io/sync-wave: "4" # must be applied after NS/SA/RBAC/SCC/CM
+spec:
+  schedule: "00 01 * * *" # 1:00am UTC every day
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    metadata:
+      labels:
+        app: openshift-backup
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: openshift-backup
+        spec:
+          imagePullSecrets:
+            - name: artifactory-image-pull
+          containers:
+            - name: etcd-backup
+              image: jfrog.uk.ngridtools.com/eso-fob-docker/fob-openshift-utility-image:latest
+              command: ["/bin/sh", "-c"]
+              args:
+                - /scripts/backup.sh
+              env:
+                - name: AZURE_STORAGE_ACCOUNT # env var for azcli for storage account name
+                  valueFrom:
+                    secretKeyRef:
+                      name: azure-creds # create before applying
+                      key: storage-acc-name
+                - name: AZURE_STORAGE_KEY # env var for azcli for storage account key
+                  valueFrom:
+                    secretKeyRef:
+                      name: azure-creds # create before applying
+                      key: storage-acc-key
+                - name: AZURE_CONFIG_DIR # set to writable path
+                  value: /tmp/.azure
+                - name: KUBERESOURCES_BUCKET_NAME # bucket where kuberesources file needs to be
+                  value: etcd-kuberesources
+                - name: SNAPSHOT_BUCKET_NAME # bucket where snapshot file needs to be
+                  value: etcd-snapshot
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts/
+                - name: config-trusted-cabundle
+                  mountPath: /custom-certs/
+              terminationMessagePolicy: File
+              imagePullPolicy: IfNotPresent
+          terminationGracePeriodSeconds: 30
+          restartPolicy: "Never" # we don't neeed autoheal here. TODO: monitoring of backups
+          activeDeadlineSeconds: 500
+          dnsPolicy: "ClusterFirst"
+          serviceAccountName: "openshift-backup"
+          serviceAccount: "openshift-backup"
+          volumes:
+            - name: scripts
+              configMap:
+                name: backup-scripts
+                defaultMode: 493
+            - name: config-trusted-cabundle
+              configMap:
+                name: config-trusted-cabundle

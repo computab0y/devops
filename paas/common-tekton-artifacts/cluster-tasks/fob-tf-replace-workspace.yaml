@@ -1,0 +1,52 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: tf-replace-workspace-name
+  namespace: vault-pipelines
+spec:
+  description: replaces workspace value in providers.tf
+  params:
+    - name: base-directory-path
+      type: string
+    - name: BUILD_ENVIRONMENT
+      type: string
+    - description: name of git repository
+      name: REPO_NAME
+      type: string
+    - description: pull request number
+      name: PULLREQ_NUMBER
+      type: string
+  steps:
+    - image: jfrog.uk.ngridtools.com/eso-fob-docker/rhel-git-plus-find
+      name: replace-workspace-name
+      resources: {}
+      script: >
+        #!/bin/bash
+
+        pwd
+
+        ls -la
+
+        echo "build environment: "
+
+        echo $(params.BUILD_ENVIRONMENT)
+
+        echo "repository name:"
+
+        echo $(params.REPO_NAME)
+
+        echo "pull request number: "
+
+        echo $(params.PULLREQ_NUMBER)
+
+
+        # #replace the namespace name in Line 6
+
+        sed -i "s/workspace-replace-me/dev-$(params.BUILD_ENVIRONMENT)-$(params.REPO_NAME)-$(params.PULLREQ_NUMBER)/g" providers.tf
+        
+
+        
+      workingDir: >-
+        /workspace/tf-vault/$(params.base-directory-path)
+  workspaces:
+    - name: tf-vault

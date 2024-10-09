@@ -1,0 +1,64 @@
+# THIS JOB IS FOR DEBUG PURPOSES ONLY. NOT TO BE APPLIED VIA ARGOCD. RUN VIA oc create -f job.yaml
+kind: Job
+apiVersion: batch/v1
+metadata:
+  generateName: etcd-backup-
+  namespace: ocp-etcd-backup
+spec:
+  parallelism: 1
+  completions: 1
+  backoffLimit: 6
+  activeDeadlineSeconds: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: openshift-backup
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 30
+      securityContext: {}
+      imagePullSecrets:
+        - name: artifactory-image-pull
+      containers:
+        - resources: {}
+          terminationMessagePath: /dev/termination-log
+          name: etcd-backup
+          command: ["/bin/sh", "-c"]
+          args:
+            - /scripts/backup.sh
+          env:
+            - name: AZURE_STORAGE_ACCOUNT
+              valueFrom:
+                secretKeyRef:
+                  name: azure-creds
+                  key: storage-acc-name
+            - name: AZURE_STORAGE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: azure-creds
+                  key: storage-acc-key
+            - name: AZURE_CONFIG_DIR
+              value: /tmp/.azure
+            - name: KUBERESOURCES_BUCKET_NAME
+              value: etcd-kuberesources
+            - name: SNAPSHOT_BUCKET_NAME
+              value: etcd-snapshot
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts/
+            - name: config-trusted-cabundle
+              mountPath: /custom-certs/
+          terminationMessagePolicy: File
+          image: jfrog.uk.ngridtools.com/eso-fob-docker/fob-openshift-utility-image:latest
+      serviceAccount: openshift-backup
+      volumes:
+        - name: scripts
+          configMap:
+            name: backup-scripts
+            defaultMode: 493
+        - name: config-trusted-cabundle
+          configMap:
+            name: config-trusted-cabundle
+      dnsPolicy: ClusterFirst
+  completionMode: NonIndexed
+  suspend: false

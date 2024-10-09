@@ -1,0 +1,9 @@
+resources:
+- namespace.yaml
+- rbac.yaml
+- grafana-provisionier.yaml
+- grafana-datasource.yaml
+- grafana-dashboard-litmus-chaoscenter.yaml
+- grafana-dashboard-k8s-resources-namespace.yaml
+- deployment.yaml
+- service.yaml

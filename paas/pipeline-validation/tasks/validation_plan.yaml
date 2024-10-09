@@ -1,0 +1,253 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: validation-plan
+  namespace: dev-int
+spec:
+  description: >-
+    Plan the pipeline validation
+  results:
+    - name: affected_pipelines
+    - name: validation_required
+  params:
+    - name: updates
+      type: string
+    - name: git_repo_name
+      type: string
+  steps:
+    - name: plan
+      image: 'jfrog.uk.ngridtools.com:443/public-proxy-dockerhub/python:3.8.8'
+      resources: {}
+      script: >
+        #!/workspace/python-ws/bin/python3
+
+        import yaml
+
+        import glob
+
+        from re import search
+
+
+
+
+        def AffectedPipelines(pipeline_yamls, resource_name, affected):
+          
+          search_string = rf"^\s+name: {resource_name}$"
+          
+          for manifest in pipeline_yamls:
+
+            found = "false"
+
+            truncated_yaml = """$(workspaces.output1.path)""" + '/snippet'
+
+            #the trucated yaml contains the first few lines of the manifest, including
+            #the metadata. The full manifest very often cannot be loaded due to special
+            #characters in embedded scripts
+
+            snippet = open(truncated_yaml, 'w+') 
+
+            write_to_snippet = "true"
+
+            with open(manifest) as f:
+
+                for line in f:
+                    
+                    if write_to_snippet == "true":
+
+                        snippet.write(line)
+
+                    if search('^\s+spec:$', line):
+
+                        write_to_snippet = "false"
+
+                    if search(search_string, line):
+
+                       found = "true"
+
+                       break
+                
+                if found == "true":
+
+                      snippet.seek(0,0)
+                    
+                      yaml_block = yaml.load(snippet, Loader=yaml.FullLoader)
+
+                      if yaml_block['metadata']['name'] not in affected:
+
+                          affected.append(yaml_block['metadata']['name'])
+
+                      found = "false"
+
+            snippet.close()
+
+    
+
+
+
+        def TrimList(affected):
+
+          trimmed = []
+
+          lang_selected = ""
+          build = ""
+          creation = ""
+          update = ""
+          deletion = ""
+          pr_affected = "false"
+
+          result = open("""$(results.affected_pipelines.path)""", 'w')
+
+          for pipeline in affected:
+
+             match = search('dev-(pr|ci)-((\w+)(-\w+)?)-(\w+)-pipeline', pipeline)
+
+             if match:
+
+                   if "$(params.git_repo_name)" == 'env-dev-int':
+
+                       result.write(f"{pipeline}\n")
+
+                       continue
+
+                   if not lang_selected:
+
+                      #for clustertasks shared my multiple languange pipelines,
+                      #nominate a language for the validation
+                      
+                      lang_selected = match.group(2)
+
+                   if match.group(5) == 'build':
+
+                      build = "true"
+ 
+                   if match.group(5) == 'creation':
+
+                      creation = "true"
+
+                   if match.group(5) == 'update':
+
+                      update = "true"
+
+                   if match.group(5) == 'deletion':
+
+                      deletion = "true"
+
+          #Now list the affected pipelines to the results file in a logical order,
+          #ready to be processed by the execute_validation task.
+
+          if build == "true":
+
+            result.write(f"dev-ci-{lang_selected}-build-pipeline\n")
+
+          if creation == "true":
+
+            result.write(f"dev-pr-{lang_selected}-creation-pipeline\n")
+
+          if update == "true":
+
+            if not creation:
+
+                result.write(f"dev-pr-{lang_selected}-creation-pipeline\n")
+
+                creation = "true"
+
+            result.write(f"dev-pr-{lang_selected}-update-pipeline\n")
+
+          if deletion == "true":
+
+            if not creation:
+
+                result.write(f"dev-pr-{lang_selected}-creation-pipeline\n")
+
+            result.write(f"dev-pr-deletion-pipeline\n")
+
+          elif creation == "true":
+
+            result.write(f"dev-pr-deletion-pipeline\n")
+          
+          #remove the final newline character
+
+          result.truncate(result.tell()-1)
+
+          result.close()
+
+          return trimmed
+
+                 
+
+
+
+
+        # Main body of the task.
+
+             
+        updates = """$(params.updates)""".split()
+
+        pipeline_glob = """$(workspaces.output1.path)""" + '/services/tekton/pipelines/*/*.yaml'
+
+        # pipelines will contain a list of all the pipeline manifests in the env-dev-int repo
+
+        pipelines = glob.glob(pipeline_glob)
+
+        if "$(params.git_repo_name)" == 'appdev-cluster-config':
+
+           search_path = r"^common-tekton-artifacts/cluster-tasks.*yaml$"
+
+        elif "$(params.git_repo_name)" == 'env-dev-int':
+
+           search_path = r"^services/tekton/pipelines/.*yaml$"
+
+
+        affected = []
+
+        search_name = ""
+
+        print(f"The pushed updates are:\n{updates}\n")
+
+        for update in updates:
+
+          # We are only interested in changes to the tekton components in the app-dev repo
+          # or changes to the pipelines in the env-dev-int repo.
+
+          if search(search_path, update):
+
+            yaml_file = """$(workspaces.output.path)""" + '/' + update
+
+            with open(yaml_file) as f:
+
+                yaml_block = yaml.load(f, Loader=yaml.FullLoader)
+
+                resource_name = yaml_block['metadata']['name']
+
+            if "$(params.git_repo_name)" == 'appdev-cluster-config':
+
+                AffectedPipelines(pipelines, resource_name, affected)
+
+            elif "$(params.git_repo_name)" == 'env-dev-int':
+
+                affected.append(resource_name)
+                
+        print(f"The affected pipelines are: {affected}\n")
+
+        if len(affected) > 0:   
+
+          trimmed_list = TrimList(affected)
+
+          # Only run the execute_validation task if we have affected pipelines
+
+          with open("/tekton/results/validation_required","w") as result:
+             result.write("yes")
+        
+        else:
+
+          with open("""$(results.affected_pipelines.path)""", 'w') as affected_result:
+            affected_result.write("no_result")
+
+          with open("/tekton/results/validation_required","w") as result:
+             result.write("no")
+  workspaces:
+    - description: The git repo will be cloned onto the volume backing this Workspace.
+      name: python-ws
+    - name: output
+    - name: output1
+   

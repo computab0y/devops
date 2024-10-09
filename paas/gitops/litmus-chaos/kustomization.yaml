@@ -1,0 +1,13 @@
+resources:
+- namespace.yaml
+- litmus-portal-server.yaml
+- litmusportal-auth-server.yaml
+- litmusportal-frontend.yaml
+- mongo-service.yaml
+- rbac.yaml
+- sa.yaml
+- litmus-scc.yaml
+- dex-service.yaml
+- dex-oauthclient.yaml
+- servicemonitor.yaml
+- local-rbac.yaml

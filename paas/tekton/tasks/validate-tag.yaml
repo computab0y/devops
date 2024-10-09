@@ -1,0 +1,54 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: validate-app-promotion-tag
+  namespace: dev-int
+spec:
+  params:
+    - name: commit-tag
+      type: string
+      description: The app promotion tag
+    - name: promotion-requester
+      type: string
+  description: >-
+    This task validates the passed promotion tag and produces a result
+    containing the promotion authorisers for the relevant environment
+  results:
+    - name: gate_status
+      description: Pass or fail
+  steps:
+    - image: 'jfrog.uk.ngridtools.com/public-proxy-registry-access-redhat-com/ubi8/ubi-minimal:8.2'  
+      resources: {}
+      script: >
+        #!/bin/bash
+
+        authorisers=()
+
+        dev_a_int_auth=( 'chris.jackson' 'daniel.koszegi' )
+
+	      dev_st_auth=( 'chris.jackson' 'daniel.koszegi' )
+
+        dev_sit_auth=( 'chris.jackson' 'daniel.koszegi' )
+
+        case $(params.commit-tag) in
+          dev-a-int)
+            authorisers=( "${dev_a_int_auth[@]}" )
+            ;;
+          st-1 | st-2)
+            authorisers=( "${dev_st_auth[@]}" )
+            ;;
+          sit-1)
+            authorisers=( "${dev_sit_auth[@]}" )
+            ;;
+          *)
+            echo -n "Unknown environment!"
+            exit 1
+            ;;
+        esac
+
+        if [[ ${authorisers[*]} =~ $(params.promotion-requester) ]]; then
+          echo -n 'pass' > $(results.gate_status.path)
+        else
+          echo -n 'fail' > $(results.gate_status.path)
+        fi
+        

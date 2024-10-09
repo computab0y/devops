@@ -1,0 +1,47 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: pr-python-creation-params
+  namespace: dev-int
+data:
+  pullreq-html-url: >-
+    https://bitbucket.uk.ngridtools.com/projects/EFD/repos/bulk-dispatch-optimiser/pull-requests/81
+  verbose: 'true'
+  dev-image: $(params.dev-image)
+  depth: '1'
+  gitrepo-url-https: 'https://bitbucket.uk.ngridtools.com/scm/efd/bulk-dispatch-optimiser.git'
+  pullreq-title: Devops_Pipeline_Validation_DO_NOT_DELETE
+  sslVerify: 'true'
+  gitrepo-url: >-
+    ssh://git@bitbucket-ssh.uk.ngridtools.com:7999/efd/bulk-dispatch-optimiser.git
+  submodules: 'true'
+  PYTHON_REQUIREMENTS_FILE: requirements/prod.txt
+  secret-sonar-settings: dev-pr-python-creation-pipeline-config
+  userHome: /tekton/home
+  secret-ssh-directory: my-ssh-credentials
+  GIT_IMAGE: >-
+    jfrog.uk.ngridtools.com/public-proxy-registry-redhat-io/openshift-pipelines/pipelines-git-init-rhel8:sha256__5d1c919446ea31029566a7dce78928f94b699ce7a141f25948e143fca2fc0e71
+  url: >-
+    ssh://git@bitbucket-ssh.uk.ngridtools.com:7999/efd/bulk-dispatch-optimiser.git
+  pullreq-repo-name: bulk-dispatch-optimiser
+  output.yaml: |
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 600Mi
+      storageClassName: ocs-storagecluster-cephfs
+      volumeMode: Filesystem
+  bitbucket-project-key: EFD
+  deleteExisting: 'true'
+  git-revision: Devops-Pipeline-Validation-DO-NOT-DELETE
+  PYTHON_IMAGE: 'jfrog.uk.ngridtools.com/public-proxy-dockerhub/python:3.8.8'
+  pullreq-sha: 3ff7573d7a1ed48923745b987c0066b71d1818ca
+  revision: Devops-Pipeline-Validation-DO-NOT-DELETE
+  app-or-init-image: $(params.app-or-init-image)
+  user-type: NORMAL
+  CONTEXT_DIR: $(params.CONTEXT_DIR)
+  pullreq-state: OPEN
+  pullreq-number: '81'
+  secret-dockerconfig: artifactory-image-pull

@@ -1,0 +1,105 @@
+apiVersion: opentelemetry.io/v1alpha1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel
+  namespace: open-telemetry
+spec:
+  config: |
+    extensions:  
+      # file_storage:
+      #   directory:  #addon/splunk/otel_pos
+      health_check: null
+      # k8s_observer:
+      #   auth_type: serviceAccount
+      #   node: ${K8S_NODE_NAME}
+      memory_ballast:
+        size_mib: 50 #${SPLUNK_BALLAST_SIZE_MIB}
+      # zpages: null
+
+    receivers:
+      k8s_events:
+        namespaces: [] #   
+      otlp:
+        protocols: 
+          grpc:
+          http:
+            # endpoint: "0.0.0.0:5318"
+            # cors:
+            #   allowed_origins:
+            #     - http://*
+    processors:
+      # batch: null
+      # filter/logs:
+      #   logs:
+      #     exclude:
+      #       match_type: strict
+      #       resource_attributes:
+      #       - key: splunk.com/exclude
+      #         value: "true"
+
+    exporters:
+      logging:
+
+      splunk_hec:
+        # Splunk HTTP Event Collector token.
+        token: "${SECRET_TOKEN}"
+        # URL to a Splunk instance to send data to.
+        endpoint: "https://10.82.2.78:28088/services/collector"
+        # Optional Splunk source: https://docs.splunk.com/Splexicon:Source
+        source: "otel-collector"
+        # Optional Splunk source type: https://docs.splunk.com/Splexicon:Sourcetype
+        sourcetype: "otel"
+        # Splunk index, optional name of the Splunk index targeted.
+        index: "cni_openshift"
+        # Maximum HTTP connections to use simultaneously when sending data. Defaults to 100.
+        max_connections: 200
+        # Whether to disable gzip compression over HTTP. Defaults to false.
+        disable_compression: false
+        # HTTP timeout when sending data. Defaults to 10s.
+        timeout: 10s
+        tls:
+          # Whether to skip checking the certificate of the HEC endpoint when sending data over HTTPS. Defaults to false.
+          insecure_skip_verify: true #false
+          # # Path to the CA cert to verify the server being connected to.
+          # ca_file: /certs/ExampleCA.crt
+          # # Path to the TLS cert to use for client connections when TLS client auth is required.
+          # cert_file: /certs/HECclient.crt
+          # # Path to the TLS key to use for TLS required connections.
+          # key_file: /certs/HECclient.key
+        # Application name is used to track telemetry information for Splunk App's using HEC by App name.
+        splunk_app_name: "OpenTelemetry-Collector Splunk Exporter"
+        # Application version is used to track telemetry information for Splunk App's using HEC by App version.
+        splunk_app_version: "v0.0.1"
+
+    service:
+      extensions:
+      # - file_storage
+      # - health_check
+      # - k8s_observer
+      # - memory_ballast
+      # - zpages    
+      pipelines:
+        traces:
+          receivers: [otlp]
+          exporters: 
+          - logging
+          - splunk_hec
+        logs:
+          receivers: [otlp,k8s_events]
+          exporters: 
+          - logging
+          - splunk_hec
+  image: >-
+    jfrog.uk.ngridtools.com/public-proxy-ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.59.0
+  mode: deployment
+  env:
+  - name: SECRET_TOKEN
+    valueFrom:
+      secretKeyRef:
+        key: token
+        name: openshift-otel-splunk-collector
+  replicas: 1
+  resources: {}
+  targetAllocator:
+    prometheusCR: {}
+  upgradeStrategy: automatic

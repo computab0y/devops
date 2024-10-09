@@ -1,0 +1,18 @@
+apiVersion: integreatly.org/v1alpha1
+kind: GrafanaDataSource
+metadata:
+  name: istio-ctlplane-01
+  namespace: grafana-operator
+spec:
+  datasources:
+    - name: istio-ctlplane-01
+      type: prometheus
+      access: proxy
+      basicAuthUser: internal
+      basicAuth: true
+      url: 'https://prometheus.istio-ctlplane-01.svc.cluster.local:9090'
+      basicAuthPassword: ${PROMETHEUS_ISTIO_CTLPLANE_01_PWD}
+      jsonData:
+        timeInterval: 5s
+        tlsSkipVerify: true
+  name: istio-ctlplane-01

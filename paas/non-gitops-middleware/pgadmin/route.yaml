@@ -1,0 +1,17 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: pgadmin
+  namespace: pgadmin
+spec:
+  host: pgadmin.apps.devops.balancing.nationalgrideso.com
+  to:
+    kind: Service
+    name: pgadmin-service
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

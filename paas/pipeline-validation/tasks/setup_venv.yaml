@@ -1,0 +1,39 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: setup-venv
+  namespace: dev-int
+spec:
+  description: >-
+    Plan the pipeline validation
+  params:
+    - name: updates
+      type: string
+  steps:
+    - name: plan
+      env:
+      - name: SSL_CERT_FILE
+        value: /tekton-custom-certs/ca-bundle.crt
+      - name: PIP_CERT
+        value: /tekton-custom-certs/ca-bundle.crt
+      - name: PIP_INDEX_URL
+        value: >-
+          https://jfrog.uk.ngridtools.com/artifactory/api/pypi/public-proxy-pypi/simple
+      image: 'jfrog.uk.ngridtools.com:443/public-proxy-dockerhub/python:3.8.8'
+      resources: {}
+      script: >
+        #!/bin/bash
+
+        set -eu
+
+        python3 -m venv $(workspaces.python-ws.path)
+
+        source $(workspaces.python-ws.path)/bin/activate
+        
+        pip install pyaml
+
+        deactivate
+  workspaces:
+    - description: The git repo will be cloned onto the volume backing this Workspace.
+      name: python-ws
+   

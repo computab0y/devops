@@ -1,0 +1,31 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: app-promote-event-listener
+spec:
+  serviceAccountName: pipeline
+  triggers:
+    - name: promote-app
+        interceptors:
+          - params:
+              - name: secretRef
+                value: null
+              - name: eventTypes
+                value:
+                  - 'repo:refs_changed'
+            ref:
+              kind: ClusterInterceptor
+              name: bitbucket
+          - params:
+              - name: filter # filter branch name for prefixes feature/, hotfix/ or bugfix/
+                value: >-
+                  body["changes"][0]["ref"]["type"] == "TAG" &&
+                  body["changes"][0]["type"] == "ADD"
+            ref:
+              kind: ClusterInterceptor
+              name: cel
+        bindings:
+          - kind: ClusterTriggerBinding
+            ref: app-promote-trigger-binding
+        template:
+          ref: app-promote-trigger-template

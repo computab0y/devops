@@ -1,0 +1,7 @@
+resources:
+- namespace.yaml
+- rolebinding.yaml
+- service.yaml
+- route.yaml
+- pvc.yaml
+- deployment.yaml
