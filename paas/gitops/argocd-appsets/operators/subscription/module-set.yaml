@@ -51,7 +51,7 @@ spec:
       project: default
       source:
         path: gitops/operators/subscription/{{cluster}}/overlay/env
-        repoURL: https://bitbucket.uk.ngridtools.com/scm/efe/devops-cluster-config.git
+        repoURL: https://github.com/computab0y/devops.git
         targetRevision: master
       syncPolicy:
         automated:
