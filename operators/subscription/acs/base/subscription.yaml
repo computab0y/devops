@@ -3,11 +3,8 @@ kind: Subscription
 metadata:
   name: acs-operator
   namespace: rhacs-operator
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"
 spec:
-  channel: "rhacs-3.74"
-  installPlanApproval: Manual
+  installPlanApproval: Automatic
   name: rhacs-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace
