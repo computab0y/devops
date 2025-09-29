@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: open-telemetry
+  annotations:
+    openshift.io/node-selector: "" 
+    scheduler.alpha.kubernetes.io/defaultTolerations: '[{"Key": "node.workload.openshift.io/infra", "Operator": "Equal", "Value": "true", "Effect": "NoSchedule"}]'    
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    openshift.io/cluster-monitoring: "true"
