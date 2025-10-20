@@ -4,9 +4,9 @@ metadata:
   labels:
     operators.coreos.com/loki-operator.operators-redhat: ''
   name: loki-operator
-  namespace: operators-redhat
+  namespace: openshift-operators-redhat
 spec:
-  channel: stable-6.2
+  channel: stable-6.3
   installPlanApproval: Automatic
   name: loki-operator
   source: redhat-operators
