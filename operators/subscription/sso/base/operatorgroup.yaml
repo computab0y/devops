@@ -1,8 +1,8 @@
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
-  name: sso
-  namespace: sso
+  name: keycloak
+  namespace: keycloak
 spec:
   targetNamespaces:
-    - sso
+    - keycloak
