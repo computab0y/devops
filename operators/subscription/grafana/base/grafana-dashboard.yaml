@@ -12,38 +12,44 @@ spec:
       "title": "Cluster Health",
       "panels": [
         {
+          "title": "Pod Health History",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "targets": [
+            { "expr": "cluster_pods_healthy_count", "legendFormat": "Healthy Pods" },
+            { "expr": "cluster_pods_unhealthy_count", "legendFormat": "Unhealthy Pods" }
+          ],
+          "fieldConfig": {
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Healthy Pods" },
+                "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Unhealthy Pods" },
+                "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+              }
+            ]
+          }
+        },
+        {
           "title": "Ready Nodes",
-          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+          "gridPos": { "h": 6, "w": 8, "x": 0, "y": 10 },
           "type": "stat",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
           "targets": [{ "expr": "sum(kube_node_status_condition{condition='Ready',status='true'})" }]
         },
         {
-          "title": "Daily Health Check: Healthy Pods",
-          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
-          "type": "stat",
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "targets": [{ "expr": "cluster_pods_healthy_count" }],
-          "options": { "colorMode": "background", "graphMode": "none" }
-        },
-        {
-          "title": "Daily Health Check: Unhealthy Pods",
-          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
-          "type": "stat",
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "targets": [{ "expr": "cluster_pods_unhealthy_count" }],
-          "options": { "colorMode": "background", "graphMode": "none" }
-        },
-        {
           "title": "CPU Allocation %",
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "gridPos": { "h": 6, "w": 8, "x": 8, "y": 10 },
           "type": "gauge",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
           "targets": [{ "expr": "sum(kube_pod_container_resource_requests{resource='cpu'}) / sum(kube_node_status_allocatable{resource='cpu'}) * 100" }]
         },
         {
           "title": "Memory Allocation %",
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "gridPos": { "h": 6, "w": 8, "x": 16, "y": 10 },
           "type": "gauge",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
           "targets": [{ "expr": "sum(kube_pod_container_resource_requests{resource='memory'}) / sum(kube_node_status_allocatable{resource='memory'}) * 100" }]
