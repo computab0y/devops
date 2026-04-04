@@ -5,3 +5,4 @@ resources:
 - health-check/task.yaml
 - health-check/pipeline.yaml
 - health-check/cronjob.yaml
+- health-check/serviceaccount.yaml
