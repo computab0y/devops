@@ -4,7 +4,6 @@ metadata:
   name: postgres
   namespace: keycloak
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
 spec:
   replicas: 1
   selector:

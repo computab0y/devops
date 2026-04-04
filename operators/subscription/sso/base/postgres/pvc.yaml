@@ -4,7 +4,6 @@ metadata:
   name: postgres-pvc
   namespace: keycloak
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
 spec:
   accessModes:
     - ReadWriteOnce

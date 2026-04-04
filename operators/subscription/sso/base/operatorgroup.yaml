@@ -4,7 +4,6 @@ metadata:
   name: rhsso-operatorgroup
   namespace: keycloak
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
 spec:
   targetNamespaces:
   - keycloak
