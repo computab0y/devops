@@ -4,4 +4,6 @@ resources:
 - subscription.yaml
 - grafana-instance.yaml
 - grafana-monitoring-sa.yaml
+- grafana-token-secret.yaml
 - grafana-datasource.yaml
+- grafana-dashboard.yaml

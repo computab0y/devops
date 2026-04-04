@@ -1,0 +1,25 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: cluster-health
+  namespace: grafana-operator
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: "grafana"
+  json: >
+    {
+      "title": "Cluster Health",
+      "panels": [
+        {
+          "title": "Node Status",
+          "type": "stat",
+          "targets": [{ "expr": "sum(kube_node_status_condition{condition='Ready',status='true'})" }]
+        },
+        {
+          "title": "CPU Usage",
+          "type": "gauge",
+          "targets": [{ "expr": "sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate) / sum(kube_node_status_allocatable{resource='cpu'})" }]
+        }
+      ]
+    }
