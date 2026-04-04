@@ -12,13 +12,8 @@ spec:
       spec:
         containers:
           - name: keycloak
-            livenessProbe:
-              failureThreshold: 10
-              initialDelaySeconds: 600
-              periodSeconds: 30
-              timeoutSeconds: 15
             readinessProbe:
-              failureThreshold: 20
+              failureThreshold: 30
               initialDelaySeconds: 300
               periodSeconds: 30
               timeoutSeconds: 15
