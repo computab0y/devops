@@ -3,9 +3,11 @@ kind: Subscription
 metadata:
   name: rhsso-operator
   namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   channel: stable
-  installPlanApproval: Manual
+  installPlanApproval: Automatic
   name: rhsso-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace
