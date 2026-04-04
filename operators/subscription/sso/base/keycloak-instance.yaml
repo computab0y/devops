@@ -19,6 +19,8 @@ spec:
                 value: postgres
               - name: DB_ADDR
                 value: postgres
+              - name: DB_PORT
+                value: "5432"
               - name: DB_DATABASE
                 value: keycloak
               - name: DB_USER
@@ -33,6 +35,6 @@ spec:
                     key: POSTGRES_PASSWORD
             readinessProbe:
               failureThreshold: 30
-              initialDelaySeconds: 120
-              periodSeconds: 20
-              timeoutSeconds: 10
+              initialDelaySeconds: 60
+              periodSeconds: 10
+              timeoutSeconds: 5
