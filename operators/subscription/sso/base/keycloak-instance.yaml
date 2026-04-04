@@ -7,3 +7,18 @@ metadata:
     app: keycloak
 spec:
   instances: 1
+  keycloakDeploymentSpec:
+    template:
+      spec:
+        containers:
+          - name: keycloak
+            livenessProbe:
+              failureThreshold: 10
+              initialDelaySeconds: 300
+              periodSeconds: 20
+              timeoutSeconds: 10
+            readinessProbe:
+              failureThreshold: 20
+              initialDelaySeconds: 120
+              periodSeconds: 20
+              timeoutSeconds: 10
