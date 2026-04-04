@@ -7,13 +7,3 @@ metadata:
     app: keycloak
 spec:
   instances: 1
-  externalDatabase:
-    enabled: true
-    userSecret:
-      name: keycloak-db-secret
-      key: POSTGRES_USER
-    passwordSecret:
-      name: keycloak-db-secret
-      key: POSTGRES_PASSWORD
-    host: postgres
-    database: keycloak
