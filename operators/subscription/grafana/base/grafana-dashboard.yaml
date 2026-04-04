@@ -9,11 +9,11 @@ spec:
       dashboards: "grafana"
   json: >
     {
-      "title": "Cluster Health",
+      "title": "Comprehensive Cluster Health",
       "panels": [
         {
           "title": "Pod Health History",
-          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
           "type": "timeseries",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
           "targets": [
@@ -22,44 +22,71 @@ spec:
           ],
           "fieldConfig": {
             "overrides": [
-              {
-                "matcher": { "id": "byName", "options": "Healthy Pods" },
-                "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
-              },
-              {
-                "matcher": { "id": "byName", "options": "Unhealthy Pods" },
-                "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
-              }
+              { "matcher": { "id": "byName", "options": "Healthy Pods" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "Unhealthy Pods" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
             ]
           }
         },
         {
-          "title": "Ready Nodes",
-          "gridPos": { "h": 6, "w": 8, "x": 0, "y": 10 },
+          "title": "CrashLoopBackOff",
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
           "type": "stat",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "targets": [{ "expr": "sum(kube_node_status_condition{condition='Ready',status='true'})" }]
+          "targets": [{ "expr": "sum(kube_pod_container_status_waiting_reason{reason='CrashLoopBackOff'}) or vector(0)" }],
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } }
+        },
+        {
+          "title": "ImagePull Errors",
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "targets": [{ "expr": "sum(kube_pod_container_status_waiting_reason{reason=~'ImagePullBackOff|ErrImagePull'}) or vector(0)" }],
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } }
+        },
+        {
+          "title": "Job Succeeded",
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "targets": [{ "expr": "sum(kube_job_status_succeeded) or vector(0)" }],
+          "fieldConfig": { "defaults": { "color": { "fixedColor": "green", "mode": "fixed" } } }
+        },
+        {
+          "title": "Job Failed",
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "targets": [{ "expr": "sum(kube_job_status_failed) or vector(0)" }],
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } }
+        },
+        {
+          "title": "Total Storage (Requested)",
+          "gridPos": { "h": 6, "w": 8, "x": 0, "y": 12 },
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "targets": [{ "expr": "sum(kube_persistentvolumeclaim_resource_requests_storage_bytes)" }],
+          "fieldConfig": { "defaults": { "unit": "decbytes" } }
         },
         {
           "title": "CPU Allocation %",
-          "gridPos": { "h": 6, "w": 8, "x": 8, "y": 10 },
+          "gridPos": { "h": 6, "w": 8, "x": 8, "y": 12 },
           "type": "gauge",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
           "targets": [{ "expr": "sum(kube_pod_container_resource_requests{resource='cpu'}) / sum(kube_node_status_allocatable{resource='cpu'}) * 100" }]
         },
         {
           "title": "Memory Allocation %",
-          "gridPos": { "h": 6, "w": 8, "x": 16, "y": 10 },
+          "gridPos": { "h": 6, "w": 8, "x": 16, "y": 12 },
           "type": "gauge",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
           "targets": [{ "expr": "sum(kube_pod_container_resource_requests{resource='memory'}) / sum(kube_node_status_allocatable{resource='memory'}) * 100" }]
         },
         {
-          "title": "Unhealthy Pods by Namespace",
-          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+          "title": "Failed/Pending Pods by Namespace",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 18 },
           "type": "table",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "targets": [{ "expr": "sum by (namespace) (kube_pod_status_phase{phase!~'Running|Succeeded|Completed'}) > 0" }]
+          "targets": [{ "expr": "sum by (namespace, phase) (kube_pod_status_phase{phase=~'Failed|Pending'}) > 0" }]
         }
       ]
     }
