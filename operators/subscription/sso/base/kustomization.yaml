@@ -2,3 +2,7 @@ resources:
 - namespace.yaml
 - operatorgroup.yaml
 - subscription.yaml
+- postgres/secret.yaml
+- postgres/pvc.yaml
+- postgres/service.yaml
+- postgres/deployment.yaml
