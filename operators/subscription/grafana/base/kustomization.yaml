@@ -2,3 +2,6 @@ resources:
 - namespace.yaml
 - operatorgroup.yaml
 - subscription.yaml
+- grafana-instance.yaml
+- grafana-monitoring-sa.yaml
+- grafana-datasource.yaml
