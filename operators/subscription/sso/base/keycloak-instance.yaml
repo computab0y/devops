@@ -2,10 +2,18 @@ apiVersion: keycloak.org/v1alpha1
 kind: Keycloak
 metadata:
   name: keycloak
+  namespace: keycloak
   labels:
     app: keycloak
-  namespace: keycloak
 spec:
   instances: 1
   externalDatabase:
     enabled: true
+    userSecret:
+      name: keycloak-db-secret
+      key: POSTGRES_USER
+    passwordSecret:
+      name: keycloak-db-secret
+      key: POSTGRES_PASSWORD
+    host: postgres
+    database: keycloak
