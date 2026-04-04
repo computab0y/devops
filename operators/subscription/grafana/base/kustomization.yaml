@@ -7,3 +7,7 @@ resources:
 - grafana-token-secret.yaml
 - grafana-datasource.yaml
 - grafana-dashboard.yaml
+- monitoring/kube-state-metrics.yaml
+- monitoring/prometheus.yaml
+- monitoring/prometheus-config.yaml
+- monitoring/prometheus-rbac.yaml

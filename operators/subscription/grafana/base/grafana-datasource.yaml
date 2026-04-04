@@ -11,18 +11,5 @@ spec:
     name: Prometheus
     type: prometheus
     access: proxy
-    url: https://thanos-querier.openshift-monitoring.svc.cluster.local:9091
+    url: http://prometheus.grafana-operator.svc.cluster.local:9090
     isDefault: true
-    jsonData:
-      httpMethod: POST
-      tlsSkipVerify: true
-      httpHeaderName1: "Authorization"
-    secureJsonData:
-      httpHeaderValue1: "Bearer ${token}"
-    valuesFrom:
-      - target:
-          key: token
-        valueFrom:
-          secretKeyRef:
-            name: grafana-monitoring-token
-            key: token
