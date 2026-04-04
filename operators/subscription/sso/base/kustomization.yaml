@@ -6,3 +6,7 @@ resources:
 - postgres/pvc.yaml
 - postgres/service.yaml
 - postgres/deployment.yaml
+- keycloak-instance.yaml
+- keycloak-realm.yaml
+- keycloak-user.yaml
+- keycloak-client.yaml

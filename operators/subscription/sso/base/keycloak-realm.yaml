@@ -1,0 +1,14 @@
+apiVersion: keycloak.org/v1alpha1
+kind: KeycloakRealm
+metadata:
+  name: rgb-realm
+  namespace: keycloak
+spec:
+  instanceSelector:
+    matchLabels:
+      app: keycloak
+  realm:
+    id: rgb-realm
+    realm: rgb-realm
+    enabled: true
+    displayName: RGB Realm

@@ -1,0 +1,17 @@
+apiVersion: keycloak.org/v1alpha1
+kind: KeycloakClient
+metadata:
+  name: openshift-client
+  namespace: keycloak
+spec:
+  realmSelector:
+    matchLabels:
+      app: keycloak
+  client:
+    clientId: openshift
+    enabled: true
+    clientAuthenticatorType: client-secret
+    secret: rgb-client-secret-123
+    redirectUris:
+      - "https://oauth-openshift.apps-crc.testing/oauth2callback/rgb-sso"
+    standardFlowEnabled: true

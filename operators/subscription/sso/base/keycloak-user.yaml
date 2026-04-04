@@ -1,0 +1,20 @@
+apiVersion: keycloak.org/v1alpha1
+kind: KeycloakUser
+metadata:
+  name: rgb-admin-user
+  namespace: keycloak
+spec:
+  realmSelector:
+    matchLabels:
+      app: keycloak
+  user:
+    username: rgb-admin
+    enabled: true
+    email: admin@rgb.com
+    firstName: RGB
+    lastName: Admin
+    credentials:
+      - type: password
+        value: password123
+    realmRoles:
+      - admin
