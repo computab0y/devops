@@ -2,6 +2,8 @@ apiVersion: keycloak.org/v1alpha1
 kind: KeycloakClient
 metadata:
   name: openshift-client
+  labels:
+    app: keycloak
   namespace: keycloak
 spec:
   realmSelector:

@@ -2,6 +2,8 @@ apiVersion: keycloak.org/v1alpha1
 kind: KeycloakUser
 metadata:
   name: rgb-admin-user
+  labels:
+    app: keycloak
   namespace: keycloak
 spec:
   realmSelector:

@@ -2,6 +2,8 @@ apiVersion: keycloak.org/v1alpha1
 kind: Keycloak
 metadata:
   name: keycloak
+  labels:
+    app: keycloak
   namespace: keycloak
 spec:
   instances: 1
