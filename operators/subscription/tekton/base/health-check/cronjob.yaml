@@ -1,0 +1,20 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: daily-health-check-trigger
+  namespace: openshift-pipelines-operator
+spec:
+  schedule: "0 0 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: pipeline
+          containers:
+          - name: trigger
+            image: quay.io/openshift/origin-cli:latest
+            command:
+            - /bin/bash
+            - -c
+            - oc create pipelinerun daily-health-check-$(date +%Y%m%d-%H%M) --from-pipeline daily-health-check
+          restartPolicy: OnFailure

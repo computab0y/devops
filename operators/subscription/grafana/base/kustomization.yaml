@@ -11,3 +11,4 @@ resources:
 - monitoring/prometheus.yaml
 - monitoring/prometheus-config.yaml
 - monitoring/prometheus-rbac.yaml
+- monitoring/pushgateway.yaml

@@ -1,0 +1,10 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: daily-health-check
+  namespace: openshift-pipelines-operator
+spec:
+  tasks:
+  - name: check-pods
+    taskRef:
+      name: pod-health-report

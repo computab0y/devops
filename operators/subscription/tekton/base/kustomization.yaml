@@ -2,3 +2,6 @@ resources:
 - namespace.yaml
 - operator-group.yaml
 - subscription.yaml
+- health-check/task.yaml
+- health-check/pipeline.yaml
+- health-check/cronjob.yaml

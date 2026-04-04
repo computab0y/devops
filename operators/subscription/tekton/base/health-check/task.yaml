@@ -1,0 +1,24 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: pod-health-report
+  namespace: openshift-pipelines-operator
+spec:
+  steps:
+  - name: report-health
+    image: quay.io/openshift/origin-cli:latest
+    script: |
+      #!/bin/bash
+      TOTAL=$(oc get pods -A --no-headers | wc -l)
+      UNHEALTHY=$(oc get pods -A --no-headers | grep -vE 'Running|Succeeded|Completed' | wc -l)
+      HEALTHY=$((TOTAL - UNHEALTHY))
+      
+      echo "Pushing metrics to Pushgateway..."
+      cat <<EOF | curl --data-binary @- http://pushgateway.grafana-operator.svc.cluster.local:9091/metrics/job/pod_health_check
+      # HELP cluster_pods_healthy_count Number of healthy pods
+      # TYPE cluster_pods_healthy_count gauge
+      cluster_pods_healthy_count $HEALTHY
+      # HELP cluster_pods_unhealthy_count Number of unhealthy pods
+      # TYPE cluster_pods_unhealthy_count gauge
+      cluster_pods_unhealthy_count $UNHEALTHY
+      EOF
