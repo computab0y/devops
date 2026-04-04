@@ -10,5 +10,5 @@ spec:
     log:
       mode: console
     auth.anonymous:
-      enabled: true
+      enabled: "true"
       org_role: Admin
