@@ -9,4 +9,5 @@ resources:
 - keycloak-instance.yaml
 - keycloak-realm.yaml
 - keycloak-user.yaml
+- keycloak-user-computab0y.yaml
 - keycloak-client.yaml

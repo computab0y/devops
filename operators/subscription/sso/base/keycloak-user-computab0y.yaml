@@ -1,0 +1,21 @@
+apiVersion: keycloak.org/v1alpha1
+kind: KeycloakUser
+metadata:
+  name: computab0y-user
+  namespace: keycloak
+  labels:
+    app: keycloak
+spec:
+  realmSelector:
+    matchLabels:
+      app: keycloak
+  user:
+    username: computab0y
+    enabled: true
+    email: computab0y@rgb.com
+    firstName: Computab0y
+    credentials:
+      - type: password
+        value: qwerty
+    realmRoles:
+      - admin
