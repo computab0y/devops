@@ -9,14 +9,14 @@ spec:
       dashboards: "grafana"
   json: >
     {
-      "title": "Comprehensive Cluster Health",
+      "title": "Comprehensive Cluster Health & Inventory",
       "templating": {
         "list": [
           {
             "name": "namespace",
             "type": "query",
             "datasource": { "type": "prometheus", "uid": "Prometheus" },
-            "query": "label_values(namespace_pods_healthy_count, namespace)",
+            "query": "label_values(kube_pod_info, namespace)",
             "includeAll": true,
             "multi": false,
             "allValue": ".*",
@@ -26,18 +26,64 @@ spec:
       },
       "panels": [
         {
-          "title": "Pod Health History ($namespace)",
-          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
-          "type": "timeseries",
+          "title": "Inventory",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "type": "row"
+        },
+        {
+          "title": "Nodes",
+          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+          "type": "stat",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "targets": [
-            { "expr": "sum(namespace_pods_healthy_count{namespace=~"$namespace"}) or cluster_pods_healthy_count", "legendFormat": "Healthy Pods" },
-            { "expr": "sum(namespace_pods_unhealthy_count{namespace=~"$namespace"}) or cluster_pods_unhealthy_count", "legendFormat": "Unhealthy Pods" }
-          ],
+          "targets": [{ "expr": "sum(kube_node_info)" }]
+        },
+        {
+          "title": "Namespaces",
+          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "targets": [{ "expr": "count(kube_namespace_status_phase{phase='Active'})" }]
+        },
+        {
+          "title": "Total Pods",
+          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "targets": [{ "expr": "sum(kube_pod_info{namespace=~'$namespace'})" }]
+        },
+        {
+          "title": "Utilization",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "type": "row"
+        },
+        {
+          "title": "CPU Requested %",
+          "gridPos": { "h": 6, "w": 12, "x": 0, "y": 6 },
+          "type": "gauge",
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "targets": [{ "expr": "sum(kube_pod_container_resource_requests{resource='cpu', namespace=~'$namespace'}) / sum(kube_node_status_allocatable{resource='cpu'}) * 100" }]
+        },
+        {
+          "title": "Memory Requested %",
+          "gridPos": { "h": 6, "w": 12, "x": 12, "y": 6 },
+          "type": "gauge",
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "targets": [{ "expr": "sum(kube_pod_container_resource_requests{resource='memory', namespace=~'$namespace'}) / sum(kube_node_status_allocatable{resource='memory'}) * 100" }]
+        },
+        {
+          "title": "Certificates",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 12 },
+          "type": "row"
+        },
+        {
+          "title": "Certificate Expiry (OCP internal)",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 13 },
+          "type": "table",
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "targets": [{ "expr": "(ocp_cert_expiry_at - time()) / 86400" }],
           "fieldConfig": {
             "overrides": [
-              { "matcher": { "id": "byName", "options": "Healthy Pods" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
-              { "matcher": { "id": "byName", "options": "Unhealthy Pods" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+              { "matcher": { "id": "byName", "options": "Value" }, "properties": [{ "id": "unit", "value": "decdays" }, { "id": "displayName", "value": "Days to Expiry" }] }
             ]
           }
         }
