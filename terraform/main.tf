@@ -21,7 +21,6 @@ variable "github_token" {
 }
 
 resource "null_resource" "crc_cluster" {
-  # This resource handles the lifecycle of the CRC VM
   provisioner "local-exec" {
     command = <<EOT
       crc config set memory 16384
@@ -52,16 +51,13 @@ resource "null_resource" "gitops_bootstrap" {
       echo "Waiting for CRC API to stabilize..."
       sleep 30
       
-      # Extract kubeadmin password from crc console output
       KUBEADMIN_PASS=$(crc console --credentials | grep "kubeadmin" | grep -o ' -p [^ ]*' | cut -d' ' -f3)
-      
-      # Login
       oc login -u kubeadmin -p $KUBEADMIN_PASS https://api.crc.testing:6443 --insecure-skip-tls-verify
       
       # Install OpenShift GitOps Operator
       oc create namespace openshift-gitops-operator --dry-run=client -o yaml | oc apply -f -
       
-      cat <<EOF | oc apply -f -
+      cat <<EOF2 | oc apply -f -
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
@@ -81,9 +77,9 @@ spec:
   name: openshift-gitops-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace
-EOF
+EOF2
 
-      echo "Waiting for OpenShift GitOps operator to finish installing..."
+      echo "Waiting for OpenShift GitOps operator..."
       for i in {1..60}; do
         if oc get csv -n openshift-gitops-operator 2>/dev/null | grep -q "Succeeded"; then
           echo "GitOps Operator installed."
@@ -92,11 +88,12 @@ EOF
         sleep 10
       done
 
-      # Wait for Argo CD server to be ready
-      sleep 30
+      # Grant cluster-admin to Argo CD and set annotation tracking
+      oc adm policy add-cluster-role-to-user cluster-admin -z openshift-gitops-argocd-application-controller -n openshift-gitops
+      oc patch argocd openshift-gitops -n openshift-gitops --type='merge' -p '{"spec":{"resourceTrackingMethod":"annotation"}}'
 
       # Create Argo CD Repository Secret
-      cat <<EOF | oc apply -f -
+      cat <<EOF2 | oc apply -f -
 apiVersion: v1
 kind: Secret
 metadata:
@@ -109,25 +106,26 @@ stringData:
   url: https://github.com/computab0y/devops.git
   password: ${var.github_token}
   username: computab0y
-EOF
+EOF2
 
-      # Grant cluster-admin to Argo CD controller so it can manage cluster-wide resources
-      oc adm policy add-cluster-role-to-user cluster-admin -z openshift-gitops-argocd-application-controller -n openshift-gitops
-      oc patch argocd openshift-gitops -n openshift-gitops --type='merge' -p '{"spec":{"resourceTrackingMethod":"annotation"}}' || true
+      # Create namespaces before applying apps
+      for NS in keycloak grafana-operator openshift-pipelines-operator vault openshift-external-secrets-operator; do
+        oc create namespace $NS --dry-run=client -o yaml | oc apply -f -
+      done
 
-      # Apply all Applications
+      # Deploy Argo CD Applications
       for APP in tekton sso grafana vault external-secrets; do
-        DEST_NS=\$APP
-        if [ "\$APP" = "tekton" ]; then DEST_NS="openshift-pipelines-operator"; fi
-        if [ "\$APP" = "sso" ]; then DEST_NS="keycloak"; fi
-        if [ "\$APP" = "grafana" ]; then DEST_NS="grafana-operator"; fi
-        if [ "\$APP" = "external-secrets" ]; then DEST_NS="openshift-external-secrets-operator"; fi
+        DEST_NS=$APP
+        if [ "$APP" = "tekton" ]; then DEST_NS="openshift-pipelines-operator"; fi
+        if [ "$APP" = "sso" ]; then DEST_NS="keycloak"; fi
+        if [ "$APP" = "grafana" ]; then DEST_NS="grafana-operator"; fi
+        if [ "$APP" = "external-secrets" ]; then DEST_NS="openshift-external-secrets-operator"; fi
 
-        cat <<EOF | oc apply -f -
+        cat <<EOF2 | oc apply -f -
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: devops-\$APP
+  name: devops-$APP
   namespace: openshift-gitops
   labels:
     app.kubernetes.io/instance: openshift-gitops
@@ -136,18 +134,16 @@ spec:
   source:
     repoURL: https://github.com/computab0y/devops.git
     targetRevision: HEAD
-    path: operators/subscription/\$APP/base
+    path: operators/subscription/$APP/base
   destination:
     server: https://kubernetes.default.svc
-    namespace: \$DEST_NS
+    namespace: $DEST_NS
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-EOF
+EOF2
       done
-      
-      echo "All initial GitOps applications configured."
     EOT
   }
 }
