@@ -1,0 +1,126 @@
+---
+- name: Manage OpenShift Cluster Lifecycle
+  hosts: localhost
+  vars_files:
+    - vars.yml
+
+  tasks:
+    # --- DESTROY SECTION ---
+    - name: Destroy CRC Cluster
+      block:
+        - name: Stop and Delete CRC
+          shell: "crc stop || true && crc delete -f"
+          register: destroy_output
+        - debug: var=destroy_output.stdout
+      tags: [never, destroy]
+
+    # --- PROVISION SECTION ---
+    - name: Provision CRC Cluster
+      block:
+        - name: Configure CRC Resources
+          shell: |
+            crc config set memory {{ crc_memory }}
+            crc config set cpus {{ crc_cpus }}
+
+        - name: Start CRC Cluster
+          shell: "crc start --pull-secret-file {{ pull_secret_path }}"
+          register: start_output
+        - debug: var=start_output.stdout
+      tags: [provision]
+
+    - name: Bootstrap GitOps and Applications
+      block:
+        - name: Extract Kubeadmin Password
+          shell: "crc console --credentials | grep 'kubeadmin' | grep -o ' -p [^ ]*' | cut -d' ' -f3"
+          register: kubeadmin_pass
+
+        - name: Login to OpenShift
+          shell: |
+            eval $(crc oc-env)
+            oc login -u kubeadmin -p {{ kubeadmin_pass.stdout }} https://api.crc.testing:6443 --insecure-skip-tls-verify
+
+        - name: Install OpenShift GitOps Operator
+          shell: |
+            eval $(crc oc-env)
+            oc create namespace openshift-gitops-operator --dry-run=client -o yaml | oc apply -f -
+            cat <<EOF | oc apply -f -
+            apiVersion: operators.coreos.com/v1
+            kind: OperatorGroup
+            metadata:
+              name: openshift-gitops-operator
+              namespace: openshift-gitops-operator
+            spec:
+              upgradeStrategy: Default
+            ---
+            apiVersion: operators.coreos.com/v1alpha1
+            kind: Subscription
+            metadata:
+              name: openshift-gitops-operator
+              namespace: openshift-gitops-operator
+            spec:
+              channel: latest
+              installPlanApproval: Automatic
+              name: openshift-gitops-operator
+              source: redhat-operators
+              sourceNamespace: openshift-marketplace
+            EOF
+
+        - name: Wait for GitOps Operator
+          shell: "eval $(crc oc-env) && oc get csv -n openshift-gitops-operator"
+          register: csv_output
+          until: "'Succeeded' in csv_output.stdout"
+          retries: 30
+          delay: 10
+
+        - name: Configure Argo CD Repository Secret
+          shell: |
+            eval $(crc oc-env)
+            cat <<EOF | oc apply -f -
+            apiVersion: v1
+            kind: Secret
+            metadata:
+              name: repo-github-computab0y-devops
+              namespace: openshift-gitops
+              labels:
+                argocd.argoproj.io/secret-type: repository
+            stringData:
+              type: git
+              url: {{ github_repo_url }}
+              password: {{ github_token }}
+              username: {{ github_user }}
+            EOF
+
+        - name: Grant Cluster-Admin to Argo CD Controller
+          shell: |
+            eval $(crc oc-env)
+            oc adm policy add-cluster-role-to-user cluster-admin -z openshift-gitops-argocd-application-controller -n openshift-gitops
+            oc patch argocd openshift-gitops -n openshift-gitops --type='merge' -p '{"spec":{"resourceTrackingMethod":"annotation"}}'
+
+        - name: Deploy Argo CD Applications
+          shell: |
+            eval $(crc oc-env)
+            cat <<EOF | oc apply -f -
+            apiVersion: argoproj.io/v1alpha1
+            kind: Application
+            metadata:
+              name: devops-{{ item.name }}
+              namespace: openshift-gitops
+              labels:
+                app.kubernetes.io/instance: openshift-gitops
+            spec:
+              project: default
+              source:
+                repoURL: {{ github_repo_url }}
+                targetRevision: HEAD
+                path: operators/subscription/{{ item.name }}/base
+              destination:
+                server: https://kubernetes.default.svc
+                namespace: {{ item.namespace }}
+              syncPolicy:
+                automated:
+                  prune: true
+                  selfHeal: true
+            EOF
+          loop: "{{ gitops_apps }}"
+
+      tags: [provision]

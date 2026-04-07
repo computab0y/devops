@@ -1,0 +1,17 @@
+# CRC Configuration
+crc_memory: 16384
+crc_cpus: 4
+pull_secret_path: "~/Downloads/pull-secret.txt"
+
+# GitHub Configuration for Argo CD
+github_user: "computab0y"
+github_repo_url: "https://github.com/computab0y/devops.git"
+github_token: "{{ lookup('env', 'GITHUB_TOKEN') | default('YOUR_TOKEN_HERE', true) }}"
+
+# Application List for GitOps sync
+gitops_apps:
+  - { name: "tekton", namespace: "openshift-pipelines-operator" }
+  - { name: "sso", namespace: "keycloak" }
+  - { name: "grafana", namespace: "grafana-operator" }
+  - { name: "vault", namespace: "vault" }
+  - { name: "external-secrets", namespace: "openshift-external-secrets-operator" }
