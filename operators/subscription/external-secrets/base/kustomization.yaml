@@ -6,3 +6,4 @@ resources:
 - clustersecretstore.yaml
 - example-externalsecret.yaml
 - example-certificate.yaml
+- externalsecretsconfig.yaml
