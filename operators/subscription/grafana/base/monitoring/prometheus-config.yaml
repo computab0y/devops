@@ -20,4 +20,4 @@ data:
           - targets: ['pushgateway:9091']
       - job_name: 'argocd'
         static_configs:
-          - targets: ['openshift-gitops-server.openshift-gitops.svc.cluster.local:8082']
+          - targets: ['openshift-gitops-metrics.openshift-gitops.svc.cluster.local:8082']
