@@ -2,3 +2,7 @@ resources:
 - namespace.yaml
 - operatorgroup.yaml
 - subscription.yaml
+- vault-token-secret.yaml
+- clustersecretstore.yaml
+- example-externalsecret.yaml
+- example-certificate.yaml

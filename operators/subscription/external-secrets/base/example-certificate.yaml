@@ -1,0 +1,22 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: my-vault-cert
+  namespace: default
+spec:
+  refreshInterval: "1h"
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: my-vault-cert-secret
+    template:
+      type: kubernetes.io/tls
+      data:
+        tls.crt: "{{ .certificate }}\n{{ .issuing_ca }}"
+        tls.key: "{{ .private_key }}"
+  dataFrom:
+  - extract:
+      key: pki/issue/my-role
+      conversionStrategy: Default
+      decodingStrategy: None
