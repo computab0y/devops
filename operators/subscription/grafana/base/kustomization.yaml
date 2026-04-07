@@ -6,6 +6,7 @@ resources:
 - grafana-monitoring-sa.yaml
 - grafana-token-secret.yaml
 - grafana-datasource.yaml
+- grafana-loki-datasource.yaml
 - grafana-dashboard.yaml
 - route.yaml
 - monitoring/kube-state-metrics.yaml
@@ -13,3 +14,8 @@ resources:
 - monitoring/prometheus-config.yaml
 - monitoring/prometheus-rbac.yaml
 - monitoring/pushgateway.yaml
+- monitoring/loki.yaml
+- monitoring/loki-config.yaml
+- monitoring/promtail.yaml
+- monitoring/promtail-config.yaml
+- monitoring/promtail-rbac.yaml
