@@ -9,7 +9,7 @@ spec:
       dashboards: "grafana"
   json: >
     {
-      "title": "Cluster Health, Apps & Certificates",
+      "title": "Comprehensive Cluster Health & Inventory",
       "templating": {
         "list": [
           {
@@ -31,8 +31,8 @@ spec:
           "type": "stat",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
           "targets": [
-            { "expr": "count(argocd_app_info{health_status='Healthy'})", "legendFormat": "Healthy Apps" },
-            { "expr": "count(argocd_app_info{health_status!='Healthy'})", "legendFormat": "Unhealthy Apps" }
+            { "expr": "count(argocd_app_info{health_status='Healthy', dest_namespace=~'$namespace'})", "legendFormat": "Healthy Apps" },
+            { "expr": "count(argocd_app_info{health_status!='Healthy', dest_namespace=~'$namespace'})", "legendFormat": "Unhealthy Apps" }
           ],
           "fieldConfig": {
             "overrides": [
@@ -42,23 +42,16 @@ spec:
           }
         },
         {
-          "title": "Certificate Expiry Alerts (Expiring within 30 days)",
+          "title": "Certificate Expiry (OCP internal)",
           "gridPos": { "h": 6, "w": 12, "x": 12, "y": 0 },
           "type": "table",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "targets": [{ "expr": "(ocp_cert_expiry_at - time()) / 86400 < 30" }],
+          "targets": [{ "expr": "(ocp_cert_expiry_at - time()) / 86400" }],
           "fieldConfig": {
             "defaults": {
-              "color": { "mode": "thresholds" },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0 }]
-              },
+              "color": { "mode": "thresholds", "defaults": { "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 30 }] } } },
               "unit": "decdays"
-            },
-            "overrides": [
-              { "matcher": { "id": "byName", "options": "Value" }, "properties": [{ "id": "displayName", "value": "Days to Expiry" }] }
-            ]
+            }
           }
         },
         {
@@ -74,16 +67,6 @@ spec:
           "type": "gauge",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
           "targets": [{ "expr": "sum(kube_pod_container_resource_requests{resource='memory', namespace=~'$namespace'}) / sum(kube_node_status_allocatable{resource='memory'}) * 100" }]
-        },
-        {
-          "title": "Pod Health History",
-          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
-          "type": "timeseries",
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "targets": [
-            { "expr": "sum(namespace_pods_healthy_count{namespace=~\"$namespace\"}) or cluster_pods_healthy_count", "legendFormat": "Healthy Pods" },
-            { "expr": "sum(namespace_pods_unhealthy_count{namespace=~\"$namespace\"}) or cluster_pods_unhealthy_count", "legendFormat": "Unhealthy Pods" }
-          ]
         }
       ]
     }
