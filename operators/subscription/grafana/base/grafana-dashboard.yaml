@@ -9,7 +9,7 @@ spec:
       dashboards: "grafana"
   json: >
     {
-      "title": "Comprehensive Cluster Health & Inventory",
+      "title": "Cluster Health, Apps & Certificates",
       "templating": {
         "list": [
           {
@@ -26,35 +26,40 @@ spec:
       },
       "panels": [
         {
-          "title": "Inventory",
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
-          "type": "row"
-        },
-        {
-          "title": "Nodes",
-          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+          "title": "Argo CD Application Health",
+          "gridPos": { "h": 6, "w": 12, "x": 0, "y": 0 },
           "type": "stat",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "targets": [{ "expr": "sum(kube_node_info)" }]
+          "targets": [
+            { "expr": "count(argocd_app_info{health_status='Healthy'})", "legendFormat": "Healthy Apps" },
+            { "expr": "count(argocd_app_info{health_status!='Healthy'})", "legendFormat": "Unhealthy Apps" }
+          ],
+          "fieldConfig": {
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "Healthy Apps" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "Unhealthy Apps" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+            ]
+          }
         },
         {
-          "title": "Namespaces",
-          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
-          "type": "stat",
+          "title": "Certificate Expiry Alerts (Expiring within 30 days)",
+          "gridPos": { "h": 6, "w": 12, "x": 12, "y": 0 },
+          "type": "table",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "targets": [{ "expr": "count(kube_namespace_status_phase{phase='Active'})" }]
-        },
-        {
-          "title": "Total Pods",
-          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
-          "type": "stat",
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "targets": [{ "expr": "sum(kube_pod_info{namespace=~'$namespace'})" }]
-        },
-        {
-          "title": "Utilization",
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
-          "type": "row"
+          "targets": [{ "expr": "(ocp_cert_expiry_at - time()) / 86400 < 30" }],
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0 }]
+              },
+              "unit": "decdays"
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "Value" }, "properties": [{ "id": "displayName", "value": "Days to Expiry" }] }
+            ]
+          }
         },
         {
           "title": "CPU Requested %",
@@ -71,21 +76,14 @@ spec:
           "targets": [{ "expr": "sum(kube_pod_container_resource_requests{resource='memory', namespace=~'$namespace'}) / sum(kube_node_status_allocatable{resource='memory'}) * 100" }]
         },
         {
-          "title": "Certificates",
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 12 },
-          "type": "row"
-        },
-        {
-          "title": "Certificate Expiry (OCP internal)",
-          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 13 },
-          "type": "table",
+          "title": "Pod Health History",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+          "type": "timeseries",
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "targets": [{ "expr": "(ocp_cert_expiry_at - time()) / 86400" }],
-          "fieldConfig": {
-            "overrides": [
-              { "matcher": { "id": "byName", "options": "Value" }, "properties": [{ "id": "unit", "value": "decdays" }, { "id": "displayName", "value": "Days to Expiry" }] }
-            ]
-          }
+          "targets": [
+            { "expr": "sum(namespace_pods_healthy_count{namespace=~\"$namespace\"}) or cluster_pods_healthy_count", "legendFormat": "Healthy Pods" },
+            { "expr": "sum(namespace_pods_unhealthy_count{namespace=~\"$namespace\"}) or cluster_pods_unhealthy_count", "legendFormat": "Unhealthy Pods" }
+          ]
         }
       ]
     }
