@@ -9,11 +9,30 @@
       shell: "crc stop || true && crc delete -f"
       tags: [never, destroy]
 
+    - name: Setup CRC Prerequisites
+      shell: "crc setup"
+      tags: [provision]
+
     - name: Provision CRC Cluster
       shell: |
         crc config set memory {{ crc_memory }}
         crc config set cpus {{ crc_cpus }}
         crc start --pull-secret-file {{ pull_secret_path }}
+      tags: [provision]
+
+    - name: Wait for CRC API to be ready
+      shell: |
+        eval $(crc oc-env)
+        for i in $(seq 1 24); do
+          if oc get --insecure-skip-tls-verify -s https://api.crc.testing:6443 / >/dev/null 2>&1; then
+            echo "API is ready"
+            exit 0
+          fi
+          echo "Waiting for API... attempt $i/24"
+          sleep 10
+        done
+        echo "API did not become ready in time"
+        exit 1
       tags: [provision]
 
     - name: Bootstrap GitOps
