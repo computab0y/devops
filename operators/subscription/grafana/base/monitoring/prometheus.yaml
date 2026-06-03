@@ -13,6 +13,7 @@ spec:
       labels:
         app: prometheus
     spec:
+      serviceAccountName: grafana-monitoring
       securityContext:
         runAsUser: 65534
         fsGroup: 65534
