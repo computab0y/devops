@@ -17,6 +17,7 @@
       shell: |
         crc config set memory {{ crc_memory }}
         crc config set cpus {{ crc_cpus }}
+        crc config set disk-size {{ crc_disk_size }}
         crc start --pull-secret-file {{ pull_secret_path }}
       tags: [provision]
 

@@ -1,6 +1,7 @@
 # CRC Configuration
-crc_memory: 16384
-crc_cpus: 4
+crc_memory: 24576
+crc_cpus: 6
+crc_disk_size: 60
 pull_secret_path: "~/Downloads/pull-secret.txt"
 
 # GitHub Configuration for Argo CD
