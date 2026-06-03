@@ -24,7 +24,7 @@ resource "null_resource" "crc_cluster" {
   provisioner "local-exec" {
     command = <<EOT
       crc setup
-      crc config set memory 16384
+      crc config set memory 24576
       crc config set cpus 6
       crc start --pull-secret-file ${var.pull_secret_path}
     EOT
