@@ -5,6 +5,9 @@ metadata:
   labels:
     app: keycloak
   namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   realmSelector:
     matchLabels:

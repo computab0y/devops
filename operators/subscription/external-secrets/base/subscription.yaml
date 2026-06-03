@@ -4,7 +4,7 @@ metadata:
   name: openshift-external-secrets-operator
   namespace: openshift-external-secrets-operator
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   channel: stable-v1.1
   installPlanApproval: Automatic

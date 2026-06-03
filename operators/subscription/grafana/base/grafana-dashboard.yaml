@@ -3,6 +3,9 @@ kind: GrafanaDashboard
 metadata:
   name: cluster-health
   namespace: grafana-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   instanceSelector:
     matchLabels:

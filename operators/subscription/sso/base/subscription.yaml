@@ -4,6 +4,7 @@ metadata:
   name: rhsso-operator
   namespace: keycloak
   annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   channel: stable
   installPlanApproval: Automatic

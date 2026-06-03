@@ -25,7 +25,7 @@ resource "null_resource" "crc_cluster" {
     command = <<EOT
       crc setup
       crc config set memory 16384
-      crc config set cpus 4
+      crc config set cpus 6
       crc start --pull-secret-file ${var.pull_secret_path}
     EOT
   }

@@ -3,6 +3,9 @@ kind: ExternalSecret
 metadata:
   name: my-vault-cert
   namespace: default
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   refreshInterval: "1h"
   secretStoreRef:

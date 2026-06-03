@@ -3,6 +3,8 @@ kind: CronJob
 metadata:
   name: daily-health-check-trigger
   namespace: openshift-pipelines-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
 spec:
   schedule: "0 0 * * *"
   jobTemplate:

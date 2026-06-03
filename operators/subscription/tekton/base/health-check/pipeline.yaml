@@ -3,6 +3,9 @@ kind: Pipeline
 metadata:
   name: daily-health-check
   namespace: openshift-pipelines-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   tasks:
   - name: check-pods

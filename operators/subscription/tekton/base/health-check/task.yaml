@@ -3,6 +3,9 @@ kind: Task
 metadata:
   name: pod-health-report
   namespace: openshift-pipelines-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   steps:
   - name: report-health

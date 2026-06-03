@@ -3,6 +3,9 @@ kind: GrafanaDatasource
 metadata:
   name: prometheus
   namespace: grafana-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   instanceSelector:
     matchLabels:
