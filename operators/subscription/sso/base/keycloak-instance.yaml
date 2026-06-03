@@ -1,4 +1,4 @@
-apiVersion: keycloak.org/v1alpha1
+apiVersion: k8s.keycloak.org/v2alpha1
 kind: Keycloak
 metadata:
   name: keycloak
@@ -10,7 +10,18 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   instances: 1
-  externalAccess:
-    enabled: true
-  externalDatabase:
-    enabled: true
+  db:
+    vendor: postgres
+    host: postgres.keycloak.svc.cluster.local
+    database: keycloak
+    usernameSecret:
+      name: keycloak-db-secret
+      key: POSTGRES_USERNAME
+    passwordSecret:
+      name: keycloak-db-secret
+      key: POSTGRES_PASSWORD
+  http:
+    httpEnabled: true
+  hostname:
+    strict: false
+    strictBackchannel: false
