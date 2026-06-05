@@ -22,6 +22,9 @@ spec:
       key: POSTGRES_PASSWORD
   http:
     httpEnabled: true
+  proxy:
+    headers: xforwarded
   hostname:
+    hostname: keycloak-keycloak.apps-crc.testing
     strict: false
     strictBackchannel: false
