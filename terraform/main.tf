@@ -114,6 +114,12 @@ EOF2
         oc create namespace $NS --dry-run=client -o yaml | oc apply -f -
       done
 
+      # Configure ArgoCD RBAC for cluster-admins group
+      oc patch argocd openshift-gitops -n openshift-gitops --type='merge' -p '{"spec":{"rbac":{"defaultPolicy":"role:readonly","policy":"g, cluster-admins, role:admin\ng, system:cluster-admins, role:admin\ng, computab0y, role:admin","scopes":"[groups, preferred_username]"}}}'
+
+      # Expose Keycloak route (created by SSO app but needed for OAuth config)
+      # OAuth and ClusterRoleBinding are managed via GitOps (sso app, wave 6)
+
       # Deploy Argo CD Applications
       for APP in tekton sso grafana vault external-secrets; do
         DEST_NS=$APP

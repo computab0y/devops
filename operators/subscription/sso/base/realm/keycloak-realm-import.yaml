@@ -1,0 +1,46 @@
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakRealmImport
+metadata:
+  name: openshift-realm
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  keycloakCRName: keycloak
+  realm:
+    realm: openshift
+    enabled: true
+    displayName: OpenShift
+    groups:
+      - name: cluster-admins
+    users:
+      - username: computab0y
+        enabled: true
+        firstName: Ray
+        lastName: Bryan
+        email: rgbryan@gmail.com
+        groups:
+          - cluster-admins
+        credentials:
+          - type: password
+            value: changeme123!
+            temporary: true
+    clients:
+      - clientId: openshift
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: true
+        redirectUris:
+          - "https://oauth-openshift.apps-crc.testing/oauth2callback/keycloak"
+        protocolMappers:
+          - name: groups
+            protocol: openid-connect
+            protocolMapper: oidc-group-membership-mapper
+            config:
+              full.path: "false"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: groups
+              userinfo.token.claim: "true"

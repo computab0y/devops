@@ -11,3 +11,6 @@ resources:
 - keycloak-user.yaml
 - keycloak-user-computab0y.yaml
 - keycloak-client.yaml
+- realm/keycloak-realm-import.yaml
+- openshift-oauth.yaml
+- cluster-admin-binding.yaml

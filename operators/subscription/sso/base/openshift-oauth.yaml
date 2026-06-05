@@ -1,0 +1,34 @@
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+    argocd.argoproj.io/sync-options: Replace=true
+spec:
+  identityProviders:
+    - name: developer
+      mappingMethod: claim
+      type: HTPasswd
+      htpasswd:
+        fileData:
+          name: htpass-secret
+    - name: keycloak
+      mappingMethod: claim
+      type: OpenID
+      openID:
+        clientID: openshift
+        clientSecret:
+          name: keycloak-client-secret
+        ca:
+          name: keycloak-ca-bundle
+        issuer: "https://keycloak-keycloak.apps-crc.testing/realms/openshift"
+        claims:
+          preferredUsername:
+            - preferred_username
+          name:
+            - name
+          email:
+            - email
+          groups:
+            - groups

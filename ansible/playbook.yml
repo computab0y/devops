@@ -79,6 +79,7 @@ EOM
         eval $(crc oc-env)
         oc adm policy add-cluster-role-to-user cluster-admin -z openshift-gitops-argocd-application-controller -n openshift-gitops
         oc patch argocd openshift-gitops -n openshift-gitops --type='merge' -p '{"spec":{"resourceTrackingMethod":"annotation"}}'
+        oc patch argocd openshift-gitops -n openshift-gitops --type='merge' -p '{"spec":{"rbac":{"defaultPolicy":"role:readonly","policy":"g, cluster-admins, role:admin\ng, system:cluster-admins, role:admin\ng, computab0y, role:admin","scopes":"[groups, preferred_username]"}}}'
         
         cat <<EOM | oc apply -f -
 apiVersion: v1
