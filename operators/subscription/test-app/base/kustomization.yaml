@@ -7,6 +7,10 @@ generatorOptions:
   disableNameSuffixHash: true
 
 configMapGenerator:
+- name: swagger-nginx-conf
+  namespace: test-app
+  files:
+  - swagger-nginx.conf=static/swagger-nginx.conf
 - name: swagger-index
   namespace: test-app
   files:

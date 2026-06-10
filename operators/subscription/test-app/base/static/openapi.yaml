@@ -485,7 +485,7 @@ paths:
       - Zones
 servers:
 - description: CRC cluster
-  url: https://httpbin-test-app.apps-crc.testing
+  url: https://swagger-ui-test-app.apps-crc.testing
 tags:
 - name: Units
 - name: Prequalified Unit Services
