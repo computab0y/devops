@@ -80,8 +80,6 @@ paths:
                     unitEndpoints:
                       items:
                         properties:
-                          effectiveEndDate:
-                            type: string
                           effectiveStartDate:
                             type: string
                           unitEndpointStatus:
