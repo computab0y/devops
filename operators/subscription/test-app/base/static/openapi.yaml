@@ -66,7 +66,33 @@ paths:
     get:
       responses:
         '200':
-          description: Array of endpoints
+          content:
+            application/json:
+              schema:
+                items:
+                  properties:
+                    endpointGroupId:
+                      type: string
+                    folderName:
+                      type: string
+                    tradingAgentId:
+                      type: string
+                    unitEndpoints:
+                      items:
+                        properties:
+                          effectiveEndDate:
+                            type: string
+                          effectiveStartDate:
+                            type: string
+                          unitEndpointStatus:
+                            type: string
+                          unitRegId:
+                            type: string
+                        type: object
+                      type: array
+                  type: object
+                type: array
+          description: Array of trading agents with linked unit endpoints
       summary: Return array of endpoints
       tags:
       - Endpoints
