@@ -110,7 +110,7 @@ stringData:
 EOF2
 
       # Create namespaces before applying apps
-      for NS in keycloak grafana-operator openshift-pipelines-operator vault openshift-external-secrets-operator; do
+      for NS in keycloak grafana-operator openshift-pipelines-operator vault openshift-external-secrets-operator test-app; do
         oc create namespace $NS --dry-run=client -o yaml | oc apply -f -
       done
 
@@ -121,7 +121,7 @@ EOF2
       # OAuth and ClusterRoleBinding are managed via GitOps (sso app, wave 6)
 
       # Deploy Argo CD Applications
-      for APP in tekton sso grafana vault external-secrets; do
+      for APP in tekton sso grafana vault external-secrets test-app; do
         DEST_NS=$APP
         if [ "$APP" = "tekton" ]; then DEST_NS="openshift-pipelines-operator"; fi
         if [ "$APP" = "sso" ]; then DEST_NS="keycloak"; fi

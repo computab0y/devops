@@ -1,0 +1,31 @@
+resources:
+- namespace.yaml
+- httpbin.yaml
+- swagger-ui.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+- name: swagger-index
+  namespace: test-app
+  files:
+  - static/index.html
+- name: swagger-theme
+  namespace: test-app
+  files:
+  - static/theme-feeling-blue.css
+- name: swagger-style
+  namespace: test-app
+  files:
+  - static/style.css
+- name: swagger-spec
+  namespace: test-app
+  files:
+  - static/openapi.yaml
+
+secretGenerator:
+- name: swagger-logo
+  namespace: test-app
+  files:
+  - static/logo.png

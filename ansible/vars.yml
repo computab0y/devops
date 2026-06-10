@@ -16,3 +16,4 @@ gitops_apps:
   - { name: "grafana", namespace: "grafana-operator" }
   - { name: "vault", namespace: "vault" }
   - { name: "external-secrets", namespace: "openshift-external-secrets-operator" }
+  - { name: "test-app", namespace: "test-app" }

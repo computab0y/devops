@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swagger-ui
+  namespace: test-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: swagger-ui
+  template:
+    metadata:
+      labels:
+        app: swagger-ui
+    spec:
+      containers:
+      - name: swagger-ui
+        image: swaggerapi/swagger-ui:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PORT
+          value: "8080"
+        volumeMounts:
+        - name: index
+          mountPath: /usr/share/nginx/html/index.html
+          subPath: index.html
+        - name: theme
+          mountPath: /usr/share/nginx/html/theme-feeling-blue.css
+          subPath: theme-feeling-blue.css
+        - name: style
+          mountPath: /usr/share/nginx/html/style.css
+          subPath: style.css
+        - name: spec
+          mountPath: /usr/share/nginx/html/openapi.yaml
+          subPath: openapi.yaml
+        - name: logo
+          mountPath: /usr/share/nginx/html/logo.png
+          subPath: logo.png
+      volumes:
+      - name: index
+        configMap:
+          name: swagger-index
+      - name: theme
+        configMap:
+          name: swagger-theme
+      - name: style
+        configMap:
+          name: swagger-style
+      - name: spec
+        configMap:
+          name: swagger-spec
+      - name: logo
+        secret:
+          secretName: swagger-logo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: swagger-ui
+  namespace: test-app
+spec:
+  selector:
+    app: swagger-ui
+  ports:
+  - port: 8080
+    targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: swagger-ui
+  namespace: test-app
+spec:
+  to:
+    kind: Service
+    name: swagger-ui
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

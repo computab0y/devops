@@ -96,11 +96,11 @@ stringData:
   username: {{ github_user }}
 EOM
 
-        for NS in keycloak grafana-operator openshift-pipelines-operator vault openshift-external-secrets-operator; do
+        for NS in keycloak grafana-operator openshift-pipelines-operator vault openshift-external-secrets-operator test-app; do
           oc create namespace $NS --dry-run=client -o yaml | oc apply -f -
         done
 
-        for APP in tekton sso grafana vault external-secrets; do
+        for APP in tekton sso grafana vault external-secrets test-app; do
           DEST_NS=$APP
           [ "$APP" = "tekton" ] && DEST_NS="openshift-pipelines-operator"
           [ "$APP" = "sso" ] && DEST_NS="keycloak"

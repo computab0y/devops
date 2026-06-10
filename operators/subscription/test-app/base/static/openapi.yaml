@@ -1,0 +1,499 @@
+info:
+  description: API for managing units, zones, contracts, endpoints and scheduling
+  title: Units Management API
+  version: 1.0.0
+openapi: 3.0.0
+paths:
+  /contracts:
+    get:
+      responses:
+        '200':
+          description: Array of contracts
+      summary: Get all contracts
+      tags:
+      - Contracts
+    put:
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  format: binary
+                  type: string
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Updated
+      summary: Create or update contracts using an Excel file
+      tags:
+      - Contracts
+  /contracts/{contractId}:
+    get:
+      parameters:
+      - in: path
+        name: contractId
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Contract object
+      summary: Get the details of a contract
+      tags:
+      - Contracts
+    put:
+      parameters:
+      - in: path
+        name: contractId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Saved
+      summary: Create or update the details of a contract
+      tags:
+      - Contracts
+  /endpoints:
+    get:
+      responses:
+        '200':
+          description: Array of endpoints
+      summary: Return array of endpoints
+      tags:
+      - Endpoints
+    post:
+      deprecated: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '201':
+          description: Created
+      summary: Create endpoint (DO NOT USE)
+      tags:
+      - Endpoints
+  /endpoints/{endpointId}:
+    delete:
+      parameters:
+      - in: path
+        name: endpointId
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Deleted
+      summary: Delete endpoint
+      tags:
+      - Endpoints
+    get:
+      parameters:
+      - in: path
+        name: endpointId
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Endpoint object
+      summary: Get endpoint information by endpoint id
+      tags:
+      - Endpoints
+    patch:
+      parameters:
+      - in: path
+        name: endpointId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Updated
+      summary: Update endpoint
+      tags:
+      - Endpoints
+  /prequalifiedUnitServices:
+    get:
+      parameters:
+      - in: query
+        name: unitRegId
+        schema:
+          type: string
+      - in: query
+        name: serviceId
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Array of results
+      summary: Get prequalified unit service by unit id or service id
+      tags:
+      - Prequalified Unit Services
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '201':
+          description: Created
+      summary: Add a new prequalified unit service
+      tags:
+      - Prequalified Unit Services
+  /prequalifiedUnitServices/{unitRegId}/{serviceId}:
+    delete:
+      parameters:
+      - in: path
+        name: unitRegId
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: serviceId
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Deleted
+      summary: Delete prequalified unit service
+      tags:
+      - Prequalified Unit Services
+    put:
+      parameters:
+      - in: path
+        name: unitRegId
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: serviceId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Updated
+      summary: Update prequalified unit service
+      tags:
+      - Prequalified Unit Services
+  /scheduledTask:
+    post:
+      responses:
+        '200':
+          description: Triggered
+      summary: Check the status of all endpoints
+      tags:
+      - Scheduled Tasks
+  /unitEndpoints:
+    get:
+      responses:
+        '200':
+          description: Array
+      summary: Return array of unit endpoints
+      tags:
+      - Unit Endpoints
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '201':
+          description: Created
+      summary: Create unit endpoint
+      tags:
+      - Unit Endpoints
+  /unitEndpoints/{unitEndpointId}:
+    delete:
+      parameters:
+      - in: path
+        name: unitEndpointId
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Deleted
+      summary: Delete unit endpoint
+      tags:
+      - Unit Endpoints
+    patch:
+      parameters:
+      - in: path
+        name: unitEndpointId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Updated
+      summary: Update partially unit endpoint
+      tags:
+      - Unit Endpoints
+  /unitGroupMembers:
+    delete:
+      responses:
+        '204':
+          description: Deleted
+      summary: Delete unit groupings
+      tags:
+      - Unit Group Members
+    get:
+      responses:
+        '200':
+          description: Array
+      summary: Returns array of unit group members
+      tags:
+      - Unit Group Members
+    put:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Updated
+      summary: Update unit groupings
+      tags:
+      - Unit Group Members
+  /unitGroups:
+    get:
+      responses:
+        '200':
+          description: Array
+      summary: Returns array of unit groups
+      tags:
+      - Unit Groups
+  /unitState:
+    delete:
+      responses:
+        '204':
+          description: Deleted
+      summary: Delete all unit states
+      tags:
+      - Unit State
+    get:
+      responses:
+        '200':
+          description: Array of unit states
+      summary: Get state of all units
+      tags:
+      - Unit State
+  /unitState/{unitRegId}:
+    get:
+      parameters:
+      - in: path
+        name: unitRegId
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Unit state
+      summary: Get state of unit by unit id
+      tags:
+      - Unit State
+    patch:
+      parameters:
+      - in: path
+        name: unitRegId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Updated
+      summary: Update unit state for a unit
+      tags:
+      - Unit State
+  /units:
+    get:
+      responses:
+        '200':
+          description: Array of units
+      summary: Returns array of units
+      tags:
+      - Units
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '201':
+          description: Unit created
+      summary: Add unit registration
+      tags:
+      - Units
+  /units/{unitRegId}:
+    delete:
+      parameters:
+      - in: path
+        name: unitRegId
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Deleted
+      summary: Delete unit registration
+      tags:
+      - Units
+    get:
+      parameters:
+      - in: path
+        name: unitRegId
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Unit object
+      summary: Get unit by unit id
+      tags:
+      - Units
+    patch:
+      parameters:
+      - in: path
+        name: unitRegId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Patched
+      summary: Update one or multiple unit registration attributes
+      tags:
+      - Units
+    put:
+      parameters:
+      - in: path
+        name: unitRegId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Updated
+      summary: Update one unit registration
+      tags:
+      - Units
+  /zones:
+    get:
+      responses:
+        '200':
+          description: Array of zones
+      summary: Returns array of zones
+      tags:
+      - Zones
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '201':
+          description: Created
+      summary: Create zone
+      tags:
+      - Zones
+  /zones/{zoneId}:
+    delete:
+      parameters:
+      - in: path
+        name: zoneId
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Deleted
+      summary: Delete zone
+      tags:
+      - Zones
+    get:
+      parameters:
+      - in: path
+        name: zoneId
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Zone object
+      summary: Get zone details
+      tags:
+      - Zones
+servers:
+- description: CRC cluster
+  url: https://httpbin-test-app.apps-crc.testing
+tags:
+- name: Units
+- name: Prequalified Unit Services
+- name: Unit State
+- name: Zones
+- name: Contracts
+- name: Endpoints
+- name: Unit Endpoints
+- name: Scheduled Tasks
+- name: Unit Groups
+- name: Unit Group Members
