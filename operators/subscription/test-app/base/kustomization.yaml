@@ -32,6 +32,7 @@ configMapGenerator:
   namespace: test-app
   files:
   - endpoints.json=static/endpoints.json
+  - unit-endpoints.json=static/unit-endpoints.json
 - name: mock-api-nginx-conf
   namespace: test-app
   files:
