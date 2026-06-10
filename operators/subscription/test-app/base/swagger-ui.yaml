@@ -23,7 +23,7 @@ spec:
           value: "8080"
         volumeMounts:
         - name: nginx-conf
-          mountPath: /etc/nginx/conf.d/default.conf
+          mountPath: /etc/nginx/templates/default.conf.template
           subPath: swagger-nginx.conf
         - name: index
           mountPath: /usr/share/nginx/html/index.html
