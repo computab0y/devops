@@ -1,0 +1,462 @@
+[
+  {
+    "tradingAgentId": "AD_ENERGY",
+    "endpointGroupId": "EDT005",
+    "folderName": "<TBC>"
+  },
+  {
+    "tradingAgentId": "ARKO_SUPP",
+    "endpointGroupId": "EDT007",
+    "folderName": "ARKO_SUPP"
+  },
+  {
+    "tradingAgentId": "AXP_SUPPP",
+    "endpointGroupId": "EDT002",
+    "folderName": "AXP_SUPPP"
+  },
+  {
+    "tradingAgentId": "BGS_SUPPP",
+    "endpointGroupId": "EDT006",
+    "folderName": "BGS_SUPPP"
+  },
+  {
+    "tradingAgentId": "BOL_POWER",
+    "endpointGroupId": "EDT005",
+    "folderName": "BOL_POWER"
+  },
+  {
+    "tradingAgentId": "BPG_SUPPP",
+    "endpointGroupId": "EDT003",
+    "folderName": "BPG_SUPPP"
+  },
+  {
+    "tradingAgentId": "CE_ENERGY",
+    "endpointGroupId": "EDT001",
+    "folderName": "CE_ENERGY"
+  },
+  {
+    "tradingAgentId": "CEN_SUPPP",
+    "endpointGroupId": "EDT004",
+    "folderName": "<TBC>"
+  },
+  {
+    "tradingAgentId": "CMS_BRTND",
+    "endpointGroupId": "EDT002",
+    "folderName": "CMS_BRTND"
+  },
+  {
+    "tradingAgentId": "CMS_ELECK",
+    "endpointGroupId": "EDT005",
+    "folderName": "CMS_ELECK"
+  },
+  {
+    "tradingAgentId": "CMS_IFAEU",
+    "endpointGroupId": "EDT001",
+    "folderName": "CMS_IFAEU"
+  },
+  {
+    "tradingAgentId": "CMS_IIFA2",
+    "endpointGroupId": "EDT003",
+    "folderName": "CMS_IIFA2"
+  },
+  {
+    "tradingAgentId": "COSOPOWER",
+    "endpointGroupId": "EDT004",
+    "folderName": "COSOPOWER"
+  },
+  {
+    "tradingAgentId": "CRD_SUPPP",
+    "endpointGroupId": "EDT007",
+    "folderName": "CRD_SUPPP"
+  },
+  {
+    "tradingAgentId": "CRE_POWER",
+    "endpointGroupId": "EDT006",
+    "folderName": "CRE_POWER"
+  },
+  {
+    "tradingAgentId": "DPD_COLTD",
+    "endpointGroupId": "EDT009",
+    "folderName": "DPD_COLTD"
+  },
+  {
+    "tradingAgentId": "DRX_POWER",
+    "endpointGroupId": "EDT009",
+    "folderName": "DRX_POWER"
+  },
+  {
+    "tradingAgentId": "DSK_SUPPP",
+    "endpointGroupId": "EDT004",
+    "folderName": "DSK_SUPPP"
+  },
+  {
+    "tradingAgentId": "EAO_POWER",
+    "endpointGroupId": "EDT007",
+    "folderName": "EAO_POWER"
+  },
+  {
+    "tradingAgentId": "EGG_POWER",
+    "endpointGroupId": "EDT006",
+    "folderName": "EGG_POWER"
+  },
+  {
+    "tradingAgentId": "ENG_POWER",
+    "endpointGroupId": "EDT008",
+    "folderName": "ENG_POWER"
+  },
+  {
+    "tradingAgentId": "ENG_SUPPP",
+    "endpointGroupId": "EDT009",
+    "folderName": "ENG_SUPPP"
+  },
+  {
+    "tradingAgentId": "ENX_POWER",
+    "endpointGroupId": "EDT008",
+    "folderName": "<TBC>"
+  },
+  {
+    "tradingAgentId": "EON_SUPPP",
+    "endpointGroupId": "EDT008",
+    "folderName": "EON_SUPPP"
+  },
+  {
+    "tradingAgentId": "EPC_POWER",
+    "endpointGroupId": "EDT001",
+    "folderName": "EPC_POWER"
+  },
+  {
+    "tradingAgentId": "EQN_SUPPP",
+    "endpointGroupId": "EDT002",
+    "folderName": "EQN_SUPPP"
+  },
+  {
+    "tradingAgentId": "ER_ENERGY",
+    "endpointGroupId": "EDT006",
+    "folderName": "ER_ENERGY"
+  },
+  {
+    "tradingAgentId": "ESB_SUPPP",
+    "endpointGroupId": "EDT007",
+    "folderName": "ESB_SUPPP"
+  },
+  {
+    "tradingAgentId": "EWIC_TRAD",
+    "endpointGroupId": "EDT002",
+    "folderName": "EWIC_TRAD"
+  },
+  {
+    "tradingAgentId": "EXG_SUPPP",
+    "endpointGroupId": "EDT001",
+    "folderName": "<TBC>"
+  },
+  {
+    "tradingAgentId": "FDG_SUPPP",
+    "endpointGroupId": "EDT007",
+    "folderName": "FDG_SUPPP"
+  },
+  {
+    "tradingAgentId": "FEL_POWER",
+    "endpointGroupId": "EDT007",
+    "folderName": "FEL_POWER"
+  },
+  {
+    "tradingAgentId": "FLX_SUPPP",
+    "endpointGroupId": "EDT004",
+    "folderName": "FLX_SUPPP"
+  },
+  {
+    "tradingAgentId": "FOR_SUPPP",
+    "endpointGroupId": "EDT009",
+    "folderName": "<TBC>"
+  },
+  {
+    "tradingAgentId": "GAZ_EUROP",
+    "endpointGroupId": "EDT009",
+    "folderName": "GAZ_EUROP"
+  },
+  {
+    "tradingAgentId": "GDF_TRADE",
+    "endpointGroupId": "EDT009",
+    "folderName": "GDF_TRADE"
+  },
+  {
+    "tradingAgentId": "GDS_SUPPP",
+    "endpointGroupId": "EDT009",
+    "folderName": "GDS_SUPPP"
+  },
+  {
+    "tradingAgentId": "GFP_TRADE",
+    "endpointGroupId": "EDT007",
+    "folderName": "GFP_TRADE"
+  },
+  {
+    "tradingAgentId": "GRI_SUPAA",
+    "endpointGroupId": "EDT003",
+    "folderName": "GRI_SUPAA"
+  },
+  {
+    "tradingAgentId": "GRNL_TRAD",
+    "endpointGroupId": "EDT004",
+    "folderName": "GRNL_TRAD"
+  },
+  {
+    "tradingAgentId": "HAR_POWER",
+    "endpointGroupId": "EDT009",
+    "folderName": "<TBC>"
+  },
+  {
+    "tradingAgentId": "HAW_SUPPP",
+    "endpointGroupId": "EDT008",
+    "folderName": "HAW_SUPPP"
+  },
+  {
+    "tradingAgentId": "HB_ENERGY",
+    "endpointGroupId": "EDT008",
+    "folderName": "HB_ENERGY"
+  },
+  {
+    "tradingAgentId": "HVN_POWER",
+    "endpointGroupId": "EDT004",
+    "folderName": "HVN_POWER"
+  },
+  {
+    "tradingAgentId": "IMM_POWER",
+    "endpointGroupId": "EDT002",
+    "folderName": "IMM_POWER"
+  },
+  {
+    "tradingAgentId": "JAD_POWER",
+    "endpointGroupId": "EDT009",
+    "folderName": "JAD_POWER"
+  },
+  {
+    "tradingAgentId": "JGP_POWER",
+    "endpointGroupId": "EDT002",
+    "folderName": "JGP_POWER"
+  },
+  {
+    "tradingAgentId": "LJ_ENERGY",
+    "endpointGroupId": "EDT009",
+    "folderName": "LJ_ENERGY"
+  },
+  {
+    "tradingAgentId": "LON_SUPPP",
+    "endpointGroupId": "EDT005",
+    "folderName": "LON_SUPPP"
+  },
+  {
+    "tradingAgentId": "LVL_SUPPP",
+    "endpointGroupId": "EDT005",
+    "folderName": "<TBC>"
+  },
+  {
+    "tradingAgentId": "MAG_POWER",
+    "endpointGroupId": "EDT008",
+    "folderName": "MAG_POWER"
+  },
+  {
+    "tradingAgentId": "MBL_POWER",
+    "endpointGroupId": "EDT007",
+    "folderName": "MBL_POWER"
+  },
+  {
+    "tradingAgentId": "MGT_POWER",
+    "endpointGroupId": "EDT008",
+    "folderName": "MGT_POWER"
+  },
+  {
+    "tradingAgentId": "NAT_POWER",
+    "endpointGroupId": "EDT007",
+    "folderName": "NAT_POWER"
+  },
+  {
+    "tradingAgentId": "NE_ENERGY",
+    "endpointGroupId": "EDT007",
+    "folderName": "NE_ENERGY"
+  },
+  {
+    "tradingAgentId": "NEMO_TRAD",
+    "endpointGroupId": "EDT006",
+    "folderName": "NEMO_TRAD"
+  },
+  {
+    "tradingAgentId": "NSL1_TRAD",
+    "endpointGroupId": "EDT007",
+    "folderName": "NSL1_TRAD"
+  },
+  {
+    "tradingAgentId": "NTL_POWER",
+    "endpointGroupId": "EDT008",
+    "folderName": "NTL_POWER"
+  },
+  {
+    "tradingAgentId": "OTO_SUPPP",
+    "endpointGroupId": "EDT001",
+    "folderName": "OTO_SUPPP"
+  },
+  {
+    "tradingAgentId": "P_STORAGE",
+    "endpointGroupId": "EDT006",
+    "folderName": "P_STORAGE"
+  },
+  {
+    "tradingAgentId": "PEAK_TRAD",
+    "endpointGroupId": "EDT003",
+    "folderName": "PEAK_TRAD"
+  },
+  {
+    "tradingAgentId": "POW_SUPPP",
+    "endpointGroupId": "EDT007",
+    "folderName": "<TBC>"
+  },
+  {
+    "tradingAgentId": "POWER_GEN",
+    "endpointGroupId": "EDT005",
+    "folderName": "POWER_GEN"
+  },
+  {
+    "tradingAgentId": "REC_SUPPP",
+    "endpointGroupId": "EDT001",
+    "folderName": "<TBC>"
+  },
+  {
+    "tradingAgentId": "RES_GROUP",
+    "endpointGroupId": "EDT008",
+    "folderName": "RES_GROUP"
+  },
+  {
+    "tradingAgentId": "ROCKPOWER",
+    "endpointGroupId": "EDT005",
+    "folderName": "ROCKPOWER"
+  },
+  {
+    "tradingAgentId": "RUG_POWER",
+    "endpointGroupId": "EDT005",
+    "folderName": "RUG_POWER"
+  },
+  {
+    "tradingAgentId": "SEE_SUPAA",
+    "endpointGroupId": "EDT006",
+    "folderName": "SEE_SUPAA"
+  },
+  {
+    "tradingAgentId": "SEL_SUPPP",
+    "endpointGroupId": "EDT008",
+    "folderName": "SEL_SUPPP"
+  },
+  {
+    "tradingAgentId": "SEV_POWER",
+    "endpointGroupId": "EDT008",
+    "folderName": "SEV_POWER"
+  },
+  {
+    "tradingAgentId": "SGR_SUPPP",
+    "endpointGroupId": "EDT004",
+    "folderName": "SGR_SUPPP"
+  },
+  {
+    "tradingAgentId": "SMG_EUROP",
+    "endpointGroupId": "EDT009",
+    "folderName": "SMG_EUROP"
+  },
+  {
+    "tradingAgentId": "SMS_SUPAA",
+    "endpointGroupId": "EDT006",
+    "folderName": "SMS_SUPAA"
+  },
+  {
+    "tradingAgentId": "SONI_TRAD",
+    "endpointGroupId": "EDT003",
+    "folderName": "SONI_TRAD"
+  },
+  {
+    "tradingAgentId": "SPA_POWER",
+    "endpointGroupId": "EDT008",
+    "folderName": "SPA_POWER"
+  },
+  {
+    "tradingAgentId": "SPC_SUPPP",
+    "endpointGroupId": "EDT007",
+    "folderName": "SPC_SUPPP"
+  },
+  {
+    "tradingAgentId": "SSE_GROUP",
+    "endpointGroupId": "EDT004",
+    "folderName": "SSE_GROUP"
+  },
+  {
+    "tradingAgentId": "STL_POWER",
+    "endpointGroupId": "EDT006",
+    "folderName": "STL_POWER"
+  },
+  {
+    "tradingAgentId": "SVP_POWER",
+    "endpointGroupId": "EDT008",
+    "folderName": "SVP_POWER"
+  },
+  {
+    "tradingAgentId": "TFE_EUROP",
+    "endpointGroupId": "EDT002",
+    "folderName": "TFE_EUROP"
+  },
+  {
+    "tradingAgentId": "TRI_SUPPP",
+    "endpointGroupId": "EDT002",
+    "folderName": "TRI_SUPPP"
+  },
+  {
+    "tradingAgentId": "UKP_POWER",
+    "endpointGroupId": "EDT001",
+    "folderName": "UKP_POWER"
+  },
+  {
+    "tradingAgentId": "USK_POWER",
+    "endpointGroupId": "EDT008",
+    "folderName": "USK_POWER"
+  },
+  {
+    "tradingAgentId": "VKL1_TRAD",
+    "endpointGroupId": "EDT007",
+    "folderName": "VKL1_TRAD"
+  },
+  {
+    "tradingAgentId": "VPI_POWER",
+    "endpointGroupId": "EDT009",
+    "folderName": "VPI_POWER"
+  },
+  {
+    "tradingAgentId": "VTS_EUROP",
+    "endpointGroupId": "EDT005",
+    "folderName": "VTS_EUROP"
+  },
+  {
+    "tradingAgentId": "WDS_POWER",
+    "endpointGroupId": "EDT001",
+    "folderName": "WDS_POWER"
+  },
+  {
+    "tradingAgentId": "WEL_SUPPP",
+    "endpointGroupId": "EDT008",
+    "folderName": "WEL_SUPPP"
+  },
+  {
+    "tradingAgentId": "WLT_SUPPP",
+    "endpointGroupId": "EDT001",
+    "folderName": "WLT_SUPPP"
+  },
+  {
+    "tradingAgentId": "YUS_SUPPP",
+    "endpointGroupId": "EDT007",
+    "folderName": "<TBC>"
+  },
+  {
+    "tradingAgentId": "ZBE_SUPPP",
+    "endpointGroupId": "EDT005",
+    "folderName": "ZBE_SUPPP"
+  },
+  {
+    "tradingAgentId": "ZEN_SUPPP",
+    "endpointGroupId": "EDT006",
+    "folderName": "ZEN_SUPPP"
+  }
+]

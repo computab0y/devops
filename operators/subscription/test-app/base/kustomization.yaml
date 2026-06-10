@@ -24,6 +24,15 @@ configMapGenerator:
   files:
   - static/openapi.yaml
 
+- name: mock-api-data
+  namespace: test-app
+  files:
+  - endpoints.json=static/endpoints.json
+- name: mock-api-nginx-conf
+  namespace: test-app
+  files:
+  - nginx.conf=static/nginx.conf
+
 secretGenerator:
 - name: swagger-logo
   namespace: test-app

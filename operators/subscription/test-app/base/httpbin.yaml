@@ -14,10 +14,23 @@ spec:
         app: httpbin
     spec:
       containers:
-      - name: httpbin
-        image: mccutchen/go-httpbin:latest
+      - name: mock-api
+        image: nginx:alpine
         ports:
         - containerPort: 8080
+        volumeMounts:
+        - name: nginx-conf
+          mountPath: /etc/nginx/conf.d/default.conf
+          subPath: nginx.conf
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: nginx-conf
+        configMap:
+          name: mock-api-nginx-conf
+      - name: data
+        configMap:
+          name: mock-api-data
 ---
 apiVersion: v1
 kind: Service
