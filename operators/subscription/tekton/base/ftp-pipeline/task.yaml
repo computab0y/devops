@@ -61,7 +61,7 @@ spec:
       print(f"Connecting to FTP server {FTP_HOST}:{FTP_PORT} as user '{FTP_USER}'...")
       try:
           ftp = FTP()
-          ftp.trust_passive_ip = True
+          ftp.trust_server_pasv_ipv4_address = True
           ftp.connect(FTP_HOST, FTP_PORT, timeout=30)
           ftp.login(FTP_USER, FTP_PASS)
           print("Login successful!")
