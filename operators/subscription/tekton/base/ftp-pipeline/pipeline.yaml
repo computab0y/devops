@@ -16,14 +16,26 @@ spec:
     type: string
     description: "The FTP username to connect as (or 'list' to list available accounts)"
     default: "testuser"
+    enum:
+    - "list"
+    - "testuser"
+    - "testuser2"
+    - "testuser3"
   - name: action
     type: string
     description: "Action to perform: list-files, create-file, delete-file"
     default: "list-files"
+    enum:
+    - "list-files"
+    - "create-file"
+    - "delete-file"
   - name: target-folder
     type: string
     description: "The folder to create or delete file in (SUBMISSION or NOTIFICATION)"
     default: "NOTIFICATION"
+    enum:
+    - "SUBMISSION"
+    - "NOTIFICATION"
   - name: file-name
     type: string
     description: "The name of the file to create or delete"
