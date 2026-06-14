@@ -1,0 +1,41 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: ftp-sync-pipeline
+  namespace: openshift-pipelines-operator
+spec:
+  params:
+  - name: ftp-host
+    type: string
+    description: "The external FTP server host"
+  - name: ftp-port
+    type: string
+    description: "The external FTP server port"
+    default: "21"
+  - name: submission-folder
+    type: string
+    description: "Folder name for submissions"
+    default: "SUBMISSION"
+  - name: notification-folder
+    type: string
+    description: "Folder name for notifications"
+    default: "NOTIFICATION"
+  - name: create-test-file
+    type: string
+    description: "Whether to create a test file in the NOTIFICATION folder (true/false)"
+    default: "false"
+  tasks:
+  - name: run-ftp-operation
+    taskRef:
+      name: ftp-operation
+    params:
+    - name: ftp-host
+      value: $(params.ftp-host)
+    - name: ftp-port
+      value: $(params.ftp-port)
+    - name: submission-folder
+      value: $(params.submission-folder)
+    - name: notification-folder
+      value: $(params.notification-folder)
+    - name: create-test-file
+      value: $(params.create-test-file)

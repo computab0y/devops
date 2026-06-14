@@ -6,3 +6,6 @@ resources:
 - health-check/pipeline.yaml
 - health-check/cronjob.yaml
 - health-check/serviceaccount.yaml
+- ftp-pipeline/externalsecret.yaml
+- ftp-pipeline/task.yaml
+- ftp-pipeline/pipeline.yaml

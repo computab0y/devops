@@ -1,0 +1,264 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: ftp-operation
+  namespace: openshift-pipelines-operator
+spec:
+  params:
+  - name: ftp-host
+    type: string
+    description: "The external FTP server host"
+  - name: ftp-port
+    type: string
+    description: "The external FTP server port"
+    default: "21"
+  - name: submission-folder
+    type: string
+    description: "Folder name for submissions"
+    default: "SUBMISSION"
+  - name: notification-folder
+    type: string
+    description: "Folder name for notifications"
+    default: "NOTIFICATION"
+  - name: create-test-file
+    type: string
+    description: "Whether to create a test file in the NOTIFICATION folder (true/false)"
+    default: "false"
+  steps:
+  - name: ftp-client
+    image: python:3.11-slim
+    env:
+    - name: FTP_USER
+      valueFrom:
+        secretKeyRef:
+          name: ftp-credentials
+          key: username
+    - name: FTP_PASS
+      valueFrom:
+        secretKeyRef:
+          name: ftp-credentials
+          key: password
+    script: |
+      #!/usr/bin/env python3
+      import os
+      import sys
+      from ftplib import FTP
+      from datetime import datetime
+      from io import BytesIO
+
+      FTP_HOST = "$(params.ftp-host)"
+      FTP_PORT = int("$(params.ftp-port)")
+      FTP_USER = os.environ.get("FTP_USER", "")
+      FTP_PASS = os.environ.get("FTP_PASS", "")
+      SUBMISSION_FOLDER = "$(params.submission-folder)"
+      NOTIFICATION_FOLDER = "$(params.notification-folder)"
+      CREATE_TEST_FILE = "$(params.create-test-file)".lower() in ("true", "1", "yes")
+
+      if not FTP_HOST:
+          print("Error: ftp-host parameter is required.")
+          sys.exit(1)
+
+      print(f"Connecting to FTP server {FTP_HOST}:{FTP_PORT} as user '{FTP_USER}'...")
+      try:
+          ftp = FTP()
+          ftp.connect(FTP_HOST, FTP_PORT, timeout=30)
+          ftp.login(FTP_USER, FTP_PASS)
+          print("Login successful!")
+      except Exception as e:
+          print(f"Failed to connect/login to FTP server: {e}")
+          sys.exit(1)
+
+      def list_folder(folder_name):
+          print(f"\n--- Contents of folder: {folder_name} ---")
+          try:
+              ftp.cwd('/')
+              try:
+                  ftp.cwd(folder_name)
+              except Exception:
+                  print(f"Folder '{folder_name}' does not exist.")
+                  return
+              
+              lines = []
+              ftp.retrlines('LIST', lines.append)
+              for line in lines:
+                  print(line)
+              if not lines:
+                  print("(empty folder)")
+          except Exception as e:
+              print(f"Error listing folder '{folder_name}': {e}")
+
+      # List SUBMISSION folder
+      list_folder(SUBMISSION_FOLDER)
+
+      # List NOTIFICATION folder
+      list_folder(NOTIFICATION_FOLDER)
+
+      # Create test file in NOTIFICATION folder if enabled
+      if CREATE_TEST_FILE:
+          print(f"\nOption to create test file is enabled.")
+          current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+          filename = f"test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+          print(f"Creating test file '{filename}' in '{NOTIFICATION_FOLDER}' with content: '{current_time}'")
+          try:
+              ftp.cwd('/')
+              try:
+                  ftp.cwd(NOTIFICATION_FOLDER)
+              except Exception:
+                  print(f"Folder '{NOTIFICATION_FOLDER}' does not exist. Creating it...")
+                  ftp.mkd(NOTIFICATION_FOLDER)
+                  ftp.cwd(NOTIFICATION_FOLDER)
+
+              file_data = BytesIO(current_time.encode('utf-8'))
+              ftp.storbinary(f"STOR {filename}", file_data)
+              print("Test file uploaded successfully!")
+              
+              # List the folder again to verify
+              list_folder(NOTIFICATION_FOLDER)
+          except Exception as e:
+              print(f"Error creating test file: {e}")
+
+      try:
+          ftp.quit()
+      except Exception:
+          pass
+      print("\nFinished FTP operations.")
+  sidecars:
+  - name: mock-ftp-server
+    image: python:3.11-slim
+    script: |
+      #!/usr/bin/env python3
+      import socket
+      import threading
+      import sys
+      import os
+
+      # We will serve from a temporary directory /tmp/ftp-server
+      os.makedirs("/tmp/ftp-server/SUBMISSION", exist_ok=True)
+      os.makedirs("/tmp/ftp-server/NOTIFICATION", exist_ok=True)
+
+      # Write a dummy submission file so the listing is not empty
+      with open("/tmp/ftp-server/SUBMISSION/sample_submission.xml", "w") as f:
+          f.write("<submission>sample data</submission>")
+
+      class MockFTPServer:
+          def __init__(self, host='127.0.0.1', port=2121):
+              self.host = host
+              self.port = port
+              self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+              self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+              self.sock.bind((self.host, self.port))
+              self.sock.listen(5)
+              print(f"Mock FTP server listening on {self.host}:{self.port}")
+
+          def run(self):
+              try:
+                  while True:
+                      conn, addr = self.sock.accept()
+                      threading.Thread(target=self.handle_client, args=(conn, addr), daemon=True).start()
+              except KeyboardInterrupt:
+                  pass
+              finally:
+                  self.sock.close()
+
+          def handle_client(self, conn, addr):
+              print(f"Connection from {addr}")
+              conn.send(b"220 Mock FTP Server Ready\r\n")
+              
+              cwd = "/tmp/ftp-server"
+              pasv_port = None
+              pasv_sock = None
+              
+              while True:
+                  try:
+                      data = conn.recv(1024)
+                      if not data:
+                          break
+                      line = data.decode('utf-8').strip()
+                      print(f"Received: {line}")
+                      parts = line.split(' ', 1)
+                      cmd = parts[0].upper()
+                      arg = parts[1] if len(parts) > 1 else ""
+                      
+                      if cmd == 'USER':
+                          conn.send(b"331 Username ok, send password.\r\n")
+                      elif cmd == 'PASS':
+                          conn.send(b"230 Login successful.\r\n")
+                      elif cmd == 'SYST':
+                          conn.send(b"215 UNIX Type: L8\r\n")
+                      elif cmd == 'FEAT':
+                          conn.send(b"211-Features:\r\n211 End\r\n")
+                      elif cmd == 'PWD':
+                          rel_cwd = cwd.replace("/tmp/ftp-server", "")
+                          if not rel_cwd:
+                              rel_cwd = "/"
+                          conn.send(f'257 "{rel_cwd}" is current directory.\r\n'.encode())
+                      elif cmd == 'TYPE':
+                          conn.send(b"200 Type set to I.\r\n")
+                      elif cmd == 'CWD':
+                          if arg.startswith("/"):
+                              target_dir = os.path.abspath(os.path.join("/tmp/ftp-server", arg.lstrip("/")))
+                          else:
+                              target_dir = os.path.abspath(os.path.join(cwd, arg))
+                          
+                          if target_dir.startswith("/tmp/ftp-server") and os.path.isdir(target_dir):
+                              cwd = target_dir
+                              conn.send(b"250 Directory successfully changed.\r\n")
+                          else:
+                              os.makedirs(target_dir, exist_ok=True)
+                              cwd = target_dir
+                              conn.send(b"250 Directory successfully changed.\r\n")
+                      elif cmd == 'MKD':
+                          target_dir = os.path.abspath(os.path.join(cwd, arg))
+                          os.makedirs(target_dir, exist_ok=True)
+                          conn.send(b"257 Directory created.\r\n")
+                      elif cmd == 'PASV':
+                          pasv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                          pasv_sock.bind(('127.0.0.1', 0))
+                          pasv_sock.listen(1)
+                          port = pasv_sock.getsockname()[1]
+                          p1 = port // 256
+                          p2 = port % 256
+                          conn.send(f"227 Entering Passive Mode (127,0,0,1,{p1},{p2}).\r\n".encode())
+                      elif cmd == 'LIST':
+                          conn.send(b"150 File status okay; about to open data connection.\r\n")
+                          if pasv_sock:
+                              data_conn, data_addr = pasv_sock.accept()
+                              files = os.listdir(cwd)
+                              list_str = ""
+                              for f in files:
+                                  path = os.path.join(cwd, f)
+                                  stat = os.stat(path)
+                                  mode = "drwxr-xr-x" if os.path.isdir(path) else "-rw-r--r--"
+                                  list_str += f"{mode} 1 owner group {stat.st_size} Jun 14 13:00 {f}\r\n"
+                              data_conn.sendall(list_str.encode('utf-8'))
+                              data_conn.close()
+                              pasv_sock.close()
+                              pasv_sock = None
+                          conn.send(b"226 Closing data connection.\r\n")
+                      elif cmd == 'STOR':
+                          conn.send(b"150 File status okay; about to open data connection.\r\n")
+                          if pasv_sock:
+                              data_conn, data_addr = pasv_sock.accept()
+                              file_path = os.path.join(cwd, arg)
+                              with open(file_path, 'wb') as f:
+                                  while True:
+                                      file_data = data_conn.recv(1024)
+                                      if not file_data:
+                                          break
+                                      f.write(file_data)
+                              data_conn.close()
+                              pasv_sock.close()
+                              pasv_sock = None
+                          conn.send(b"226 Closing data connection.\r\n")
+                      elif cmd == 'QUIT':
+                          conn.send(b"221 Goodbye.\r\n")
+                          break
+                      else:
+                          conn.send(b"502 Command not implemented.\r\n")
+                  except Exception as e:
+                      print(f"Error handling client: {e}")
+                      break
+              conn.close()
+
+      if __name__ == '__main__':
+          MockFTPServer().run()
