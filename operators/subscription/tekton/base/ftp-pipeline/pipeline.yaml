@@ -12,18 +12,26 @@ spec:
     type: string
     description: "The external FTP server port"
     default: "21"
-  - name: submission-folder
+  - name: username
     type: string
-    description: "Folder name for submissions"
-    default: "SUBMISSION"
-  - name: notification-folder
+    description: "The FTP username to connect as (or 'list' to list available accounts)"
+    default: "testuser"
+  - name: action
     type: string
-    description: "Folder name for notifications"
+    description: "Action to perform: list-files, create-file, delete-file"
+    default: "list-files"
+  - name: target-folder
+    type: string
+    description: "The folder to create or delete file in (SUBMISSION or NOTIFICATION)"
     default: "NOTIFICATION"
-  - name: create-test-file
+  - name: file-name
     type: string
-    description: "Whether to create a test file in the NOTIFICATION folder (true/false)"
-    default: "false"
+    description: "The name of the file to create or delete"
+    default: ""
+  - name: vault-address
+    type: string
+    description: "The address of the Vault server"
+    default: "http://vault.vault.svc:8200"
   tasks:
   - name: run-ftp-operation
     taskRef:
@@ -33,9 +41,13 @@ spec:
       value: $(params.ftp-host)
     - name: ftp-port
       value: $(params.ftp-port)
-    - name: submission-folder
-      value: $(params.submission-folder)
-    - name: notification-folder
-      value: $(params.notification-folder)
-    - name: create-test-file
-      value: $(params.create-test-file)
+    - name: username
+      value: $(params.username)
+    - name: action
+      value: $(params.action)
+    - name: target-folder
+      value: $(params.target-folder)
+    - name: file-name
+      value: $(params.file-name)
+    - name: vault-address
+      value: $(params.vault-address)

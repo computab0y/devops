@@ -11,9 +11,11 @@ spec:
     value: "mock-ftp-service.test-app.svc.cluster.local"
   - name: ftp-port
     value: "2121"
-  - name: submission-folder
-    value: "SUBMISSION"
-  - name: notification-folder
+  - name: username
+    value: "testuser"
+  - name: action
+    value: "list-files"
+  - name: target-folder
     value: "NOTIFICATION"
-  - name: create-test-file
-    value: "true"
+  - name: file-name
+    value: "test-from-external.txt"

@@ -12,111 +12,196 @@ spec:
     type: string
     description: "The external FTP server port"
     default: "21"
-  - name: submission-folder
+  - name: username
     type: string
-    description: "Folder name for submissions"
-    default: "SUBMISSION"
-  - name: notification-folder
+    description: "The FTP username to connect as (or 'list' to list available accounts)"
+    default: "testuser"
+  - name: action
     type: string
-    description: "Folder name for notifications"
+    description: "Action to perform: list-files, create-file, delete-file"
+    default: "list-files"
+  - name: target-folder
+    type: string
+    description: "The folder to create or delete file in (SUBMISSION or NOTIFICATION)"
     default: "NOTIFICATION"
-  - name: create-test-file
+  - name: file-name
     type: string
-    description: "Whether to create a test file in the NOTIFICATION folder (true/false)"
-    default: "false"
+    description: "The name of the file to create or delete"
+    default: ""
+  - name: vault-address
+    type: string
+    description: "The address of the Vault server"
+    default: "http://vault.vault.svc:8200"
   steps:
   - name: ftp-client
     image: python:3.11-slim
     env:
-    - name: FTP_USER
+    - name: VAULT_TOKEN
       valueFrom:
         secretKeyRef:
-          name: ftp-credentials
-          key: username
-    - name: FTP_PASS
-      valueFrom:
-        secretKeyRef:
-          name: ftp-credentials
-          key: password
+          name: vault-token
+          key: token
     script: |
       #!/usr/bin/env python3
       import os
       import sys
+      import json
+      import urllib.request
       from ftplib import FTP
       from datetime import datetime
       from io import BytesIO
 
       FTP_HOST = "$(params.ftp-host)"
       FTP_PORT = int("$(params.ftp-port)")
-      FTP_USER = os.environ.get("FTP_USER", "")
-      FTP_PASS = os.environ.get("FTP_PASS", "")
-      SUBMISSION_FOLDER = "$(params.submission-folder)"
-      NOTIFICATION_FOLDER = "$(params.notification-folder)"
-      CREATE_TEST_FILE = "$(params.create-test-file)".lower() in ("true", "1", "yes")
+      USERNAME = "$(params.username)"
+      ACTION = "$(params.action)".lower()
+      TARGET_FOLDER = "$(params.target-folder)"
+      FILE_NAME = "$(params.file-name)"
+      VAULT_ADDR = "$(params.vault-address)"
 
-      if not FTP_HOST:
-          print("Error: ftp-host parameter is required.")
+      VAULT_TOKEN = os.environ.get("VAULT_TOKEN", "root")
+
+      def get_vault_secret(path):
+          url = f"{VAULT_ADDR}/v1/secret/data/{path}"
+          req = urllib.request.Request(url, headers={"X-Vault-Token": VAULT_TOKEN})
+          try:
+              with urllib.request.urlopen(req) as response:
+                  res = json.loads(response.read().decode('utf-8'))
+                  return res.get("data", {}).get("data", {})
+          except Exception as e:
+              print(f"Error fetching Vault secret from {url}: {e}")
+              return None
+
+      # 1. Handle "list" username
+      if USERNAME.lower() == "list":
+          print("Fetching available FTP users from Vault...")
+          users = []
+          
+          # Check secret/ftp-credentials
+          cred_sec = get_vault_secret("ftp-credentials")
+          if cred_sec and "username" in cred_sec:
+              users.append(cred_sec["username"])
+              
+          # Check secret/ftp-users
+          users_sec = get_vault_secret("ftp-users")
+          if users_sec:
+              users.extend(users_sec.keys())
+              
+          print("\nAvailable FTP users in Vault:")
+          for u in sorted(list(set(users))):
+              print(f"- {u}")
+          sys.exit(0)
+
+      # 2. Resolve credentials for specific username
+      print(f"Resolving credentials for user '{USERNAME}' from Vault...")
+      resolved_user = None
+      resolved_pass = None
+
+      # Check secret/ftp-credentials
+      cred_sec = get_vault_secret("ftp-credentials")
+      if cred_sec and cred_sec.get("username") == USERNAME:
+          resolved_user = USERNAME
+          resolved_pass = cred_sec.get("password")
+      else:
+          # Check secret/ftp-users
+          users_sec = get_vault_secret("ftp-users")
+          if users_sec and USERNAME in users_sec:
+              resolved_user = USERNAME
+              resolved_pass = users_sec[USERNAME]
+
+      if not resolved_user or not resolved_pass:
+          print(f"Error: User '{USERNAME}' not found in Vault.")
           sys.exit(1)
 
-      print(f"Connecting to FTP server {FTP_HOST}:{FTP_PORT} as user '{FTP_USER}'...")
+      print(f"Credentials resolved successfully. Connecting to FTP server {FTP_HOST}:{FTP_PORT} as user '{resolved_user}'...")
+
+      # 3. Connect to FTP
       try:
           ftp = FTP()
           ftp.trust_server_pasv_ipv4_address = True
           ftp.connect(FTP_HOST, FTP_PORT, timeout=30)
-          ftp.login(FTP_USER, FTP_PASS)
+          ftp.login(resolved_user, resolved_pass)
           print("Login successful!")
       except Exception as e:
           print(f"Failed to connect/login to FTP server: {e}")
           sys.exit(1)
 
-      def list_folder(folder_name):
-          print(f"\n--- Contents of folder: {folder_name} ---")
-          try:
-              ftp.cwd('/')
+      def list_folders():
+          for folder in ["SUBMISSION", "NOTIFICATION"]:
+              print(f"\n--- Contents of folder: {folder} ---")
               try:
-                  ftp.cwd(folder_name)
-              except Exception:
-                  print(f"Folder '{folder_name}' does not exist.")
-                  return
+                  ftp.cwd('/')
+                  try:
+                      ftp.cwd(folder)
+                  except Exception:
+                      print(f"Folder '{folder}' does not exist.")
+                      continue
+                  
+                  lines = []
+                  ftp.retrlines('LIST', lines.append)
+                  for line in lines:
+                      print(line)
+                  if not lines:
+                      print("(empty folder)")
+              except Exception as e:
+                  print(f"Error listing folder '{folder}': {e}")
+
+      # 4. Perform requested action
+      if ACTION == "list-files":
+          list_folders()
+
+      elif ACTION == "create-file":
+          if TARGET_FOLDER not in ["SUBMISSION", "NOTIFICATION"]:
+              print(f"Error: Invalid target folder '{TARGET_FOLDER}'. Must be SUBMISSION or NOTIFICATION.")
+              sys.exit(1)
               
-              lines = []
-              ftp.retrlines('LIST', lines.append)
-              for line in lines:
-                  print(line)
-              if not lines:
-                  print("(empty folder)")
-          except Exception as e:
-              print(f"Error listing folder '{folder_name}': {e}")
-
-      # List SUBMISSION folder
-      list_folder(SUBMISSION_FOLDER)
-
-      # List NOTIFICATION folder
-      list_folder(NOTIFICATION_FOLDER)
-
-      # Create test file in NOTIFICATION folder if enabled
-      if CREATE_TEST_FILE:
-          print(f"\nOption to create test file is enabled.")
+          name = FILE_NAME
+          if not name:
+              name = f"test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+              
           current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-          filename = f"test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-          print(f"Creating test file '{filename}' in '{NOTIFICATION_FOLDER}' with content: '{current_time}'")
+          print(f"Creating file '{name}' in '{TARGET_FOLDER}' with content: '{current_time}'")
+          
           try:
               ftp.cwd('/')
               try:
-                  ftp.cwd(NOTIFICATION_FOLDER)
+                  ftp.cwd(TARGET_FOLDER)
               except Exception:
-                  print(f"Folder '{NOTIFICATION_FOLDER}' does not exist. Creating it...")
-                  ftp.mkd(NOTIFICATION_FOLDER)
-                  ftp.cwd(NOTIFICATION_FOLDER)
-
+                  print(f"Folder '{TARGET_FOLDER}' does not exist. Creating it...")
+                  ftp.mkd(TARGET_FOLDER)
+                  ftp.cwd(TARGET_FOLDER)
+                  
               file_data = BytesIO(current_time.encode('utf-8'))
-              ftp.storbinary(f"STOR {filename}", file_data)
-              print("Test file uploaded successfully!")
-              
-              # List the folder again to verify
-              list_folder(NOTIFICATION_FOLDER)
+              ftp.storbinary(f"STOR {name}", file_data)
+              print("File uploaded successfully!")
+              list_folders()
           except Exception as e:
-              print(f"Error creating test file: {e}")
+              print(f"Error creating file: {e}")
+              sys.exit(1)
+
+      elif ACTION == "delete-file":
+          if not FILE_NAME:
+              print("Error: file-name parameter is required for delete-file action.")
+              sys.exit(1)
+              
+          if TARGET_FOLDER not in ["SUBMISSION", "NOTIFICATION"]:
+              print(f"Error: Invalid target folder '{TARGET_FOLDER}'. Must be SUBMISSION or NOTIFICATION.")
+              sys.exit(1)
+              
+          print(f"Deleting file '{FILE_NAME}' from '{TARGET_FOLDER}'...")
+          try:
+              ftp.cwd('/')
+              ftp.cwd(TARGET_FOLDER)
+              ftp.delete(FILE_NAME)
+              print("File deleted successfully!")
+              list_folders()
+          except Exception as e:
+              print(f"Error deleting file: {e}")
+              sys.exit(1)
+
+      else:
+          print(f"Error: Invalid action '{ACTION}'. Must be list-files, create-file, or delete-file.")
+          sys.exit(1)
 
       try:
           ftp.quit()
