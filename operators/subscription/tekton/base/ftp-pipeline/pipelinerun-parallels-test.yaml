@@ -1,0 +1,19 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: ftp-sync-parallels-run-
+  namespace: openshift-pipelines-operator
+spec:
+  pipelineRef:
+    name: ftp-sync-pipeline
+  params:
+  - name: ftp-host
+    value: "10.211.55.4"
+  - name: ftp-port
+    value: "21"
+  - name: submission-folder
+    value: "SUBMISSION"
+  - name: notification-folder
+    value: "NOTIFICATION"
+  - name: create-test-file
+    value: "true"
