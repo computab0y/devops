@@ -22,6 +22,7 @@ spec:
   - name: ftp-host
     type: string
     description: "The external FTP server host"
+    default: "10.211.55.4"
   - name: ftp-port
     type: string
     description: "The external FTP server port"
