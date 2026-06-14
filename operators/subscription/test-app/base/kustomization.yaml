@@ -2,6 +2,7 @@ resources:
 - namespace.yaml
 - httpbin.yaml
 - swagger-ui.yaml
+- ftp-server.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
