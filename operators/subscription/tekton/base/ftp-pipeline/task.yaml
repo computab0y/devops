@@ -126,7 +126,12 @@ spec:
   - name: mock-ftp-server
     image: python:3.11-slim
     script: |
-      #!/usr/bin/env python3
+      #!/bin/sh
+      if ! command -v python3 >/dev/null 2>&1; then
+        echo "python3 not found, exiting gracefully for Tekton sidecar termination"
+        exit 0
+      fi
+      python3 - << 'EOF'
       import socket
       import threading
       import sys
@@ -262,3 +267,4 @@ spec:
 
       if __name__ == '__main__':
           MockFTPServer().run()
+      EOF
