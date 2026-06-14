@@ -3,6 +3,20 @@ kind: Pipeline
 metadata:
   name: ftp-sync-pipeline
   namespace: openshift-pipelines-operator
+  annotations:
+    style.tekton.dev/descriptors: |
+      - path: params.username
+        displayName: Username
+        x-descriptors:
+        - urn:alm:descriptor:com.tectonic.ui:select
+      - path: params.action
+        displayName: Action
+        x-descriptors:
+        - urn:alm:descriptor:com.tectonic.ui:select
+      - path: params.target-folder
+        displayName: Target Folder
+        x-descriptors:
+        - urn:alm:descriptor:com.tectonic.ui:select
 spec:
   params:
   - name: ftp-host
