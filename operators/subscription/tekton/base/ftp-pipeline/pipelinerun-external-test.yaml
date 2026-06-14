@@ -1,0 +1,19 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: ftp-sync-external-run-
+  namespace: openshift-pipelines-operator
+spec:
+  pipelineRef:
+    name: ftp-sync-pipeline
+  params:
+  - name: ftp-host
+    value: "mock-ftp-service.test-app.svc.cluster.local"
+  - name: ftp-port
+    value: "2121"
+  - name: submission-folder
+    value: "SUBMISSION"
+  - name: notification-folder
+    value: "NOTIFICATION"
+  - name: create-test-file
+    value: "true"
