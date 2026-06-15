@@ -9,14 +9,23 @@ metadata:
         displayName: Username
         x-descriptors:
         - urn:alm:descriptor:com.tectonic.ui:select
+        - urn:alm:descriptor:props:select:options:list
+        - urn:alm:descriptor:props:select:options:testuser
+        - urn:alm:descriptor:props:select:options:testuser2
+        - urn:alm:descriptor:props:select:options:testuser3
       - path: params.action
         displayName: Action
         x-descriptors:
         - urn:alm:descriptor:com.tectonic.ui:select
+        - urn:alm:descriptor:props:select:options:list-files
+        - urn:alm:descriptor:props:select:options:create-file
+        - urn:alm:descriptor:props:select:options:delete-file
       - path: params.target-folder
         displayName: Target Folder
         x-descriptors:
         - urn:alm:descriptor:com.tectonic.ui:select
+        - urn:alm:descriptor:props:select:options:SUBMISSION
+        - urn:alm:descriptor:props:select:options:NOTIFICATION
 spec:
   params:
   - name: ftp-host
