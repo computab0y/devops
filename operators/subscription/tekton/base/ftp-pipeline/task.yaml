@@ -54,6 +54,10 @@ spec:
         secretKeyRef:
           name: vault-token
           key: token
+    volumeMounts:
+    - name: ssh-key-volume
+      mountPath: /ssh
+      readOnly: true
     script: |
       #!/usr/bin/env python3
       import os
@@ -80,6 +84,54 @@ spec:
       ctx = ssl.create_default_context()
       ctx.check_hostname = False
       ctx.verify_mode = ssl.CERT_NONE
+
+      # Ensure ssh client is installed inside the Task pod
+      import subprocess
+      print("Ensuring ssh client is installed in task pod...")
+      try:
+          subprocess.run(["ssh", "-V"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+      except Exception:
+          print("Installing openssh-client...")
+          try:
+              subprocess.run(["apt-get", "update"], check=True, stdout=subprocess.DEVNULL)
+              subprocess.run(["apt-get", "install", "-y", "openssh-client"], check=True, stdout=subprocess.DEVNULL)
+              print("openssh-client installed successfully.")
+          except Exception as e:
+              print(f"Error installing openssh-client: {e}")
+
+      def run_ssh_command(host, command):
+          ssh_cmd = [
+              "ssh",
+              "-i", "/ssh/id_rsa",
+              "-o", "StrictHostKeyChecking=no",
+              "-o", "ConnectTimeout=10",
+              f"root@{host}",
+              command
+          ]
+          res = subprocess.run(ssh_cmd, capture_output=True, text=True)
+          if res.returncode != 0:
+              return False, res.stderr.strip()
+          return True, res.stdout.strip()
+
+      def create_vm_user(username, password, host):
+          print(f"Ensuring user '{username}' exists on FTP host '{host}'...")
+          setup_script = f"""
+          if ! id -u "{username}" >/dev/null 2>&1; then
+              echo "Creating user {username} on VM..."
+              useradd -m -s /bin/bash "{username}"
+          fi
+          echo "{username}:{password}" | chpasswd
+          mkdir -p "/home/{username}/SUBMISSION" "/home/{username}/NOTIFICATION"
+          chown -R root:root "/home/{username}"
+          chown -R "{username}:{username}" "/home/{username}/SUBMISSION" "/home/{username}/NOTIFICATION"
+          chmod 755 "/home/{username}"
+          """
+          ok, err = run_ssh_command(host, setup_script)
+          if not ok:
+              print(f"Error provisioning user '{username}' on VM: {err}")
+              return False
+          print(f"User '{username}' provisioned/updated on FTP VM successfully.")
+          return True
 
       # 1. Kubernetes client helpers using standard urllib
       def get_k8s_token():
@@ -356,6 +408,9 @@ spec:
           print(f"Error: User '{USERNAME}' not found in Vault.")
           sys.exit(1)
 
+      # Ensure user is provisioned on the FTP server VM
+      create_vm_user(resolved_user, resolved_pass, FTP_HOST)
+
       print(f"Credentials resolved successfully. Connecting to FTP server {FTP_HOST}:{FTP_PORT} as user '{resolved_user}'...")
 
       try:
@@ -609,3 +664,8 @@ spec:
       if __name__ == '__main__':
           MockFTPServer().run()
       EOF
+  volumes:
+  - name: ssh-key-volume
+    secret:
+      secretName: ftp-vm-ssh-key
+      defaultMode: 0400

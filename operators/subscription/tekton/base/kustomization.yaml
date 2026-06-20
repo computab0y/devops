@@ -10,3 +10,4 @@ resources:
 - ftp-pipeline/vault-token.yaml
 - ftp-pipeline/task.yaml
 - ftp-pipeline/pipeline.yaml
+- ftp-pipeline/ftp-vm-ssh-key.yaml
