@@ -17,11 +17,6 @@ spec:
     type: string
     description: "The FTP username to connect as"
     default: "developer"
-    enum:
-    - "list"
-    - "admin"
-    - "developer"
-    - "computab0y"
   - name: action
     type: string
     description: "Action to perform: sync-users, list-files, create-file, delete-file"
@@ -288,9 +283,8 @@ spec:
           updated_params = []
           for p in spec_params:
               if p["name"] == "username":
-                  p["enum"] = ["list"] + usernames
-                  if p.get("default") not in p["enum"]:
-                      p["default"] = usernames[0]
+                  if "enum" in p:
+                      del p["enum"]
               elif p["name"] == "action":
                   p["enum"] = ["sync-users", "list-files", "create-file", "delete-file"]
               updated_params.append(p)
@@ -325,6 +319,10 @@ spec:
           print(f"Validating and syncing user '{USERNAME}' from Keycloak...")
           users = get_keycloak_users_in_ou(TARGET_OU)
           sync_user_to_vault(USERNAME, users)
+          try:
+              sync_pipeline_params(users)
+          except Exception as ex:
+              print(f"Warning: Could not sync pipeline parameter dropdowns: {ex}")
 
       if USERNAME.lower() == "list":
           print("Fetching available FTP users from Vault...")

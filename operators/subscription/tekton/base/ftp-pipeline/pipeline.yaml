@@ -41,11 +41,6 @@ spec:
     type: string
     description: "The FTP username to connect as"
     default: "developer"
-    enum:
-    - "list"
-    - "admin"
-    - "developer"
-    - "computab0y"
   - name: action
     type: string
     description: "Action to perform: sync-users, list-files, create-file, delete-file"
