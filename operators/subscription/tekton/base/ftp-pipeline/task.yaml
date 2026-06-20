@@ -372,7 +372,9 @@ spec:
       if USERNAME.lower() != "list":
           print(f"Validating and syncing user '{USERNAME}' from Keycloak...")
           users = get_keycloak_users_in_ou(TARGET_OU)
-          sync_user_to_vault(USERNAME, users)
+          if not sync_user_to_vault(USERNAME, users):
+              print(f"Error: User '{USERNAME}' does not exist in Keycloak OU '{TARGET_OU}'. Pipeline execution aborted.")
+              sys.exit(1)
           try:
               sync_pipeline_params(users)
           except Exception as ex:
