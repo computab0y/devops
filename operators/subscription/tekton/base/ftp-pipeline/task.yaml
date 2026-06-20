@@ -48,6 +48,8 @@ spec:
   steps:
   - name: ftp-client
     image: python:3.11-slim
+    securityContext:
+      runAsUser: 0
     env:
     - name: VAULT_TOKEN
       valueFrom:
