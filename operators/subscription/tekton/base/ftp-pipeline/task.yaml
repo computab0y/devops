@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1
+apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
   name: ftp-operation
@@ -301,7 +301,7 @@ spec:
               return
               
           print(f"Syncing pipeline params with usernames: {usernames}")
-          pipeline_path = "/apis/tekton.dev/v1/namespaces/openshift-pipelines-operator/pipelines/ftp-sync-pipeline"
+          pipeline_path = "/apis/tekton.dev/v1beta1/namespaces/openshift-pipelines-operator/pipelines/ftp-sync-pipeline"
           pipeline = make_k8s_request(pipeline_path)
           if not pipeline:
               print("Error: Could not retrieve pipeline definition.")
