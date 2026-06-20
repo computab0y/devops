@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  generateName: ftp-sync-parallels-run-
+  generateName: ftp-sync-users-run-
   namespace: openshift-pipelines-operator
 spec:
   pipelineRef:
@@ -12,10 +12,12 @@ spec:
   - name: ftp-port
     value: "21"
   - name: username
-    value: "developer"
+    value: "list"
   - name: action
-    value: "list-files"
+    value: "sync-users"
   - name: target-folder
     value: "NOTIFICATION"
   - name: file-name
-    value: "test-from-parallels.txt"
+    value: ""
+  - name: target-ou
+    value: "FTP-Users"

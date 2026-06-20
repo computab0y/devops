@@ -10,13 +10,14 @@ metadata:
         x-descriptors:
         - urn:alm:descriptor:com.tectonic.ui:select
         - urn:alm:descriptor:props:select:options:list
-        - urn:alm:descriptor:props:select:options:testuser
-        - urn:alm:descriptor:props:select:options:testuser2
-        - urn:alm:descriptor:props:select:options:testuser3
+        - urn:alm:descriptor:props:select:options:admin
+        - urn:alm:descriptor:props:select:options:developer
+        - urn:alm:descriptor:props:select:options:computab0y
       - path: params.action
         displayName: Action
         x-descriptors:
         - urn:alm:descriptor:com.tectonic.ui:select
+        - urn:alm:descriptor:props:select:options:sync-users
         - urn:alm:descriptor:props:select:options:list-files
         - urn:alm:descriptor:props:select:options:create-file
         - urn:alm:descriptor:props:select:options:delete-file
@@ -38,18 +39,19 @@ spec:
     default: "21"
   - name: username
     type: string
-    description: "The FTP username to connect as (or 'list' to list available accounts)"
-    default: "testuser"
+    description: "The FTP username to connect as"
+    default: "developer"
     enum:
     - "list"
-    - "testuser"
-    - "testuser2"
-    - "testuser3"
+    - "admin"
+    - "developer"
+    - "computab0y"
   - name: action
     type: string
-    description: "Action to perform: list-files, create-file, delete-file"
+    description: "Action to perform: sync-users, list-files, create-file, delete-file"
     default: "list-files"
     enum:
+    - "sync-users"
     - "list-files"
     - "create-file"
     - "delete-file"
@@ -68,6 +70,10 @@ spec:
     type: string
     description: "The address of the Vault server"
     default: "http://vault.vault.svc:8200"
+  - name: target-ou
+    type: string
+    description: "The target OU in Keycloak to list and sync users from"
+    default: "FTP-Users"
   tasks:
   - name: run-ftp-operation
     taskRef:
@@ -87,3 +93,5 @@ spec:
       value: $(params.file-name)
     - name: vault-address
       value: $(params.vault-address)
+    - name: target-ou
+      value: $(params.target-ou)
