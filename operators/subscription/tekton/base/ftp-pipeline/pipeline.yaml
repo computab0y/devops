@@ -3,30 +3,6 @@ kind: Pipeline
 metadata:
   name: ftp-sync-pipeline
   namespace: openshift-pipelines-operator
-  annotations:
-    style.tekton.dev/descriptors: |
-      - path: params.username
-        displayName: Username
-        x-descriptors:
-        - urn:alm:descriptor:com.tectonic.ui:select
-        - urn:alm:descriptor:props:select:options:list
-        - urn:alm:descriptor:props:select:options:admin
-        - urn:alm:descriptor:props:select:options:developer
-        - urn:alm:descriptor:props:select:options:computab0y
-      - path: params.action
-        displayName: Action
-        x-descriptors:
-        - urn:alm:descriptor:com.tectonic.ui:select
-        - urn:alm:descriptor:props:select:options:sync-users
-        - urn:alm:descriptor:props:select:options:list-files
-        - urn:alm:descriptor:props:select:options:create-file
-        - urn:alm:descriptor:props:select:options:delete-file
-      - path: params.target-folder
-        displayName: Target Folder
-        x-descriptors:
-        - urn:alm:descriptor:com.tectonic.ui:select
-        - urn:alm:descriptor:props:select:options:SUBMISSION
-        - urn:alm:descriptor:props:select:options:NOTIFICATION
 spec:
   params:
   - name: ftp-host
@@ -41,6 +17,12 @@ spec:
     type: string
     description: "The FTP username to connect as"
     default: "developer"
+    enum:
+    - "list"
+    - "admin"
+    - "developer"
+    - "computab0y"
+    - "testuser1"
   - name: action
     type: string
     description: "Action to perform: sync-users, list-files, create-file, delete-file"

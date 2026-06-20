@@ -307,52 +307,32 @@ spec:
               print("Error: Could not retrieve pipeline definition.")
               return
               
-          # Rebuild descriptors
-          yaml_desc = ""
-          yaml_desc += "- path: params.username\n"
-          yaml_desc += "  displayName: Username\n"
-          yaml_desc += "  x-descriptors:\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:select\n"
-          yaml_desc += "  - urn:alm:descriptor:props:select:options:list\n"
-          for u in usernames:
-              yaml_desc += f"  - urn:alm:descriptor:props:select:options:{u}\n"
-              
-          yaml_desc += "- path: params.action\n"
-          yaml_desc += "  displayName: Action\n"
-          yaml_desc += "  x-descriptors:\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:select\n"
-          yaml_desc += "  - urn:alm:descriptor:props:select:options:sync-users\n"
-          yaml_desc += "  - urn:alm:descriptor:props:select:options:list-files\n"
-          yaml_desc += "  - urn:alm:descriptor:props:select:options:create-file\n"
-          yaml_desc += "  - urn:alm:descriptor:props:select:options:delete-file\n"
-          
-          yaml_desc += "- path: params.target-folder\n"
-          yaml_desc += "  displayName: Target Folder\n"
-          yaml_desc += "  x-descriptors:\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:select\n"
-          yaml_desc += "  - urn:alm:descriptor:props:select:options:SUBMISSION\n"
-          yaml_desc += "  - urn:alm:descriptor:props:select:options:NOTIFICATION\n"
-          
           spec_params = pipeline.get("spec", {}).get("params", [])
           updated_params = []
           for p in spec_params:
               if p["name"] == "username":
-                  if "enum" in p:
-                      del p["enum"]
+                  p["enum"] = ["list"] + usernames
+                  if p.get("default") not in p["enum"]:
+                      p["default"] = usernames[0]
               elif p["name"] == "action":
                   p["enum"] = ["sync-users", "list-files", "create-file", "delete-file"]
               updated_params.append(p)
               
           patch_body = {
-              "metadata": {
-                  "annotations": {
-                      "style.tekton.dev/descriptors": yaml_desc
-                  }
-              },
               "spec": {
                   "params": updated_params
               }
           }
+          
+          # Remove style.tekton.dev/descriptors annotation since it interferes
+          # with standard OpenShift Console native parameter dropdown rendering.
+          annotations = pipeline.get("metadata", {}).get("annotations", {})
+          if "style.tekton.dev/descriptors" in annotations:
+              patch_body["metadata"] = {
+                  "annotations": {
+                      "style.tekton.dev/descriptors": None
+                  }
+              }
           
           patched = make_k8s_request(pipeline_path, method="PATCH", body=patch_body)
           if patched:
