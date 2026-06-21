@@ -301,34 +301,30 @@ spec:
               return
 
           print(f"Syncing pipeline params with usernames: {usernames}")
-          pipeline_path = "/apis/tekton.dev/v1/namespaces/openshift-pipelines-operator/pipelines/ftp-sync-pipeline"
-          pipeline = make_k8s_request(pipeline_path)
-          if not pipeline:
-              print("Error: Could not retrieve pipeline definition.")
-              return
+          username_enum = ["list"] + usernames
 
-          spec_params = pipeline.get("spec", {}).get("params", [])
-          updated_params = []
-          for p in spec_params:
-              if p["name"] == "username":
-                  p["enum"] = ["list"] + usernames
-                  if p.get("default") not in p["enum"]:
-                      p["default"] = usernames[0]
-              elif p["name"] == "action":
-                  p["enum"] = ["sync-users", "list-files", "create-file", "delete-file"]
-              updated_params.append(p)
+          for pipeline_name in ["ftp-sync-pipeline", "ftp-file-pipeline"]:
+              pipeline_path = f"/apis/tekton.dev/v1/namespaces/openshift-pipelines-operator/pipelines/{pipeline_name}"
+              pipeline = make_k8s_request(pipeline_path)
+              if not pipeline:
+                  print(f"Warning: Could not retrieve pipeline {pipeline_name}, skipping.")
+                  continue
 
-          patch_body = {
-              "spec": {
-                  "params": updated_params
-              }
-          }
+              spec_params = pipeline.get("spec", {}).get("params", [])
+              updated_params = []
+              for p in spec_params:
+                  if p["name"] == "username":
+                      p["enum"] = username_enum
+                      if p.get("default") not in p["enum"]:
+                          p["default"] = usernames[0]
+                  updated_params.append(p)
 
-          patched = make_k8s_request(pipeline_path, method="PATCH", body=patch_body)
-          if patched:
-              print("Pipeline parameter dropdowns updated successfully.")
-          else:
-              print("Failed to patch pipeline parameter dropdowns.")
+              patch_body = {"spec": {"params": updated_params}}
+              patched = make_k8s_request(pipeline_path, method="PATCH", body=patch_body)
+              if patched:
+                  print(f"Pipeline {pipeline_name} username dropdown updated.")
+              else:
+                  print(f"Failed to patch pipeline {pipeline_name}.")
 
       # Main execution flow
       if ACTION == "sync-users":

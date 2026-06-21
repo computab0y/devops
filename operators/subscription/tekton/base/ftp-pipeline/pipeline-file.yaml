@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: ftp-sync-pipeline
+  name: ftp-file-pipeline
   namespace: openshift-pipelines-operator
 spec:
   params:
@@ -26,10 +26,21 @@ spec:
   - name: action
     type: string
     description: "Action to perform"
-    default: "list-files"
+    default: "create-file"
     enum:
-    - "sync-users"
-    - "list-files"
+    - "create-file"
+    - "delete-file"
+  - name: target-folder
+    type: string
+    description: "The folder to create or delete the file in"
+    default: "NOTIFICATION"
+    enum:
+    - "SUBMISSION"
+    - "NOTIFICATION"
+  - name: file-name
+    type: string
+    description: "The name of the file to create or delete"
+    default: ""
   - name: vault-address
     type: string
     description: "The address of the Vault server"
@@ -52,9 +63,9 @@ spec:
     - name: action
       value: $(params.action)
     - name: target-folder
-      value: "NOTIFICATION"
+      value: $(params.target-folder)
     - name: file-name
-      value: ""
+      value: $(params.file-name)
     - name: vault-address
       value: $(params.vault-address)
     - name: target-ou
