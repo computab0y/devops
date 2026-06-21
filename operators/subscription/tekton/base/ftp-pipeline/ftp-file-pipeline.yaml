@@ -1,0 +1,57 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: ftp-file-pipeline
+  namespace: openshift-pipelines-operator
+spec:
+  params:
+  - name: username
+    type: string
+    description: "FTP user (populated from Vault after keycloak-vault-sync runs)"
+    default: "list"
+    enum:
+    - "list"
+  - name: action
+    type: string
+    description: "Action to perform on the FTP server"
+    default: "list-files"
+    enum:
+    - "list-files"
+    - "create-file"
+    - "delete-file"
+  - name: target-folder
+    type: string
+    description: "Target folder on the FTP server"
+    default: "SUBMISSION"
+    enum:
+    - "SUBMISSION"
+    - "NOTIFICATION"
+  - name: file-name
+    type: string
+    description: "Name of the file to create or delete (required for create-file and delete-file)"
+    default: ""
+  - name: vault-address
+    type: string
+    description: "The address of the Vault server"
+    default: "http://vault.vault.svc:8200"
+  tasks:
+  - name: ftp-operation
+    taskRef:
+      name: keycloak-vault-sync
+    params:
+    - name: ftp-host
+      value: "10.211.55.4"
+    - name: ftp-port
+      value: "21"
+    - name: username
+      value: $(params.username)
+    - name: action
+      value: $(params.action)
+    - name: target-folder
+      value: $(params.target-folder)
+    - name: file-name
+      value: $(params.file-name)
+    - name: vault-address
+      value: $(params.vault-address)
+    - name: target-ou
+      value: "FTP-Users"

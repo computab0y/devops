@@ -281,6 +281,33 @@ spec:
           write_vault_secret("ftp-credentials", {"username": selected_username, "password": password})
           return True
 
+      # 4. Pipeline Sync — updates username dropdown in ftp-file-pipeline with current Vault users
+      def sync_pipeline_params(users_in_ou):
+          usernames = sorted(list(set([u["username"] for u in users_in_ou if u["password"]])))
+          if not usernames:
+              print("No users with passwords found — skipping pipeline param sync.")
+              return
+
+          username_enum = usernames
+          pipeline_path = "/apis/tekton.dev/v1/namespaces/openshift-pipelines-operator/pipelines/ftp-file-pipeline"
+          pipeline = make_k8s_request(pipeline_path)
+          if not pipeline:
+              print("Warning: Could not retrieve ftp-file-pipeline, skipping param sync.")
+              return
+
+          spec_params = pipeline.get("spec", {}).get("params", [])
+          for p in spec_params:
+              if p["name"] == "username":
+                  p["enum"] = username_enum
+                  if p.get("default") not in username_enum:
+                      p["default"] = username_enum[0]
+
+          patched = make_k8s_request(pipeline_path, method="PATCH", body={"spec": {"params": spec_params}})
+          if patched:
+              print(f"ftp-file-pipeline username dropdown updated with {len(username_enum)} user(s): {username_enum}")
+          else:
+              print("Warning: Failed to patch ftp-file-pipeline username dropdown.")
+
       # Main execution flow
       if ACTION == "sync-users":
           print(f"Action: sync-users. Fetching users in OU '{TARGET_OU}' from Keycloak...")
@@ -300,6 +327,7 @@ spec:
               print(f"Warning: {len(skipped)} user(s) have no password attribute in Keycloak and will be skipped: {skipped}")
 
           update_vault_secrets(users)
+          sync_pipeline_params(users)
 
           print(f"\n{'='*50}")
           print(f"  Sync complete: {len(synced)} user(s) saved to Vault")
