@@ -59,7 +59,7 @@ spec:
       name: keycloak-vault-sync
     params:
     - name: ftp-host
-      value: "10.211.55.4"
+      value: "192.168.100.4"
     - name: ftp-port
       value: "21"
     - name: username

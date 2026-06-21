@@ -8,7 +8,7 @@ spec:
   - name: ftp-host
     type: string
     description: "The host to connect to"
-    default: "10.211.55.4"
+    default: "192.168.100.4"
   - name: ftp-port
     type: string
     description: "The port to connect to"
