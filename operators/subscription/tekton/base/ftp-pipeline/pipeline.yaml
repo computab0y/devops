@@ -5,14 +5,6 @@ metadata:
   namespace: openshift-pipelines-operator
 spec:
   params:
-  - name: ftp-host
-    type: string
-    description: "The external FTP server host"
-    default: "10.211.55.4"
-  - name: ftp-port
-    type: string
-    description: "The external FTP server port"
-    default: "21"
   - name: username
     type: string
     description: "FTP username (not required for sync-users — leave as 'list')"
@@ -46,9 +38,9 @@ spec:
       name: ftp-operation
     params:
     - name: ftp-host
-      value: $(params.ftp-host)
+      value: "10.211.55.4"
     - name: ftp-port
-      value: $(params.ftp-port)
+      value: "21"
     - name: username
       value: $(params.username)
     - name: action
