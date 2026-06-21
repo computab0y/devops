@@ -5,25 +5,6 @@ metadata:
   namespace: openshift-pipelines-operator
 spec:
   params:
-  - name: username
-    type: string
-    description: "FTP username (not required for sync-users — leave as 'list')"
-    default: "list"
-    enum:
-    - "list"
-    - "admin"
-    - "developer"
-    - "computab0y"
-    - "testuser1"
-  - name: action
-    type: string
-    description: "Action to perform: sync-users, list-files, create-file, delete-file"
-    default: "sync-users"
-    enum:
-    - "sync-users"
-    - "list-files"
-    - "create-file"
-    - "delete-file"
   - name: vault-address
     type: string
     description: "The address of the Vault server"
@@ -42,9 +23,9 @@ spec:
     - name: ftp-port
       value: "21"
     - name: username
-      value: $(params.username)
+      value: "list"
     - name: action
-      value: $(params.action)
+      value: "sync-users"
     - name: vault-address
       value: $(params.vault-address)
     - name: target-ou
