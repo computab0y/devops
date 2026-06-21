@@ -330,9 +330,34 @@ spec:
       if ACTION == "sync-users":
           print(f"Action: sync-users. Fetching users in OU '{TARGET_OU}' from Keycloak...")
           users = get_keycloak_users_in_ou(TARGET_OU)
-          print(f"Users found in OU '{TARGET_OU}': {[u['username'] for u in users]}")
+          kc_usernames = [u["username"] for u in users]
+          print(f"Users found in Keycloak OU '{TARGET_OU}': {kc_usernames}")
+
+          synced = []
+          skipped = []
+          for u in users:
+              if u["password"]:
+                  synced.append(u["username"])
+              else:
+                  skipped.append(u["username"])
+
+          if skipped:
+              print(f"Warning: {len(skipped)} user(s) have no password attribute in Keycloak and will be skipped: {skipped}")
+
           update_vault_secrets(users)
           sync_pipeline_params(users)
+
+          print(f"\n{'='*50}")
+          print(f"  Sync complete: {len(synced)} user(s) saved to Vault")
+          print(f"{'='*50}")
+          vault_users = get_vault_secret("ftp-users") or {}
+          if vault_users:
+              print(f"\nAll users currently stored in Vault (secret/ftp-users):")
+              for username in sorted(vault_users.keys()):
+                  print(f"  - {username}")
+          else:
+              print("No users found in Vault after sync.")
+          print(f"{'='*50}\n")
           sys.exit(0)
 
       if USERNAME.lower() != "list":
