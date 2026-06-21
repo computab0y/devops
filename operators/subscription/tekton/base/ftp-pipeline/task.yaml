@@ -87,19 +87,7 @@ spec:
       ctx.check_hostname = False
       ctx.verify_mode = ssl.CERT_NONE
 
-      # Ensure ssh client is installed inside the Task pod
       import subprocess
-      print("Ensuring ssh client is installed in task pod...")
-      try:
-          subprocess.run(["ssh", "-V"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-      except Exception:
-          print("Installing openssh-client...")
-          try:
-              subprocess.run(["apt-get", "update"], check=True, stdout=subprocess.DEVNULL)
-              subprocess.run(["apt-get", "install", "-y", "openssh-client"], check=True, stdout=subprocess.DEVNULL)
-              print("openssh-client installed successfully.")
-          except Exception as e:
-              print(f"Error installing openssh-client: {e}")
 
       def run_ssh_command(host, command):
           ssh_cmd = [
@@ -402,6 +390,18 @@ spec:
       if not resolved_user or not resolved_pass:
           print(f"Error: User '{USERNAME}' not found in Vault.")
           sys.exit(1)
+
+      # SSH client is only needed from here — install it now if missing
+      try:
+          subprocess.run(["ssh", "-V"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+      except Exception:
+          print("Installing openssh-client...")
+          try:
+              subprocess.run(["apt-get", "update", "-o", "Acquire::Check-Valid-Until=false"], check=True, stdout=subprocess.DEVNULL)
+              subprocess.run(["apt-get", "install", "-y", "openssh-client"], check=True, stdout=subprocess.DEVNULL)
+              print("openssh-client installed.")
+          except Exception as e:
+              print(f"Warning: Could not install openssh-client: {e}")
 
       # Ensure user is provisioned on the FTP server VM
       create_vm_user(resolved_user, resolved_pass, FTP_HOST)
