@@ -281,39 +281,6 @@ spec:
           write_vault_secret("ftp-credentials", {"username": selected_username, "password": password})
           return True
 
-      # 4. Pipeline Sync
-      def sync_pipeline_params(users_in_ou):
-          usernames = sorted(list(set([u["username"] for u in users_in_ou])))
-          if not usernames:
-              print("No users found in OU to sync pipeline params.")
-              return
-
-          print(f"Syncing pipeline params with usernames: {usernames}")
-          username_enum = ["list"] + usernames
-
-          for pipeline_name in ["keycloak-vault-sync"]:
-              pipeline_path = f"/apis/tekton.dev/v1/namespaces/openshift-pipelines-operator/pipelines/{pipeline_name}"
-              pipeline = make_k8s_request(pipeline_path)
-              if not pipeline:
-                  print(f"Warning: Could not retrieve pipeline {pipeline_name}, skipping.")
-                  continue
-
-              spec_params = pipeline.get("spec", {}).get("params", [])
-              updated_params = []
-              for p in spec_params:
-                  if p["name"] == "username":
-                      p["enum"] = username_enum
-                      if p.get("default") not in p["enum"]:
-                          p["default"] = usernames[0]
-                  updated_params.append(p)
-
-              patch_body = {"spec": {"params": updated_params}}
-              patched = make_k8s_request(pipeline_path, method="PATCH", body=patch_body)
-              if patched:
-                  print(f"Pipeline {pipeline_name} username dropdown updated.")
-              else:
-                  print(f"Failed to patch pipeline {pipeline_name}.")
-
       # Main execution flow
       if ACTION == "sync-users":
           print(f"Action: sync-users. Fetching users in OU '{TARGET_OU}' from Keycloak...")
@@ -333,7 +300,6 @@ spec:
               print(f"Warning: {len(skipped)} user(s) have no password attribute in Keycloak and will be skipped: {skipped}")
 
           update_vault_secrets(users)
-          sync_pipeline_params(users)
 
           print(f"\n{'='*50}")
           print(f"  Sync complete: {len(synced)} user(s) saved to Vault")
@@ -354,11 +320,6 @@ spec:
           if not sync_user_to_vault(USERNAME, users):
               print(f"Error: User '{USERNAME}' does not exist in Keycloak OU '{TARGET_OU}'. Pipeline execution aborted.")
               sys.exit(1)
-          try:
-              sync_pipeline_params(users)
-          except Exception as ex:
-              print(f"Warning: Could not sync pipeline parameter dropdowns: {ex}")
-
       if USERNAME.lower() == "list":
           print("Fetching available FTP users from Vault...")
           users = []
