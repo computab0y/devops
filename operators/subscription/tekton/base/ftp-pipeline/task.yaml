@@ -5,18 +5,10 @@ metadata:
   namespace: openshift-pipelines-operator
 spec:
   params:
-  - name: ftp-host
-    type: string
-    description: "The host to connect to"
-    default: "192.168.100.4"
-  - name: ftp-port
-    type: string
-    description: "The port to connect to"
-    default: "21"
   - name: username
     type: string
     description: "The username to connect as"
-    default: "developer"
+    default: "list"
   - name: action
     type: string
     description: "Action to perform: sync-users, list-files, create-file, delete-file"
@@ -37,14 +29,6 @@ spec:
     type: string
     description: "The name of the file to create or delete"
     default: ""
-  - name: vault-address
-    type: string
-    description: "The address of the Vault server"
-    default: "http://vault.vault.svc:8200"
-  - name: target-ou
-    type: string
-    description: "The target OU in Keycloak to list and sync users from"
-    default: "FTP-Users"
   steps:
   - name: sync
     image: python:3.11-slim
@@ -56,6 +40,56 @@ spec:
         secretKeyRef:
           name: vault-token
           key: token
+    - name: KEYCLOAK_URL
+      valueFrom:
+        configMapKeyRef:
+          name: pipeline-config
+          key: keycloak-url
+    - name: KEYCLOAK_REALM
+      valueFrom:
+        configMapKeyRef:
+          name: pipeline-config
+          key: keycloak-realm
+    - name: FTP_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: pipeline-config
+          key: ftp-host
+    - name: FTP_PORT
+      valueFrom:
+        configMapKeyRef:
+          name: pipeline-config
+          key: ftp-port
+    - name: VAULT_ADDR
+      valueFrom:
+        configMapKeyRef:
+          name: pipeline-config
+          key: vault-address
+    - name: TARGET_OU
+      valueFrom:
+        configMapKeyRef:
+          name: pipeline-config
+          key: target-ou
+    - name: VAULT_SECRET_USERS
+      valueFrom:
+        configMapKeyRef:
+          name: pipeline-config
+          key: vault-secret-users
+    - name: VAULT_SECRET_CREDENTIALS
+      valueFrom:
+        configMapKeyRef:
+          name: pipeline-config
+          key: vault-secret-credentials
+    - name: KEYCLOAK_ADMIN_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: pipeline-env
+          key: keycloak-admin-username
+    - name: KEYCLOAK_ADMIN_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: pipeline-env
+          key: keycloak-admin-password
     volumeMounts:
     - name: ssh-key-volume
       mountPath: /ssh
@@ -72,14 +106,19 @@ spec:
       from datetime import datetime
       from io import BytesIO
 
-      FTP_HOST = "$(params.ftp-host)"
-      FTP_PORT = int("$(params.ftp-port)")
+      FTP_HOST = os.environ.get("FTP_HOST", "10.211.55.4")
+      FTP_PORT = int(os.environ.get("FTP_PORT", "21"))
+      VAULT_ADDR = os.environ.get("VAULT_ADDR", "http://vault.vault.svc:8200")
+      TARGET_OU = os.environ.get("TARGET_OU", "FTP-Users")
+      KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://keycloak-service.keycloak.svc:8080")
+      KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "rgb-realm")
+      VAULT_SECRET_USERS = os.environ.get("VAULT_SECRET_USERS", "ftp-users")
+      VAULT_SECRET_CREDENTIALS = os.environ.get("VAULT_SECRET_CREDENTIALS", "ftp-credentials")
+
       USERNAME = "$(params.username)"
       ACTION = "$(params.action)".lower()
       TARGET_FOLDER = "$(params.target-folder)"
       FILE_NAME = "$(params.file-name)"
-      VAULT_ADDR = "$(params.vault-address)"
-      TARGET_OU = "$(params.target-ou)"
 
       VAULT_TOKEN = os.environ.get("VAULT_TOKEN", "root")
 
@@ -152,32 +191,19 @@ spec:
 
       # 2. Keycloak functions
       def get_keycloak_admin_creds():
-          secret = make_k8s_request("/api/v1/namespaces/keycloak/secrets/keycloak-initial-admin")
-          if not secret:
-              print("Warning: keycloak-initial-admin secret not accessible. Using default fallback.")
-              return "temp-admin", "c2da53c9e6b648d7bf1cf33830d0d2e5"
-          
-          data = secret.get("data", {})
-          username = base64.b64decode(data.get("username", "")).decode().strip()
-          password = base64.b64decode(data.get("password", "")).decode().strip()
-          return username, password
+          return os.environ.get("KEYCLOAK_ADMIN_USERNAME"), os.environ.get("KEYCLOAK_ADMIN_PASSWORD")
 
       def get_keycloak_client():
           username, password = get_keycloak_admin_creds()
-          urls = [
-              "http://keycloak-service.keycloak.svc:8080",
-              "https://keycloak-keycloak.apps.okd.local"
-          ]
-          for base_url in urls:
-              token_url = f"{base_url}/realms/master/protocol/openid-connect/token"
-              data = f"client_id=admin-cli&username={username}&password={password}&grant_type=password".encode()
-              req = urllib.request.Request(token_url, data=data)
-              try:
-                  with urllib.request.urlopen(req, context=ctx, timeout=5) as f:
-                      token = json.loads(f.read().decode())["access_token"]
-                      return base_url, token
-              except Exception as e:
-                  continue
+          token_url = f"{KEYCLOAK_URL}/realms/master/protocol/openid-connect/token"
+          data = f"client_id=admin-cli&username={username}&password={password}&grant_type=password".encode()
+          req = urllib.request.Request(token_url, data=data)
+          try:
+              with urllib.request.urlopen(req, context=ctx, timeout=5) as f:
+                  token = json.loads(f.read().decode())["access_token"]
+                  return KEYCLOAK_URL, token
+          except Exception as e:
+              print(f"Error: Could not authenticate to Keycloak at {KEYCLOAK_URL}: {e}")
           return None, None
 
       def get_keycloak_users_in_ou(target_ou):
@@ -186,7 +212,7 @@ spec:
               print("Error: Could not authenticate to Keycloak.")
               return []
           
-          users_url = f"{base_url}/admin/realms/rgb-realm/users"
+          users_url = f"{base_url}/admin/realms/{KEYCLOAK_REALM}/users"
           headers = {"Authorization": f"Bearer {token}"}
           req = urllib.request.Request(users_url, headers=headers)
           
@@ -196,7 +222,7 @@ spec:
                   users = json.loads(f.read().decode())
                   for u in users:
                       user_id = u["id"]
-                      user_detail_url = f"{base_url}/admin/realms/rgb-realm/users/{user_id}"
+                      user_detail_url = f"{base_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
                       req_detail = urllib.request.Request(user_detail_url, headers=headers)
                       try:
                           with urllib.request.urlopen(req_detail, context=ctx) as fd:
@@ -246,7 +272,7 @@ spec:
               return False
 
       def update_vault_secrets(users):
-          existing = get_vault_secret("ftp-users") or {}
+          existing = get_vault_secret(VAULT_SECRET_USERS) or {}
           updated = False
           for u in users:
               username = u["username"]
@@ -256,7 +282,7 @@ spec:
                   updated = True
                   
           if updated:
-              write_vault_secret("ftp-users", existing)
+              write_vault_secret(VAULT_SECRET_USERS, existing)
 
       def sync_user_to_vault(selected_username, users_in_ou):
           user_info = next((u for u in users_in_ou if u["username"] == selected_username), None)
@@ -272,13 +298,13 @@ spec:
           print(f"Syncing credentials for user '{selected_username}' from Keycloak to Vault...")
           
           # 1. Update ftp-users dict in Vault
-          users_sec = get_vault_secret("ftp-users") or {}
+          users_sec = get_vault_secret(VAULT_SECRET_USERS) or {}
           if users_sec.get(selected_username) != password:
               users_sec[selected_username] = password
-              write_vault_secret("ftp-users", users_sec)
+              write_vault_secret(VAULT_SECRET_USERS, users_sec)
               
           # 2. Update ftp-credentials in Vault
-          write_vault_secret("ftp-credentials", {"username": selected_username, "password": password})
+          write_vault_secret(VAULT_SECRET_CREDENTIALS, {"username": selected_username, "password": password})
           return True
 
       # 4. Pipeline Sync — updates username dropdown in ftp-file-pipeline with current Vault users
@@ -289,70 +315,20 @@ spec:
               return
 
           username_enum = usernames
-          pipeline_path = "/apis/tekton.dev/v1beta1/namespaces/openshift-pipelines-operator/pipelines/ftp-file-pipeline"
+          pipeline_path = "/apis/tekton.dev/v1/namespaces/openshift-pipelines-operator/pipelines/ftp-file-pipeline"
           pipeline = make_k8s_request(pipeline_path)
           if not pipeline:
               print("Warning: Could not retrieve ftp-file-pipeline, skipping param sync.")
               return
 
-          # Rebuild descriptors using tectonic select/label/value syntax
-          yaml_desc = ""
-          yaml_desc += "- path: params.username\n"
-          yaml_desc += "  displayName: Username\n"
-          yaml_desc += "  x-descriptors:\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:select\n"
-          for u in username_enum:
-              yaml_desc += f"  - urn:alm:descriptor:com.tectonic.ui:label:{u}\n"
-              yaml_desc += f"  - urn:alm:descriptor:com.tectonic.ui:value:{u}\n"
-              
-          yaml_desc += "- path: params.action\n"
-          yaml_desc += "  displayName: Action\n"
-          yaml_desc += "  x-descriptors:\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:select\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:label:list-files\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:value:list-files\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:label:create-file\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:value:create-file\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:label:delete-file\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:value:delete-file\n"
-          
-          yaml_desc += "- path: params.target-folder\n"
-          yaml_desc += "  displayName: Target Folder\n"
-          yaml_desc += "  x-descriptors:\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:select\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:label:SUBMISSION\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:value:SUBMISSION\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:label:NOTIFICATION\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:value:NOTIFICATION\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:label:BOTH\n"
-          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:value:BOTH\n"
-
           spec_params = pipeline.get("spec", {}).get("params", [])
-          updated_params = []
           for p in spec_params:
               if p["name"] == "username":
-                  if "enum" in p:
-                      del p["enum"]
-              elif p["name"] == "action":
-                  if "enum" in p:
-                      del p["enum"]
-              elif p["name"] == "target-folder":
-                  if "enum" in p:
-                      del p["enum"]
-              updated_params.append(p)
+                  p["enum"] = username_enum
+                  if p.get("default") not in username_enum:
+                      p["default"] = username_enum[0]
 
-          patch_body = {
-              "metadata": {
-                  "annotations": {
-                      "style.tekton.dev/descriptors": yaml_desc
-                  }
-              },
-              "spec": {
-                  "params": updated_params
-              }
-          }
-
-          patched = make_k8s_request(pipeline_path, method="PATCH", body=patch_body)
+          patched = make_k8s_request(pipeline_path, method="PATCH", body={"spec": {"params": spec_params}})
           if patched:
               print(f"ftp-file-pipeline username dropdown updated with {len(username_enum)} user(s): {username_enum}")
           else:
@@ -382,9 +358,9 @@ spec:
           print(f"\n{'='*50}")
           print(f"  Sync complete: {len(synced)} user(s) saved to Vault")
           print(f"{'='*50}")
-          vault_users = get_vault_secret("ftp-users") or {}
+          vault_users = get_vault_secret(VAULT_SECRET_USERS) or {}
           if vault_users:
-              print(f"\nAll users currently stored in Vault (secret/ftp-users):")
+              print(f"\nAll users currently stored in Vault (secret/{VAULT_SECRET_USERS}):")
               for username in sorted(vault_users.keys()):
                   print(f"  - {username}")
           else:
@@ -401,10 +377,10 @@ spec:
       if USERNAME.lower() == "list":
           print("Fetching available FTP users from Vault...")
           users = []
-          cred_sec = get_vault_secret("ftp-credentials")
+          cred_sec = get_vault_secret(VAULT_SECRET_CREDENTIALS)
           if cred_sec and "username" in cred_sec:
               users.append(cred_sec["username"])
-          users_sec = get_vault_secret("ftp-users")
+          users_sec = get_vault_secret(VAULT_SECRET_USERS)
           if users_sec:
               users.extend(users_sec.keys())
           print("\nAvailable FTP users in Vault:")
@@ -416,12 +392,12 @@ spec:
       resolved_user = None
       resolved_pass = None
 
-      cred_sec = get_vault_secret("ftp-credentials")
+      cred_sec = get_vault_secret(VAULT_SECRET_CREDENTIALS)
       if cred_sec and cred_sec.get("username") == USERNAME:
           resolved_user = USERNAME
           resolved_pass = cred_sec.get("password")
       else:
-          users_sec = get_vault_secret("ftp-users")
+          users_sec = get_vault_secret(VAULT_SECRET_USERS)
           if users_sec and USERNAME in users_sec:
               resolved_user = USERNAME
               resolved_pass = users_sec[USERNAME]

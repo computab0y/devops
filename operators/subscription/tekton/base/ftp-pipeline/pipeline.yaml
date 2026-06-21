@@ -4,29 +4,12 @@ metadata:
   name: keycloak-vault-sync
   namespace: openshift-pipelines-operator
 spec:
-  params:
-  - name: vault-address
-    type: string
-    description: "The address of the Vault server"
-    default: "http://vault.vault.svc:8200"
-  - name: target-ou
-    type: string
-    description: "The target OU in Keycloak to sync users from"
-    default: "FTP-Users"
   tasks:
   - name: sync-users
     taskRef:
       name: keycloak-vault-sync
     params:
-    - name: ftp-host
-      value: "192.168.100.4"
-    - name: ftp-port
-      value: "21"
     - name: username
       value: "list"
     - name: action
       value: "sync-users"
-    - name: vault-address
-      value: $(params.vault-address)
-    - name: target-ou
-      value: $(params.target-ou)

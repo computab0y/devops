@@ -1,71 +1,40 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
   name: ftp-file-pipeline
   namespace: openshift-pipelines-operator
-  annotations:
-    style.tekton.dev/descriptors: |
-      - path: params.username
-        displayName: Username
-        x-descriptors:
-        - urn:alm:descriptor:com.tectonic.ui:select
-        - urn:alm:descriptor:com.tectonic.ui:label:list
-        - urn:alm:descriptor:com.tectonic.ui:value:list
-      - path: params.action
-        displayName: Action
-        x-descriptors:
-        - urn:alm:descriptor:com.tectonic.ui:select
-        - urn:alm:descriptor:com.tectonic.ui:label:list-files
-        - urn:alm:descriptor:com.tectonic.ui:value:list-files
-        - urn:alm:descriptor:com.tectonic.ui:label:create-file
-        - urn:alm:descriptor:com.tectonic.ui:value:create-file
-        - urn:alm:descriptor:com.tectonic.ui:label:delete-file
-        - urn:alm:descriptor:com.tectonic.ui:value:delete-file
-      - path: params.target-folder
-        displayName: Target Folder
-        x-descriptors:
-        - urn:alm:descriptor:com.tectonic.ui:select
-        - urn:alm:descriptor:com.tectonic.ui:label:SUBMISSION
-        - urn:alm:descriptor:com.tectonic.ui:value:SUBMISSION
-        - urn:alm:descriptor:com.tectonic.ui:label:NOTIFICATION
-        - urn:alm:descriptor:com.tectonic.ui:value:NOTIFICATION
-        - urn:alm:descriptor:com.tectonic.ui:label:BOTH
-        - urn:alm:descriptor:com.tectonic.ui:value:BOTH
 spec:
   params:
   - name: username
     type: string
     description: "FTP user (populated from Vault after keycloak-vault-sync runs)"
     default: "list"
+    enum:
+    - "list"
   - name: action
     type: string
     description: "Action to perform on the FTP server"
     default: "list-files"
+    enum:
+    - "list-files"
+    - "create-file"
+    - "delete-file"
   - name: target-folder
     type: string
     description: "Target folder on the FTP server"
     default: "SUBMISSION"
+    enum:
+    - "SUBMISSION"
+    - "NOTIFICATION"
   - name: file-name
     type: string
     description: "Name of the file to create or delete (required for create-file and delete-file)"
     default: ""
-  - name: ftp-host
-    type: string
-    description: "The FTP host to connect to"
-    default: "192.168.100.4"
-  - name: ftp-port
-    type: string
-    description: "The FTP port to connect to"
-    default: "21"
   tasks:
   - name: ftp-operation
     taskRef:
       name: keycloak-vault-sync
     params:
-    - name: ftp-host
-      value: $(params.ftp-host)
-    - name: ftp-port
-      value: $(params.ftp-port)
     - name: username
       value: $(params.username)
     - name: action
@@ -74,5 +43,3 @@ spec:
       value: $(params.target-folder)
     - name: file-name
       value: $(params.file-name)
-    - name: target-ou
-      value: "FTP-Users"

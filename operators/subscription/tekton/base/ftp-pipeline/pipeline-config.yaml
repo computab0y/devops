@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+  namespace: openshift-pipelines-operator
+data:
+  keycloak-url: "http://keycloak-service.keycloak.svc:8080"
+  keycloak-realm: "rgb-realm"
+  ftp-host: "10.211.55.4"
+  ftp-port: "21"
+  vault-address: "http://vault.vault.svc:8200"
+  target-ou: "FTP-Users"
+  vault-secret-users: "ftp-users"
+  vault-secret-credentials: "ftp-credentials"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pipeline-env
+  namespace: openshift-pipelines-operator
+type: Opaque
+stringData:
+  keycloak-admin-username: "temp-admin"
+  keycloak-admin-password: "c2da53c9e6b648d7bf1cf33830d0d2e5"
