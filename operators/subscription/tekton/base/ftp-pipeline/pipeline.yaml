@@ -15,8 +15,8 @@ spec:
     default: "21"
   - name: username
     type: string
-    description: "The FTP username to connect as"
-    default: "developer"
+    description: "FTP username (not required for sync-users — leave as 'list')"
+    default: "list"
     enum:
     - "list"
     - "admin"
@@ -26,7 +26,7 @@ spec:
   - name: action
     type: string
     description: "Action to perform: sync-users, list-files, create-file, delete-file"
-    default: "list-files"
+    default: "sync-users"
     enum:
     - "sync-users"
     - "list-files"

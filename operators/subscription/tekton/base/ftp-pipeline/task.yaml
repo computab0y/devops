@@ -291,7 +291,7 @@ spec:
           print(f"Syncing pipeline params with usernames: {usernames}")
           username_enum = ["list"] + usernames
 
-          for pipeline_name in ["ftp-sync-pipeline", "ftp-file-pipeline"]:
+          for pipeline_name in ["ftp-sync-pipeline"]:
               pipeline_path = f"/apis/tekton.dev/v1/namespaces/openshift-pipelines-operator/pipelines/{pipeline_name}"
               pipeline = make_k8s_request(pipeline_path)
               if not pipeline:
