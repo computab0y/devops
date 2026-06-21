@@ -1,23 +1,11 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  generateName: ftp-sync-users-run-
+  generateName: keycloak-vault-sync-run-
   namespace: openshift-pipelines-operator
 spec:
   pipelineRef:
-    name: ftp-sync-pipeline
+    name: keycloak-vault-sync
   params:
-  - name: ftp-host
-    value: "10.211.55.4"
-  - name: ftp-port
-    value: "21"
-  - name: username
-    value: "list"
-  - name: action
-    value: "sync-users"
-  - name: target-folder
-    value: "NOTIFICATION"
-  - name: file-name
-    value: ""
   - name: target-ou
     value: "FTP-Users"

@@ -289,20 +289,70 @@ spec:
               return
 
           username_enum = usernames
-          pipeline_path = "/apis/tekton.dev/v1/namespaces/openshift-pipelines-operator/pipelines/ftp-file-pipeline"
+          pipeline_path = "/apis/tekton.dev/v1beta1/namespaces/openshift-pipelines-operator/pipelines/ftp-file-pipeline"
           pipeline = make_k8s_request(pipeline_path)
           if not pipeline:
               print("Warning: Could not retrieve ftp-file-pipeline, skipping param sync.")
               return
 
+          # Rebuild descriptors using tectonic select/label/value syntax
+          yaml_desc = ""
+          yaml_desc += "- path: params.username\n"
+          yaml_desc += "  displayName: Username\n"
+          yaml_desc += "  x-descriptors:\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:select\n"
+          for u in username_enum:
+              yaml_desc += f"  - urn:alm:descriptor:com.tectonic.ui:label:{u}\n"
+              yaml_desc += f"  - urn:alm:descriptor:com.tectonic.ui:value:{u}\n"
+              
+          yaml_desc += "- path: params.action\n"
+          yaml_desc += "  displayName: Action\n"
+          yaml_desc += "  x-descriptors:\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:select\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:label:list-files\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:value:list-files\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:label:create-file\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:value:create-file\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:label:delete-file\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:value:delete-file\n"
+          
+          yaml_desc += "- path: params.target-folder\n"
+          yaml_desc += "  displayName: Target Folder\n"
+          yaml_desc += "  x-descriptors:\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:select\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:label:SUBMISSION\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:value:SUBMISSION\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:label:NOTIFICATION\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:value:NOTIFICATION\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:label:BOTH\n"
+          yaml_desc += "  - urn:alm:descriptor:com.tectonic.ui:value:BOTH\n"
+
           spec_params = pipeline.get("spec", {}).get("params", [])
+          updated_params = []
           for p in spec_params:
               if p["name"] == "username":
-                  p["enum"] = username_enum
-                  if p.get("default") not in username_enum:
-                      p["default"] = username_enum[0]
+                  if "enum" in p:
+                      del p["enum"]
+              elif p["name"] == "action":
+                  if "enum" in p:
+                      del p["enum"]
+              elif p["name"] == "target-folder":
+                  if "enum" in p:
+                      del p["enum"]
+              updated_params.append(p)
 
-          patched = make_k8s_request(pipeline_path, method="PATCH", body={"spec": {"params": spec_params}})
+          patch_body = {
+              "metadata": {
+                  "annotations": {
+                      "style.tekton.dev/descriptors": yaml_desc
+                  }
+              },
+              "spec": {
+                  "params": updated_params
+              }
+          }
+
+          patched = make_k8s_request(pipeline_path, method="PATCH", body=patch_body)
           if patched:
               print(f"ftp-file-pipeline username dropdown updated with {len(username_enum)} user(s): {username_enum}")
           else:
