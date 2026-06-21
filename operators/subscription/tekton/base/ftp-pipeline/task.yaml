@@ -432,8 +432,8 @@ spec:
           list_folders()
 
       elif ACTION == "create-file":
-          if TARGET_FOLDER not in ["SUBMISSION", "NOTIFICATION"]:
-              print(f"Error: Invalid target folder '{TARGET_FOLDER}'. Must be SUBMISSION or NOTIFICATION.")
+          if TARGET_FOLDER not in ["SUBMISSION", "NOTIFICATION", "BOTH"]:
+              print(f"Error: Invalid target folder '{TARGET_FOLDER}'. Must be SUBMISSION, NOTIFICATION, or BOTH.")
               sys.exit(1)
               
           name = FILE_NAME
@@ -441,38 +441,42 @@ spec:
               name = f"test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
               
           current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-          print(f"Creating file '{name}' in '{TARGET_FOLDER}' with content: '{current_time}'")
           
-          try:
-              ftp.cwd('/')
-              ftp.cwd(TARGET_FOLDER)
-              file_data = BytesIO(current_time.encode('utf-8'))
-              ftp.storbinary(f"STOR {name}", file_data)
-              print("File uploaded successfully!")
-              list_folders()
-          except Exception as e:
-              print(f"Error creating file: {e}")
-              sys.exit(1)
+          folders_to_update = ["SUBMISSION", "NOTIFICATION"] if TARGET_FOLDER == "BOTH" else [TARGET_FOLDER]
+          for folder in folders_to_update:
+              print(f"Creating file '{name}' in '{folder}' with content: '{current_time}'")
+              try:
+                  ftp.cwd('/')
+                  ftp.cwd(folder)
+                  file_data = BytesIO(current_time.encode('utf-8'))
+                  ftp.storbinary(f"STOR {name}", file_data)
+                  print(f"File uploaded successfully to '{folder}'!")
+              except Exception as e:
+                  print(f"Error creating file in '{folder}': {e}")
+                  sys.exit(1)
+          list_folders()
 
       elif ACTION == "delete-file":
           if not FILE_NAME:
               print("Error: file-name parameter is required for delete-file action.")
               sys.exit(1)
               
-          if TARGET_FOLDER not in ["SUBMISSION", "NOTIFICATION"]:
-              print(f"Error: Invalid target folder '{TARGET_FOLDER}'. Must be SUBMISSION or NOTIFICATION.")
+          if TARGET_FOLDER not in ["SUBMISSION", "NOTIFICATION", "BOTH"]:
+              print(f"Error: Invalid target folder '{TARGET_FOLDER}'. Must be SUBMISSION, NOTIFICATION, or BOTH.")
               sys.exit(1)
               
-          print(f"Deleting file '{FILE_NAME}' from '{TARGET_FOLDER}'...")
-          try:
-              ftp.cwd('/')
-              ftp.cwd(TARGET_FOLDER)
-              ftp.delete(FILE_NAME)
-              print("File deleted successfully!")
-              list_folders()
-          except Exception as e:
-              print(f"Error deleting file: {e}")
-              sys.exit(1)
+          folders_to_update = ["SUBMISSION", "NOTIFICATION"] if TARGET_FOLDER == "BOTH" else [TARGET_FOLDER]
+          for folder in folders_to_update:
+              print(f"Deleting file '{FILE_NAME}' from '{folder}'...")
+              try:
+                  ftp.cwd('/')
+                  ftp.cwd(folder)
+                  ftp.delete(FILE_NAME)
+                  print(f"File deleted successfully from '{folder}'!")
+              except Exception as e:
+                  print(f"Error deleting file from '{folder}': {e}")
+                  sys.exit(1)
+          list_folders()
 
       try:
           ftp.quit()
