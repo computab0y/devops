@@ -53,15 +53,23 @@ spec:
     type: string
     description: "The address of the Vault server"
     default: "http://vault.vault.svc:8200"
+  - name: ftp-host
+    type: string
+    description: "The FTP host to connect to"
+    default: "192.168.100.4"
+  - name: ftp-port
+    type: string
+    description: "The FTP port to connect to"
+    default: "21"
   tasks:
   - name: ftp-operation
     taskRef:
       name: keycloak-vault-sync
     params:
     - name: ftp-host
-      value: "192.168.100.4"
+      value: $(params.ftp-host)
     - name: ftp-port
-      value: "21"
+      value: $(params.ftp-port)
     - name: username
       value: $(params.username)
     - name: action

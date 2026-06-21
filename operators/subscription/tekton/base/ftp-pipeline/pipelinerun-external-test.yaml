@@ -5,7 +5,7 @@ metadata:
   namespace: openshift-pipelines-operator
 spec:
   pipelineRef:
-    name: ftp-sync-pipeline
+    name: ftp-file-pipeline
   params:
   - name: ftp-host
     value: "mock-ftp-service.test-app.svc.cluster.local"
