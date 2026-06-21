@@ -1,21 +1,21 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: ftp-operation
+  name: keycloak-vault-sync
   namespace: openshift-pipelines-operator
 spec:
   params:
   - name: ftp-host
     type: string
-    description: "The external FTP server host"
+    description: "The host to connect to"
     default: "10.211.55.4"
   - name: ftp-port
     type: string
-    description: "The external FTP server port"
+    description: "The port to connect to"
     default: "21"
   - name: username
     type: string
-    description: "The FTP username to connect as"
+    description: "The username to connect as"
     default: "developer"
   - name: action
     type: string
@@ -291,7 +291,7 @@ spec:
           print(f"Syncing pipeline params with usernames: {usernames}")
           username_enum = ["list"] + usernames
 
-          for pipeline_name in ["ftp-sync-pipeline"]:
+          for pipeline_name in ["keycloak-vault-sync"]:
               pipeline_path = f"/apis/tekton.dev/v1/namespaces/openshift-pipelines-operator/pipelines/{pipeline_name}"
               pipeline = make_k8s_request(pipeline_path)
               if not pipeline:

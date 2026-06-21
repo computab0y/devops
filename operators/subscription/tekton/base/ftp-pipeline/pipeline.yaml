@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: ftp-sync-pipeline
+  name: keycloak-vault-sync
   namespace: openshift-pipelines-operator
 spec:
   params:
@@ -11,12 +11,12 @@ spec:
     default: "http://vault.vault.svc:8200"
   - name: target-ou
     type: string
-    description: "The target OU in Keycloak to list and sync users from"
+    description: "The target OU in Keycloak to sync users from"
     default: "FTP-Users"
   tasks:
-  - name: run-ftp-operation
+  - name: sync-users
     taskRef:
-      name: ftp-operation
+      name: keycloak-vault-sync
     params:
     - name: ftp-host
       value: "10.211.55.4"
