@@ -1,0 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+body, html { background: #0f172a !important; font-family: 'Inter', sans-serif !important; color: #f8fafc !important; }
+body::before, body::after { display: none !important; }
+.login-ui { background: #0f172a !important; display: flex !important; align-items: center !important; justify-content: center !important; min-height: 100vh !important; }
+.login-dialog-middle { display: flex !important; align-items: center !important; justify-content: center !important; width: 100% !important; }
+.login-dialog.notification { background: #1e293b !important; border: 1px solid #334155 !important; box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important; border-radius: 8px !important; padding: 40px !important; width: 400px !important; max-width: 95vw !important; }
+.login-dialog.notification::before, .login-dialog.notification::after { display: none !important; }
+.logo { display: none !important; }
+.version { text-align: center !important; margin-bottom: 24px !important; color: #94a3b8 !important; }
+.app-name { font-size: 1.5rem !important; font-weight: 600 !important; color: #e2e8f0 !important; text-align: center !important; margin-bottom: 20px !important; letter-spacing: normal !important; animation: none !important; text-shadow: none !important; }
+.app-name::after { content: none !important; }
+.login-dialog .labeled-field label { color: #cbd5e1 !important; font-size: 0.85rem !important; font-weight: 500 !important; }
+.login-dialog input[type="text"], .login-dialog input[type="password"] { background: #0f172a !important; border: 1px solid #475569 !important; color: #f8fafc !important; border-radius: 4px !important; padding: 10px 12px !important; }
+.login-dialog input[type="text"]:focus, .login-dialog input[type="password"]:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 1px #3b82f6 !important; outline: none !important; }
+.login-dialog .login-button { background: #2563eb !important; color: #ffffff !important; border: none !important; border-radius: 4px !important; padding: 10px 20px !important; font-weight: 500 !important; width: 100% !important; transition: background 0.2s !important; }
+.login-dialog .login-button:hover { background: #1d4ed8 !important; }
+.header { background: #1e293b !important; border-bottom: 1px solid #334155 !important; }

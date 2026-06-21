@@ -1,0 +1,90 @@
+services:
+  guacd:
+    image: guacamole/guacd
+    container_name: guacd
+    restart: always
+    networks:
+      - guacamole_internal
+    volumes:
+      - /opt/guacamole/drive:/etc/guacamole/drive
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: guacamole_db
+    restart: always
+    environment:
+      POSTGRES_DB: guacamole_db
+      POSTGRES_USER: guacamole_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - /opt/guacamole/postgres:/var/lib/postgresql/data
+      - /opt/guacamole/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - guacamole_internal
+
+  guacamole:
+    image: guacamole/guacamole
+    container_name: guacamole_web
+    restart: always
+    depends_on:
+      - guacd
+      - postgres
+    environment:
+      GUACD_HOSTNAME: guacd
+      POSTGRESQL_HOSTNAME: postgres
+      POSTGRESQL_DATABASE: guacamole_db
+      POSTGRESQL_USER: guacamole_user
+      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD}
+      TOTP_ENABLED: 'true'
+      REMOTE_IP_VALVE_ENABLED: 'true'
+      IP_ADDRESS_HEADER: X-Forwarded-For
+      MAX_FAILED_LOGINS: 100
+    volumes:
+      - /opt/guacamole/extensions:/etc/guacamole/extensions
+    networks:
+      - guacamole_internal
+      - guacamole_cloudflare_net
+
+  nginx:
+    image: nginx:alpine
+    container_name: guacamole-nginx
+    restart: always
+    depends_on:
+      - guacamole
+    ports:
+      - 8080:80
+    volumes:
+      - /opt/guacamole/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /opt/guacamole/funky-bash.css:/usr/share/nginx/html/funky-bash.css:ro
+    networks:
+      - guacamole_cloudflare_net
+
+  filebrowser:
+    image: filebrowser/filebrowser
+    container_name: filebrowser
+    restart: always
+    user: root
+    ports:
+      - 8081:80
+    volumes:
+      - /opt/guacamole/drive:/srv
+      - /opt/filebrowser/config/filebrowser.db:/database/filebrowser.db
+      - /opt/filebrowser/config/.filebrowser.json:/.filebrowser.json
+    environment:
+      - FB_BASEURL=/
+
+  tunnel:
+    image: cloudflare/cloudflared
+    container_name: cloudflare_tunnel
+    restart: always
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel run
+    networks:
+      - guacamole_cloudflare_net
+
+networks:
+  guacamole_internal:
+    driver: bridge
+  guacamole_cloudflare_net:
+    driver: bridge
