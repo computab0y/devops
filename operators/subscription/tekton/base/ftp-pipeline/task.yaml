@@ -46,7 +46,7 @@ spec:
     description: "The target OU in Keycloak to list and sync users from"
     default: "FTP-Users"
   steps:
-  - name: ftp-client
+  - name: sync
     image: python:3.11-slim
     securityContext:
       runAsUser: 0
