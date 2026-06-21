@@ -49,10 +49,6 @@ spec:
     type: string
     description: "Name of the file to create or delete (required for create-file and delete-file)"
     default: ""
-  - name: vault-address
-    type: string
-    description: "The address of the Vault server"
-    default: "http://vault.vault.svc:8200"
   - name: ftp-host
     type: string
     description: "The FTP host to connect to"
@@ -78,7 +74,5 @@ spec:
       value: $(params.target-folder)
     - name: file-name
       value: $(params.file-name)
-    - name: vault-address
-      value: $(params.vault-address)
     - name: target-ou
       value: "FTP-Users"
