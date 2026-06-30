@@ -131,6 +131,23 @@ data:
                             pasv_sock.close()
                             pasv_sock = None
                         conn.send(b"226 Closing data connection.\r\n")
+                    elif cmd == 'DELE':
+                        file_path = os.path.abspath(os.path.join(cwd, arg))
+                        if file_path.startswith("/tmp/ftp-server") and os.path.isfile(file_path):
+                            os.remove(file_path)
+                            conn.send(b"250 File deleted.\r\n")
+                        else:
+                            conn.send(b"550 File not found or permission denied.\r\n")
+                    elif cmd == 'NLST':
+                        conn.send(b"150 File status okay; about to open data connection.\r\n")
+                        if pasv_sock:
+                            data_conn, data_addr = pasv_sock.accept()
+                            files = os.listdir(cwd)
+                            data_conn.sendall('\r\n'.join(files).encode('utf-8'))
+                            data_conn.close()
+                            pasv_sock.close()
+                            pasv_sock = None
+                        conn.send(b"226 Closing data connection.\r\n")
                     elif cmd == 'QUIT':
                         conn.send(b"221 Goodbye.\r\n")
                         break
