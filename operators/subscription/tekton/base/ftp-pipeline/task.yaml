@@ -4,6 +4,19 @@ metadata:
   name: keycloak-vault-sync
   namespace: openshift-pipelines-operator
 spec:
+  params:
+  - name: target-ou
+    type: string
+    description: "The Keycloak OU attribute to filter users by"
+    default: "FTP-Users"
+  - name: keycloak-realm
+    type: string
+    description: "The Keycloak realm to sync users from"
+    default: "rgb-realm"
+  - name: vault-address
+    type: string
+    description: "The address of the Vault server"
+    default: "http://vault.vault.svc:8200"
   steps:
   - name: sync
     image: python:3.11-slim
@@ -20,21 +33,6 @@ spec:
         configMapKeyRef:
           name: pipeline-config
           key: keycloak-url
-    - name: KEYCLOAK_REALM
-      valueFrom:
-        configMapKeyRef:
-          name: pipeline-config
-          key: keycloak-realm
-    - name: VAULT_ADDR
-      valueFrom:
-        configMapKeyRef:
-          name: pipeline-config
-          key: vault-address
-    - name: TARGET_OU
-      valueFrom:
-        configMapKeyRef:
-          name: pipeline-config
-          key: target-ou
     - name: VAULT_SECRET_USERS
       valueFrom:
         configMapKeyRef:
@@ -54,10 +52,10 @@ spec:
       #!/usr/bin/env python3
       import os, sys, json, ssl, urllib.request
 
-      VAULT_ADDR         = os.environ.get("VAULT_ADDR", "http://vault.vault.svc:8200")
-      TARGET_OU          = os.environ.get("TARGET_OU", "FTP-Users")
+      VAULT_ADDR         = "$(params.vault-address)"
+      TARGET_OU          = "$(params.target-ou)"
+      KEYCLOAK_REALM     = "$(params.keycloak-realm)"
       KEYCLOAK_URL       = os.environ.get("KEYCLOAK_URL", "http://keycloak-service.keycloak.svc:8080")
-      KEYCLOAK_REALM     = os.environ.get("KEYCLOAK_REALM", "rgb-realm")
       VAULT_SECRET_USERS = os.environ.get("VAULT_SECRET_USERS", "ftp-users")
       VAULT_TOKEN        = os.environ.get("VAULT_TOKEN", "root")
 

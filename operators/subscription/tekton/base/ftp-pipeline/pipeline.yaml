@@ -4,12 +4,27 @@ metadata:
   name: keycloak-vault-sync
   namespace: openshift-pipelines-operator
 spec:
+  params:
+  - name: target-ou
+    type: string
+    description: "The Keycloak OU attribute to filter users by"
+    default: "FTP-Users"
+  - name: keycloak-realm
+    type: string
+    description: "The Keycloak realm to sync users from"
+    default: "rgb-realm"
+  - name: vault-address
+    type: string
+    description: "The address of the Vault server"
+    default: "http://vault.vault.svc:8200"
   tasks:
   - name: sync-users
     taskRef:
       name: keycloak-vault-sync
     params:
-    - name: username
-      value: "list"
-    - name: action
-      value: "sync-users"
+    - name: target-ou
+      value: $(params.target-ou)
+    - name: keycloak-realm
+      value: $(params.keycloak-realm)
+    - name: vault-address
+      value: $(params.vault-address)
