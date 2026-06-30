@@ -4,31 +4,6 @@ metadata:
   name: keycloak-vault-sync
   namespace: openshift-pipelines-operator
 spec:
-  params:
-  - name: username
-    type: string
-    description: "The username to connect as"
-    default: "list"
-  - name: action
-    type: string
-    description: "Action to perform: sync-users, list-files, create-file, delete-file"
-    default: "list-files"
-    enum:
-    - "sync-users"
-    - "list-files"
-    - "create-file"
-    - "delete-file"
-  - name: target-folder
-    type: string
-    description: "The folder to create or delete file in (SUBMISSION or NOTIFICATION)"
-    default: "NOTIFICATION"
-    enum:
-    - "SUBMISSION"
-    - "NOTIFICATION"
-  - name: file-name
-    type: string
-    description: "The name of the file to create or delete"
-    default: ""
   steps:
   - name: sync
     image: python:3.11-slim
@@ -50,16 +25,6 @@ spec:
         configMapKeyRef:
           name: pipeline-config
           key: keycloak-realm
-    - name: FTP_HOST
-      valueFrom:
-        configMapKeyRef:
-          name: pipeline-config
-          key: ftp-host
-    - name: FTP_PORT
-      valueFrom:
-        configMapKeyRef:
-          name: pipeline-config
-          key: ftp-port
     - name: VAULT_ADDR
       valueFrom:
         configMapKeyRef:
@@ -75,11 +40,6 @@ spec:
         configMapKeyRef:
           name: pipeline-config
           key: vault-secret-users
-    - name: VAULT_SECRET_CREDENTIALS
-      valueFrom:
-        configMapKeyRef:
-          name: pipeline-config
-          key: vault-secret-credentials
     - name: KEYCLOAK_ADMIN_USERNAME
       valueFrom:
         secretKeyRef:
@@ -90,596 +50,174 @@ spec:
         secretKeyRef:
           name: pipeline-env
           key: keycloak-admin-password
-    volumeMounts:
-    - name: ssh-key-volume
-      mountPath: /ssh
-      readOnly: true
     script: |
       #!/usr/bin/env python3
-      import os
-      import sys
-      import json
-      import ssl
-      import urllib.request
-      import base64
-      from ftplib import FTP
-      from datetime import datetime
-      from io import BytesIO
+      import os, sys, json, ssl, urllib.request
 
-      FTP_HOST = os.environ.get("FTP_HOST", "10.211.55.4")
-      FTP_PORT = int(os.environ.get("FTP_PORT", "21"))
-      VAULT_ADDR = os.environ.get("VAULT_ADDR", "http://vault.vault.svc:8200")
-      TARGET_OU = os.environ.get("TARGET_OU", "FTP-Users")
-      KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://keycloak-service.keycloak.svc:8080")
-      KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "rgb-realm")
+      VAULT_ADDR         = os.environ.get("VAULT_ADDR", "http://vault.vault.svc:8200")
+      TARGET_OU          = os.environ.get("TARGET_OU", "FTP-Users")
+      KEYCLOAK_URL       = os.environ.get("KEYCLOAK_URL", "http://keycloak-service.keycloak.svc:8080")
+      KEYCLOAK_REALM     = os.environ.get("KEYCLOAK_REALM", "rgb-realm")
       VAULT_SECRET_USERS = os.environ.get("VAULT_SECRET_USERS", "ftp-users")
-      VAULT_SECRET_CREDENTIALS = os.environ.get("VAULT_SECRET_CREDENTIALS", "ftp-credentials")
-
-      USERNAME = "$(params.username)"
-      ACTION = "$(params.action)".lower()
-      TARGET_FOLDER = "$(params.target-folder)"
-      FILE_NAME = "$(params.file-name)"
-
-      VAULT_TOKEN = os.environ.get("VAULT_TOKEN", "root")
+      VAULT_TOKEN        = os.environ.get("VAULT_TOKEN", "root")
 
       ctx = ssl.create_default_context()
       ctx.check_hostname = False
       ctx.verify_mode = ssl.CERT_NONE
 
-      import subprocess
+      # ── Kubernetes helpers ──────────────────────────────────────────────────
 
-      def run_ssh_command(host, command):
-          ssh_cmd = [
-              "ssh",
-              "-i", "/ssh/id_rsa",
-              "-o", "StrictHostKeyChecking=no",
-              "-o", "ConnectTimeout=10",
-              f"root@{host}",
-              command
-          ]
-          res = subprocess.run(ssh_cmd, capture_output=True, text=True)
-          if res.returncode != 0:
-              return False, res.stderr.strip()
-          return True, res.stdout.strip()
-
-      def create_vm_user(username, password, host):
-          print(f"Ensuring user '{username}' exists on FTP host '{host}'...")
-          setup_script = f"""
-          if ! id -u "{username}" >/dev/null 2>&1; then
-              echo "Creating user {username} on VM..."
-              useradd -m -s /bin/bash "{username}"
-          fi
-          echo "{username}:{password}" | chpasswd
-          mkdir -p "/home/{username}/SUBMISSION" "/home/{username}/NOTIFICATION"
-          chown -R root:root "/home/{username}"
-          chown -R "{username}:{username}" "/home/{username}/SUBMISSION" "/home/{username}/NOTIFICATION"
-          chmod 755 "/home/{username}"
-          """
-          ok, err = run_ssh_command(host, setup_script)
-          if not ok:
-              print(f"Error provisioning user '{username}' on VM: {err}")
-              return False
-          print(f"User '{username}' provisioned/updated on FTP VM successfully.")
-          return True
-
-      # 1. Kubernetes client helpers using standard urllib
-      def get_k8s_token():
+      def _k8s_token():
           try:
-              with open("/var/run/secrets/kubernetes.io/serviceaccount/token", "r") as f:
+              with open("/var/run/secrets/kubernetes.io/serviceaccount/token") as f:
                   return f.read().strip()
-          except Exception as e:
-              print(f"Warning: Could not read k8s service account token: {e}")
+          except Exception:
               return None
 
-      def make_k8s_request(path, method="GET", body=None):
-          token = get_k8s_token()
+      def _k8s_namespace():
+          try:
+              with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as f:
+                  return f.read().strip()
+          except Exception:
+              return "openshift-pipelines-operator"
+
+      def k8s_request(path, method="GET", body=None):
+          token = _k8s_token()
           if not token:
               return None
-          url = f"https://kubernetes.default.svc{path}"
-          headers = {
-              "Authorization": f"Bearer {token}",
-              "Content-Type": "application/json" if method != "PATCH" else "application/merge-patch+json"
-          }
-          data = json.dumps(body).encode() if body else None
-          req = urllib.request.Request(url, data=data, headers=headers, method=method)
-          try:
-              with urllib.request.urlopen(req, context=ctx) as response:
-                  return json.loads(response.read().decode())
-          except Exception as e:
-              print(f"Kubernetes API request to {path} failed: {e}")
-              return None
-
-      # 2. Keycloak functions
-      def get_keycloak_admin_creds():
-          return os.environ.get("KEYCLOAK_ADMIN_USERNAME"), os.environ.get("KEYCLOAK_ADMIN_PASSWORD")
-
-      def get_keycloak_client():
-          username, password = get_keycloak_admin_creds()
-          token_url = f"{KEYCLOAK_URL}/realms/master/protocol/openid-connect/token"
-          data = f"client_id=admin-cli&username={username}&password={password}&grant_type=password".encode()
-          req = urllib.request.Request(token_url, data=data)
-          try:
-              with urllib.request.urlopen(req, context=ctx, timeout=5) as f:
-                  token = json.loads(f.read().decode())["access_token"]
-                  return KEYCLOAK_URL, token
-          except Exception as e:
-              print(f"Error: Could not authenticate to Keycloak at {KEYCLOAK_URL}: {e}")
-          return None, None
-
-      def get_keycloak_users_in_ou(target_ou):
-          base_url, token = get_keycloak_client()
-          if not token:
-              print("Error: Could not authenticate to Keycloak.")
-              return []
-          
-          users_url = f"{base_url}/admin/realms/{KEYCLOAK_REALM}/users"
-          headers = {"Authorization": f"Bearer {token}"}
-          req = urllib.request.Request(users_url, headers=headers)
-          
-          users_in_ou = []
-          try:
-              with urllib.request.urlopen(req, context=ctx) as f:
-                  users = json.loads(f.read().decode())
-                  for u in users:
-                      user_id = u["id"]
-                      user_detail_url = f"{base_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
-                      req_detail = urllib.request.Request(user_detail_url, headers=headers)
-                      try:
-                          with urllib.request.urlopen(req_detail, context=ctx) as fd:
-                              ud = json.loads(fd.read().decode())
-                              attrs = ud.get("attributes", {})
-                              ou_list = attrs.get("OU", [])
-                              if any(target_ou.lower() == ou.lower() for ou in ou_list):
-                                  passwords = attrs.get("password", [])
-                                  password = passwords[0] if passwords else None
-                                  users_in_ou.append({
-                                      "username": ud["username"],
-                                      "password": password
-                                  })
-                      except Exception as ex:
-                          print(f"Error fetching detail for user {user_id}: {ex}")
-          except Exception as e:
-              print(f"Error listing users from Keycloak: {e}")
-          return users_in_ou
-
-      # 3. Vault functions
-      def get_vault_secret(path):
-          url = f"{VAULT_ADDR}/v1/secret/data/{path}"
-          req = urllib.request.Request(url, headers={"X-Vault-Token": VAULT_TOKEN})
-          try:
-              with urllib.request.urlopen(req) as response:
-                  res = json.loads(response.read().decode('utf-8'))
-                  return res.get("data", {}).get("data", {})
-          except Exception as e:
-              print(f"Vault secret {path} not found or error: {e}")
-              return None
-
-      def write_vault_secret(path, data):
-          url = f"{VAULT_ADDR}/v1/secret/data/{path}"
-          body = {"data": data}
+          ct = "application/json" if method != "PATCH" else "application/merge-patch+json"
           req = urllib.request.Request(
-              url, 
-              data=json.dumps(body).encode(), 
+              f"https://kubernetes.default.svc{path}",
+              data=json.dumps(body).encode() if body else None,
+              headers={"Authorization": f"Bearer {token}", "Content-Type": ct},
+              method=method
+          )
+          try:
+              with urllib.request.urlopen(req, context=ctx) as r:
+                  return json.loads(r.read().decode())
+          except Exception as e:
+              print(f"K8s API {method} {path} failed: {e}")
+              return None
+
+      # ── Keycloak ────────────────────────────────────────────────────────────
+
+      def keycloak_admin_token():
+          username = os.environ.get("KEYCLOAK_ADMIN_USERNAME")
+          password = os.environ.get("KEYCLOAK_ADMIN_PASSWORD")
+          url = f"{KEYCLOAK_URL}/realms/master/protocol/openid-connect/token"
+          data = f"client_id=admin-cli&username={username}&password={password}&grant_type=password".encode()
+          try:
+              with urllib.request.urlopen(urllib.request.Request(url, data=data), context=ctx, timeout=10) as r:
+                  return json.loads(r.read().decode())["access_token"]
+          except Exception as e:
+              print(f"Keycloak auth failed at {KEYCLOAK_URL}: {e}")
+              return None
+
+      def get_users_in_ou(target_ou):
+          token = keycloak_admin_token()
+          if not token:
+              return []
+          # Single call with full representation — avoids N+1 per-user requests
+          url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users?briefRepresentation=false&max=1000"
+          req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+          try:
+              with urllib.request.urlopen(req, context=ctx) as r:
+                  users = json.loads(r.read().decode())
+              result = []
+              for u in users:
+                  attrs = u.get("attributes", {})
+                  if any(target_ou.lower() == ou.lower() for ou in attrs.get("OU", [])):
+                      pw_list = attrs.get("password", [])
+                      result.append({"username": u["username"], "password": pw_list[0] if pw_list else None})
+              return result
+          except Exception as e:
+              print(f"Error fetching Keycloak users: {e}")
+              return []
+
+      # ── Vault ───────────────────────────────────────────────────────────────
+
+      def vault_read(path):
+          req = urllib.request.Request(
+              f"{VAULT_ADDR}/v1/secret/data/{path}",
+              headers={"X-Vault-Token": VAULT_TOKEN}
+          )
+          try:
+              with urllib.request.urlopen(req) as r:
+                  return json.loads(r.read().decode()).get("data", {}).get("data", {})
+          except Exception as e:
+              print(f"Vault read '{path}' failed: {e}")
+              return None
+
+      def vault_write(path, data):
+          req = urllib.request.Request(
+              f"{VAULT_ADDR}/v1/secret/data/{path}",
+              data=json.dumps({"data": data}).encode(),
               headers={"X-Vault-Token": VAULT_TOKEN, "Content-Type": "application/json"},
               method="POST"
           )
           try:
-              with urllib.request.urlopen(req) as response:
-                  print(f"Vault secret {path} updated successfully.")
+              with urllib.request.urlopen(req):
+                  print(f"Vault '{path}' updated.")
                   return True
           except Exception as e:
-              print(f"Error writing to Vault secret {path}: {e}")
+              print(f"Vault write '{path}' failed: {e}")
               return False
 
-      def update_vault_secrets(users):
-          existing = get_vault_secret(VAULT_SECRET_USERS) or {}
-          updated = False
+      def sync_to_vault(users):
+          existing = vault_read(VAULT_SECRET_USERS) or {}
+          changed = False
           for u in users:
-              username = u["username"]
-              password = u["password"]
-              if password and existing.get(username) != password:
-                  existing[username] = password
-                  updated = True
-                  
-          if updated:
-              write_vault_secret(VAULT_SECRET_USERS, existing)
+              if u["password"] and existing.get(u["username"]) != u["password"]:
+                  existing[u["username"]] = u["password"]
+                  changed = True
+          if changed:
+              vault_write(VAULT_SECRET_USERS, existing)
 
-      def sync_user_to_vault(selected_username, users_in_ou):
-          user_info = next((u for u in users_in_ou if u["username"] == selected_username), None)
-          if not user_info:
-              print(f"Warning: Selected user '{selected_username}' is not found in Keycloak OU '{TARGET_OU}'.")
-              return False
-              
-          password = user_info["password"]
-          if not password:
-              print(f"Error: User '{selected_username}' exists in Keycloak but has no password attribute.")
-              return False
-              
-          print(f"Syncing credentials for user '{selected_username}' from Keycloak to Vault...")
-          
-          # 1. Update ftp-users dict in Vault
-          users_sec = get_vault_secret(VAULT_SECRET_USERS) or {}
-          if users_sec.get(selected_username) != password:
-              users_sec[selected_username] = password
-              write_vault_secret(VAULT_SECRET_USERS, users_sec)
-              
-          # 2. Update ftp-credentials in Vault
-          write_vault_secret(VAULT_SECRET_CREDENTIALS, {"username": selected_username, "password": password})
-          return True
+      # ── Pipeline dropdown update ─────────────────────────────────────────────
 
-      # 4. Pipeline Sync — updates username dropdown in ftp-file-pipeline with current Vault users
-      def sync_pipeline_params(users_in_ou):
-          usernames = sorted(list(set([u["username"] for u in users_in_ou if u["password"]])))
+      def update_pipeline_dropdown(usernames):
           if not usernames:
-              print("No users with passwords found — skipping pipeline param sync.")
               return
-
-          username_enum = usernames
-          pipeline_path = "/apis/tekton.dev/v1/namespaces/openshift-pipelines-operator/pipelines/ftp-file-pipeline"
-          pipeline = make_k8s_request(pipeline_path)
+          ns = _k8s_namespace()
+          path = f"/apis/tekton.dev/v1/namespaces/{ns}/pipelines/ftp-file-pipeline"
+          pipeline = k8s_request(path)
           if not pipeline:
-              print("Warning: Could not retrieve ftp-file-pipeline, skipping param sync.")
+              print("Warning: ftp-file-pipeline not found — skipping dropdown update.")
               return
-
-          spec_params = pipeline.get("spec", {}).get("params", [])
-          for p in spec_params:
+          params = pipeline.get("spec", {}).get("params", [])
+          for p in params:
               if p["name"] == "username":
-                  p["enum"] = username_enum
-                  if p.get("default") not in username_enum:
-                      p["default"] = username_enum[0]
-
-          patched = make_k8s_request(pipeline_path, method="PATCH", body={"spec": {"params": spec_params}})
-          if patched:
-              print(f"ftp-file-pipeline username dropdown updated with {len(username_enum)} user(s): {username_enum}")
+                  p["enum"] = usernames
+                  if p.get("default") not in usernames:
+                      p["default"] = usernames[0]
+          if k8s_request(path, method="PATCH", body={"spec": {"params": params}}):
+              print(f"ftp-file-pipeline username dropdown updated: {usernames}")
           else:
-              print("Warning: Failed to patch ftp-file-pipeline username dropdown.")
+              print("Warning: Failed to update ftp-file-pipeline dropdown.")
 
-      # Main execution flow
-      if ACTION == "sync-users":
-          print(f"Action: sync-users. Fetching users in OU '{TARGET_OU}' from Keycloak...")
-          users = get_keycloak_users_in_ou(TARGET_OU)
-          kc_usernames = [u["username"] for u in users]
-          print(f"Users found in Keycloak OU '{TARGET_OU}': {kc_usernames}")
+      # ── Main ────────────────────────────────────────────────────────────────
 
-          synced = []
-          skipped = []
-          for u in users:
-              if u["password"]:
-                  synced.append(u["username"])
-              else:
-                  skipped.append(u["username"])
+      print(f"Fetching users in OU '{TARGET_OU}' from {KEYCLOAK_URL}...")
+      users = get_users_in_ou(TARGET_OU)
 
-          if skipped:
-              print(f"Warning: {len(skipped)} user(s) have no password attribute in Keycloak and will be skipped: {skipped}")
+      synced  = [u["username"] for u in users if u["password"]]
+      skipped = [u["username"] for u in users if not u["password"]]
 
-          update_vault_secrets(users)
-          sync_pipeline_params(users)
+      print(f"Found {len(users)} user(s) in OU: {[u['username'] for u in users]}")
+      if skipped:
+          print(f"Warning: {len(skipped)} user(s) have no password attribute and will be skipped: {skipped}")
 
-          print(f"\n{'='*50}")
-          print(f"  Sync complete: {len(synced)} user(s) saved to Vault")
-          print(f"{'='*50}")
-          vault_users = get_vault_secret(VAULT_SECRET_USERS) or {}
-          if vault_users:
-              print(f"\nAll users currently stored in Vault (secret/{VAULT_SECRET_USERS}):")
-              for username in sorted(vault_users.keys()):
-                  print(f"  - {username}")
-          else:
-              print("No users found in Vault after sync.")
-          print(f"{'='*50}\n")
-          sys.exit(0)
+      sync_to_vault(users)
+      update_pipeline_dropdown(sorted(synced))
 
-      if USERNAME.lower() != "list":
-          print(f"Validating and syncing user '{USERNAME}' from Keycloak...")
-          users = get_keycloak_users_in_ou(TARGET_OU)
-          if not sync_user_to_vault(USERNAME, users):
-              print(f"Error: User '{USERNAME}' does not exist in Keycloak OU '{TARGET_OU}'. Pipeline execution aborted.")
-              sys.exit(1)
-      if USERNAME.lower() == "list":
-          print("Fetching available FTP users from Vault...")
-          users = []
-          cred_sec = get_vault_secret(VAULT_SECRET_CREDENTIALS)
-          if cred_sec and "username" in cred_sec:
-              users.append(cred_sec["username"])
-          users_sec = get_vault_secret(VAULT_SECRET_USERS)
-          if users_sec:
-              users.extend(users_sec.keys())
-          print("\nAvailable FTP users in Vault:")
-          for u in sorted(list(set(users))):
-              print(f"- {u}")
-          sys.exit(0)
-
-      print(f"Resolving credentials for user '{USERNAME}' from Vault...")
-      resolved_user = None
-      resolved_pass = None
-
-      cred_sec = get_vault_secret(VAULT_SECRET_CREDENTIALS)
-      if cred_sec and cred_sec.get("username") == USERNAME:
-          resolved_user = USERNAME
-          resolved_pass = cred_sec.get("password")
+      print(f"\n{'='*50}")
+      print(f"  Sync complete: {len(synced)} user(s) saved to Vault")
+      print(f"{'='*50}")
+      vault_users = vault_read(VAULT_SECRET_USERS) or {}
+      if vault_users:
+          print(f"\nUsers in Vault (secret/{VAULT_SECRET_USERS}):")
+          for u in sorted(vault_users.keys()):
+              print(f"  - {u}")
       else:
-          users_sec = get_vault_secret(VAULT_SECRET_USERS)
-          if users_sec and USERNAME in users_sec:
-              resolved_user = USERNAME
-              resolved_pass = users_sec[USERNAME]
-
-      if not resolved_user or not resolved_pass:
-          print(f"Error: User '{USERNAME}' not found in Vault.")
-          sys.exit(1)
-
-      # SSH client is only needed from here — install it now if missing
-      try:
-          subprocess.run(["ssh", "-V"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-      except Exception:
-          print("Installing openssh-client...")
-          try:
-              subprocess.run(["apt-get", "update", "-o", "Acquire::Check-Valid-Until=false"], check=True, stdout=subprocess.DEVNULL)
-              subprocess.run(["apt-get", "install", "-y", "openssh-client"], check=True, stdout=subprocess.DEVNULL)
-              print("openssh-client installed.")
-          except Exception as e:
-              print(f"Warning: Could not install openssh-client: {e}")
-
-      # Ensure user is provisioned on the FTP server VM
-      create_vm_user(resolved_user, resolved_pass, FTP_HOST)
-
-      print(f"Credentials resolved successfully. Connecting to FTP server {FTP_HOST}:{FTP_PORT} as user '{resolved_user}'...")
-
-      try:
-          ftp = FTP()
-          ftp.trust_server_pasv_ipv4_address = True
-          ftp.connect(FTP_HOST, FTP_PORT, timeout=30)
-          ftp.login(resolved_user, resolved_pass)
-          print("Login successful!")
-      except Exception as e:
-          print(f"Failed to connect/login to FTP server: {e}")
-          sys.exit(1)
-
-      print("Validating directory structure and isolation...")
-      try:
-          files = ftp.nlst()
-          print(f"Root contents for {resolved_user}: {files}")
-          
-          unexpected = [f for f in files if f not in ["SUBMISSION", "NOTIFICATION", ".", ".."]]
-          if unexpected:
-              print(f"Warning: Found unexpected files/directories in FTP root: {unexpected}")
-          
-          for folder in ["SUBMISSION", "NOTIFICATION"]:
-              if folder not in files:
-                  print(f"Folder '{folder}' does not exist in root. Creating it...")
-                  try:
-                      ftp.mkd(folder)
-                  except Exception as ex:
-                      print(f"Could not create folder '{folder}': {ex}")
-      except Exception as e:
-          print(f"Error checking directory contents: {e}")
-
-      def list_folders():
-          for folder in ["SUBMISSION", "NOTIFICATION"]:
-              print(f"\n--- Contents of folder: {folder} ---")
-              try:
-                  ftp.cwd('/')
-                  ftp.cwd(folder)
-                  
-                  lines = []
-                  ftp.retrlines('LIST', lines.append)
-                  for line in lines:
-                      print(line)
-                  if not lines:
-                      print("(empty folder)")
-              except Exception as e:
-                  print(f"Error listing folder '{folder}': {e}")
-
-      if ACTION == "list-files":
-          list_folders()
-
-      elif ACTION == "create-file":
-          if TARGET_FOLDER not in ["SUBMISSION", "NOTIFICATION", "BOTH"]:
-              print(f"Error: Invalid target folder '{TARGET_FOLDER}'. Must be SUBMISSION, NOTIFICATION, or BOTH.")
-              sys.exit(1)
-              
-          name = FILE_NAME
-          if not name:
-              name = f"test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-              
-          current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-          
-          folders_to_update = ["SUBMISSION", "NOTIFICATION"] if TARGET_FOLDER == "BOTH" else [TARGET_FOLDER]
-          for folder in folders_to_update:
-              print(f"Creating file '{name}' in '{folder}' with content: '{current_time}'")
-              try:
-                  ftp.cwd('/')
-                  ftp.cwd(folder)
-                  file_data = BytesIO(current_time.encode('utf-8'))
-                  ftp.storbinary(f"STOR {name}", file_data)
-                  print(f"File uploaded successfully to '{folder}'!")
-              except Exception as e:
-                  print(f"Error creating file in '{folder}': {e}")
-                  sys.exit(1)
-          list_folders()
-
-      elif ACTION == "delete-file":
-          if not FILE_NAME:
-              print("Error: file-name parameter is required for delete-file action.")
-              sys.exit(1)
-              
-          if TARGET_FOLDER not in ["SUBMISSION", "NOTIFICATION", "BOTH"]:
-              print(f"Error: Invalid target folder '{TARGET_FOLDER}'. Must be SUBMISSION, NOTIFICATION, or BOTH.")
-              sys.exit(1)
-              
-          folders_to_update = ["SUBMISSION", "NOTIFICATION"] if TARGET_FOLDER == "BOTH" else [TARGET_FOLDER]
-          for folder in folders_to_update:
-              print(f"Deleting file '{FILE_NAME}' from '{folder}'...")
-              try:
-                  ftp.cwd('/')
-                  ftp.cwd(folder)
-                  ftp.delete(FILE_NAME)
-                  print(f"File deleted successfully from '{folder}'!")
-              except Exception as e:
-                  print(f"Error deleting file from '{folder}': {e}")
-                  sys.exit(1)
-          list_folders()
-
-      try:
-          ftp.quit()
-      except Exception:
-          pass
-      print("\nFinished FTP operations.")
-  sidecars:
-  - name: mock-ftp-server
-    image: python:3.11-slim
-    script: |
-      #!/bin/sh
-      if ! command -v python3 >/dev/null 2>&1; then
-        echo "python3 not found, exiting gracefully for Tekton sidecar termination"
-        exit 0
-      fi
-      python3 - << 'EOF'
-      import socket
-      import threading
-      import sys
-      import os
-
-      class MockFTPServer:
-          def __init__(self, host='127.0.0.1', port=2121):
-              self.host = host
-              self.port = port
-              self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-              self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-              self.sock.bind((self.host, self.port))
-              self.sock.listen(5)
-              print(f"Mock FTP server listening on {self.host}:{self.port}")
-
-          def run(self):
-              try:
-                  while True:
-                      conn, addr = self.sock.accept()
-                      threading.Thread(target=self.handle_client, args=(conn, addr), daemon=True).start()
-              except KeyboardInterrupt:
-                  pass
-              finally:
-                  self.sock.close()
-
-          def handle_client(self, conn, addr):
-              print(f"Connection from {addr}")
-              conn.send(b"220 Mock FTP Server Ready\r\n")
-              
-              cwd = "/tmp/ftp-server"
-              user_home = "/tmp/ftp-server"
-              client_user = "anonymous"
-              pasv_port = None
-              pasv_sock = None
-              
-              while True:
-                  try:
-                      data = conn.recv(1024)
-                      if not data:
-                          break
-                      line = data.decode('utf-8').strip()
-                      print(f"Received: {line}")
-                      parts = line.split(' ', 1)
-                      cmd = parts[0].upper()
-                      arg = parts[1] if len(parts) > 1 else ""
-                      
-                      if cmd == 'USER':
-                          client_user = arg
-                          conn.send(b"331 Username ok, send password.\r\n")
-                      elif cmd == 'PASS':
-                          # User directory isolation setup
-                          user_home = os.path.abspath(f"/tmp/ftp-server/{client_user}")
-                          os.makedirs(f"{user_home}/SUBMISSION", exist_ok=True)
-                          os.makedirs(f"{user_home}/NOTIFICATION", exist_ok=True)
-                          cwd = user_home
-                          conn.send(b"230 Login successful.\r\n")
-                      elif cmd == 'SYST':
-                          conn.send(b"215 UNIX Type: L8\r\n")
-                      elif cmd == 'FEAT':
-                          conn.send(b"211-Features:\r\n211 End\r\n")
-                      elif cmd == 'PWD':
-                          rel_cwd = cwd.replace(user_home, "")
-                          if not rel_cwd:
-                              rel_cwd = "/"
-                          conn.send(f'257 "{rel_cwd}" is current directory.\r\n'.encode())
-                      elif cmd == 'TYPE':
-                          conn.send(b"200 Type set to I.\r\n")
-                      elif cmd == 'CWD':
-                          if arg.startswith("/"):
-                              target_dir = os.path.abspath(os.path.join(user_home, arg.lstrip("/")))
-                          else:
-                              target_dir = os.path.abspath(os.path.join(cwd, arg))
-                          
-                          if target_dir.startswith(user_home) and os.path.isdir(target_dir):
-                              cwd = target_dir
-                              conn.send(b"250 Directory successfully changed.\r\n")
-                          else:
-                              conn.send(b"550 Permission denied.\r\n")
-                      elif cmd == 'MKD':
-                          target_dir = os.path.abspath(os.path.join(cwd, arg))
-                          if target_dir.startswith(user_home):
-                              os.makedirs(target_dir, exist_ok=True)
-                              conn.send(b"257 Directory created.\r\n")
-                          else:
-                              conn.send(b"550 Permission denied.\r\n")
-                      elif cmd == 'PASV':
-                          pasv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                          pasv_sock.bind(('127.0.0.1', 0))
-                          pasv_sock.listen(1)
-                          port = pasv_sock.getsockname()[1]
-                          p1 = port // 256
-                          p2 = port % 256
-                          conn.send(f"227 Entering Passive Mode (127,0,0,1,{p1},{p2}).\r\n".encode())
-                      elif cmd == 'LIST':
-                          conn.send(b"150 File status okay; about to open data connection.\r\n")
-                          if pasv_sock:
-                              data_conn, data_addr = pasv_sock.accept()
-                              files = os.listdir(cwd)
-                              list_str = ""
-                              for f in files:
-                                  path = os.path.join(cwd, f)
-                                  stat = os.stat(path)
-                                  mode = "drwxr-xr-x" if os.path.isdir(path) else "-rw-r--r--"
-                                  list_str += f"{mode} 1 owner group {stat.st_size} Jun 14 13:00 {f}\r\n"
-                              data_conn.sendall(list_str.encode('utf-8'))
-                              data_conn.close()
-                              pasv_sock.close()
-                              pasv_sock = None
-                          conn.send(b"226 Closing data connection.\r\n")
-                      elif cmd == 'STOR':
-                          conn.send(b"150 File status okay; about to open data connection.\r\n")
-                          if pasv_sock:
-                              data_conn, data_addr = pasv_sock.accept()
-                              file_path = os.path.abspath(os.path.join(cwd, arg))
-                              if file_path.startswith(user_home):
-                                  with open(file_path, 'wb') as f:
-                                      while True:
-                                          file_data = data_conn.recv(1024)
-                                          if not file_data:
-                                              break
-                                          f.write(file_data)
-                              data_conn.close()
-                              pasv_sock.close()
-                              pasv_sock = None
-                          conn.send(b"226 Closing data connection.\r\n")
-                      elif cmd == 'DELE':
-                          file_path = os.path.abspath(os.path.join(cwd, arg))
-                          if file_path.startswith(user_home) and os.path.isfile(file_path):
-                              os.remove(file_path)
-                              conn.send(b"250 File deleted.\r\n")
-                          else:
-                              conn.send(b"550 File not found or permission denied.\r\n")
-                      elif cmd == 'QUIT':
-                          conn.send(b"221 Goodbye.\r\n")
-                          break
-                      else:
-                          conn.send(b"502 Command not implemented.\r\n")
-                  except Exception as e:
-                      print(f"Error handling client: {e}")
-                      break
-              conn.close()
-
-      if __name__ == '__main__':
-          MockFTPServer().run()
-      EOF
-  volumes:
-  - name: ssh-key-volume
-    secret:
-      secretName: ftp-vm-ssh-key
-      defaultMode: 0400
+          print("No users found in Vault after sync.")
+      print(f"{'='*50}\n")

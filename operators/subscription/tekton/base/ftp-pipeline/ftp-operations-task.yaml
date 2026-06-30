@@ -1,0 +1,229 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ftp-operations
+  namespace: openshift-pipelines-operator
+spec:
+  params:
+  - name: username
+    type: string
+    description: "FTP user to connect as (must exist in Vault)"
+    default: ""
+  - name: action
+    type: string
+    description: "Action to perform on the FTP server"
+    default: "list-files"
+    enum:
+    - "list-files"
+    - "create-file"
+    - "delete-file"
+  - name: target-folder
+    type: string
+    description: "Target folder on the FTP server"
+    default: "SUBMISSION"
+    enum:
+    - "SUBMISSION"
+    - "NOTIFICATION"
+  - name: file-name
+    type: string
+    description: "File name — required for create-file and delete-file"
+    default: ""
+  steps:
+  - name: run
+    image: python:3.11-slim
+    securityContext:
+      runAsUser: 0
+    env:
+    - name: VAULT_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: vault-token
+          key: token
+    - name: VAULT_ADDR
+      valueFrom:
+        configMapKeyRef:
+          name: pipeline-config
+          key: vault-address
+    - name: VAULT_SECRET_USERS
+      valueFrom:
+        configMapKeyRef:
+          name: pipeline-config
+          key: vault-secret-users
+    - name: FTP_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: pipeline-config
+          key: ftp-host
+    - name: FTP_PORT
+      valueFrom:
+        configMapKeyRef:
+          name: pipeline-config
+          key: ftp-port
+    volumeMounts:
+    - name: ssh-key-volume
+      mountPath: /ssh
+      readOnly: true
+    script: |
+      #!/usr/bin/env python3
+      import os, sys, json, ssl, urllib.request, subprocess
+      from ftplib import FTP
+      from datetime import datetime
+      from io import BytesIO
+
+      FTP_HOST           = os.environ.get("FTP_HOST", "10.211.55.4")
+      FTP_PORT           = int(os.environ.get("FTP_PORT", "21"))
+      VAULT_ADDR         = os.environ.get("VAULT_ADDR", "http://vault.vault.svc:8200")
+      VAULT_SECRET_USERS = os.environ.get("VAULT_SECRET_USERS", "ftp-users")
+      VAULT_TOKEN        = os.environ.get("VAULT_TOKEN", "root")
+
+      USERNAME      = "$(params.username)"
+      ACTION        = "$(params.action)".lower()
+      TARGET_FOLDER = "$(params.target-folder)"
+      FILE_NAME     = "$(params.file-name)"
+
+      ctx = ssl.create_default_context()
+      ctx.check_hostname = False
+      ctx.verify_mode = ssl.CERT_NONE
+
+      # ── Vault ───────────────────────────────────────────────────────────────
+
+      def vault_read(path):
+          req = urllib.request.Request(
+              f"{VAULT_ADDR}/v1/secret/data/{path}",
+              headers={"X-Vault-Token": VAULT_TOKEN}
+          )
+          try:
+              with urllib.request.urlopen(req) as r:
+                  return json.loads(r.read().decode()).get("data", {}).get("data", {})
+          except Exception as e:
+              print(f"Vault read '{path}' failed: {e}")
+              return None
+
+      # ── SSH / VM user provisioning ───────────────────────────────────────────
+
+      def ssh(command):
+          res = subprocess.run(
+              ["ssh", "-i", "/ssh/id_rsa", "-o", "StrictHostKeyChecking=no",
+               "-o", "ConnectTimeout=10", f"root@{FTP_HOST}", command],
+              capture_output=True, text=True
+          )
+          return res.returncode == 0, res.stderr.strip()
+
+      def provision_user(username, password):
+          print(f"Provisioning '{username}' on FTP VM...")
+          ok, err = ssh(f"""
+            id -u "{username}" >/dev/null 2>&1 || useradd -m -s /bin/bash "{username}"
+            echo "{username}:{password}" | chpasswd
+            mkdir -p "/home/{username}/SUBMISSION" "/home/{username}/NOTIFICATION"
+            chown -R root:root "/home/{username}"
+            chown -R "{username}:{username}" "/home/{username}/SUBMISSION" "/home/{username}/NOTIFICATION"
+            chmod 755 "/home/{username}"
+          """)
+          if not ok:
+              print(f"Warning: VM provisioning issue: {err}")
+          else:
+              print(f"'{username}' provisioned on FTP VM.")
+
+      # ── Resolve credentials from Vault ───────────────────────────────────────
+
+      if not USERNAME:
+          print("Error: username parameter is required.")
+          sys.exit(1)
+
+      users = vault_read(VAULT_SECRET_USERS)
+      if not users or USERNAME not in users:
+          print(f"Error: '{USERNAME}' not found in Vault. Run keycloak-vault-sync first.")
+          sys.exit(1)
+
+      password = users[USERNAME]
+
+      # ── Install SSH client and provision user ────────────────────────────────
+
+      try:
+          subprocess.run(["ssh", "-V"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+      except Exception:
+          print("Installing openssh-client...")
+          subprocess.run(["apt-get", "update", "-o", "Acquire::Check-Valid-Until=false"],
+                         check=True, stdout=subprocess.DEVNULL)
+          subprocess.run(["apt-get", "install", "-y", "openssh-client"],
+                         check=True, stdout=subprocess.DEVNULL)
+
+      provision_user(USERNAME, password)
+
+      # ── Connect to FTP ───────────────────────────────────────────────────────
+
+      print(f"Connecting to FTP {FTP_HOST}:{FTP_PORT} as '{USERNAME}'...")
+      try:
+          ftp = FTP()
+          ftp.trust_server_pasv_ipv4_address = True
+          ftp.connect(FTP_HOST, FTP_PORT, timeout=30)
+          ftp.login(USERNAME, password)
+          print("Login successful.")
+      except Exception as e:
+          print(f"FTP connection failed: {e}")
+          sys.exit(1)
+
+      # Ensure SUBMISSION and NOTIFICATION folders exist
+      try:
+          root = ftp.nlst()
+          for folder in ["SUBMISSION", "NOTIFICATION"]:
+              if folder not in root:
+                  ftp.mkd(folder)
+                  print(f"Created folder '{folder}'.")
+      except Exception as e:
+          print(f"Warning: Could not verify folder structure: {e}")
+
+      # ── FTP operations ───────────────────────────────────────────────────────
+
+      def list_folders():
+          for folder in ["SUBMISSION", "NOTIFICATION"]:
+              print(f"\n--- {folder} ---")
+              try:
+                  ftp.cwd('/')
+                  ftp.cwd(folder)
+                  lines = []
+                  ftp.retrlines('LIST', lines.append)
+                  print('\n'.join(lines) if lines else "(empty)")
+              except Exception as e:
+                  print(f"Error listing '{folder}': {e}")
+
+      if ACTION == "list-files":
+          list_folders()
+
+      elif ACTION == "create-file":
+          name = FILE_NAME or f"file_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+          content = datetime.now().strftime("%Y-%m-%d %H:%M:%S").encode()
+          try:
+              ftp.cwd('/')
+              ftp.cwd(TARGET_FOLDER)
+              ftp.storbinary(f"STOR {name}", BytesIO(content))
+              print(f"Created '{name}' in '{TARGET_FOLDER}'.")
+          except Exception as e:
+              print(f"Error creating file: {e}")
+              sys.exit(1)
+          list_folders()
+
+      elif ACTION == "delete-file":
+          if not FILE_NAME:
+              print("Error: file-name is required for delete-file.")
+              sys.exit(1)
+          try:
+              ftp.cwd('/')
+              ftp.cwd(TARGET_FOLDER)
+              ftp.delete(FILE_NAME)
+              print(f"Deleted '{FILE_NAME}' from '{TARGET_FOLDER}'.")
+          except Exception as e:
+              print(f"Error deleting file: {e}")
+              sys.exit(1)
+          list_folders()
+
+      try:
+          ftp.quit()
+      except Exception:
+          pass
+      print("\nFTP operation complete.")
+  volumes:
+  - name: ssh-key-volume
+    secret:
+      secretName: ftp-vm-ssh-key
+      defaultMode: 0400

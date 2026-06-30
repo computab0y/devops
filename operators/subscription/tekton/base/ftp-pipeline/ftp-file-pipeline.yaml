@@ -33,7 +33,7 @@ spec:
   tasks:
   - name: ftp-operation
     taskRef:
-      name: keycloak-vault-sync
+      name: ftp-operations
     params:
     - name: username
       value: $(params.username)
