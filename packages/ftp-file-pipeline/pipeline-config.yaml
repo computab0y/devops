@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+  namespace: openshift-pipelines-operator
+data:
+  ftp-host: "REPLACE_ME"                          # FTP server hostname or IP
+  ftp-port: "21"                                   # FTP server port
+  vault-address: "http://vault.vault.svc:8200"     # Internal Vault service URL
+  vault-secret-users: "ftp-users"                  # Vault KV path — must match keycloak-vault-sync

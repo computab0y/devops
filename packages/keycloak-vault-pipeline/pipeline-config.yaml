@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+  namespace: openshift-pipelines-operator
+data:
+  keycloak-url: "http://keycloak-service.keycloak.svc:8080"   # Internal Keycloak service URL
+  vault-address: "http://vault.vault.svc:8200"                 # Internal Vault service URL
+  vault-secret-users: "ftp-users"                              # Vault KV path for synced users
