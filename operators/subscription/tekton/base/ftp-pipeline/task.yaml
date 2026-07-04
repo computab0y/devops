@@ -55,67 +55,33 @@ spec:
       VAULT_ADDR         = "$(params.vault-address)"
       TARGET_OU          = "$(params.target-ou)"
       KEYCLOAK_REALM     = "$(params.keycloak-realm)"
-      KEYCLOAK_URL       = os.environ.get("KEYCLOAK_URL", "http://keycloak-service.keycloak.svc:8080")
-      VAULT_SECRET_USERS = os.environ.get("VAULT_SECRET_USERS", "ftp-users")
-      VAULT_TOKEN        = os.environ.get("VAULT_TOKEN", "root")
+      KEYCLOAK_URL       = os.environ.get("KEYCLOAK_URL")
+      VAULT_SECRET_USERS = os.environ.get("VAULT_SECRET_USERS")
+      VAULT_TOKEN        = os.environ.get("VAULT_TOKEN")
 
       ctx = ssl.create_default_context()
       ctx.check_hostname = False
       ctx.verify_mode = ssl.CERT_NONE
-
-      # ── Kubernetes helpers ──────────────────────────────────────────────────
-
-      def _k8s_token():
-          try:
-              with open("/var/run/secrets/kubernetes.io/serviceaccount/token") as f:
-                  return f.read().strip()
-          except Exception:
-              return None
-
-      def _k8s_namespace():
-          try:
-              with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as f:
-                  return f.read().strip()
-          except Exception:
-              return "openshift-pipelines-operator"
-
-      def k8s_request(path, method="GET", body=None):
-          token = _k8s_token()
-          if not token:
-              return None
-          ct = "application/json" if method != "PATCH" else "application/merge-patch+json"
-          req = urllib.request.Request(
-              f"https://kubernetes.default.svc{path}",
-              data=json.dumps(body).encode() if body else None,
-              headers={"Authorization": f"Bearer {token}", "Content-Type": ct},
-              method=method
-          )
-          try:
-              with urllib.request.urlopen(req, context=ctx) as r:
-                  return json.loads(r.read().decode())
-          except Exception as e:
-              print(f"K8s API {method} {path} failed: {e}")
-              return None
 
       # ── Keycloak ────────────────────────────────────────────────────────────
 
       def keycloak_admin_token():
           username = os.environ.get("KEYCLOAK_ADMIN_USERNAME")
           password = os.environ.get("KEYCLOAK_ADMIN_PASSWORD")
-          url = f"{KEYCLOAK_URL}/realms/master/protocol/openid-connect/token"
+          url  = f"{KEYCLOAK_URL}/realms/master/protocol/openid-connect/token"
           data = f"client_id=admin-cli&username={username}&password={password}&grant_type=password".encode()
           try:
-              with urllib.request.urlopen(urllib.request.Request(url, data=data), context=ctx, timeout=10) as r:
+              with urllib.request.urlopen(
+                  urllib.request.Request(url, data=data), context=ctx, timeout=10
+              ) as r:
                   return json.loads(r.read().decode())["access_token"]
           except Exception as e:
-              print(f"Keycloak auth failed at {KEYCLOAK_URL}: {e}")
-              return None
+              print(f"ERROR: Keycloak auth failed at {KEYCLOAK_URL}: {e}")
+              sys.exit(1)
 
       def get_users_in_ou(target_ou):
           token = keycloak_admin_token()
-          if not token:
-              return []
-          # Single call with full representation — avoids N+1 per-user requests
+          # briefRepresentation=false returns attributes in one call — avoids N+1
           url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users?briefRepresentation=false&max=1000"
           req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
           try:
@@ -123,14 +89,14 @@ spec:
                   users = json.loads(r.read().decode())
               result = []
               for u in users:
-                  attrs = u.get("attributes", {})
+                  attrs  = u.get("attributes", {})
+                  pw_list = attrs.get("password", [])
                   if any(target_ou.lower() == ou.lower() for ou in attrs.get("OU", [])):
-                      pw_list = attrs.get("password", [])
                       result.append({"username": u["username"], "password": pw_list[0] if pw_list else None})
               return result
           except Exception as e:
-              print(f"Error fetching Keycloak users: {e}")
-              return []
+              print(f"ERROR: Failed to fetch users from Keycloak realm '{KEYCLOAK_REALM}': {e}")
+              sys.exit(1)
 
       # ── Vault ───────────────────────────────────────────────────────────────
 
@@ -143,8 +109,8 @@ spec:
               with urllib.request.urlopen(req) as r:
                   return json.loads(r.read().decode()).get("data", {}).get("data", {})
           except Exception as e:
-              print(f"Vault read '{path}' failed: {e}")
-              return None
+              print(f"ERROR: Vault read '{path}' failed: {e}")
+              sys.exit(1)
 
       def vault_write(path, data):
           req = urllib.request.Request(
@@ -156,66 +122,45 @@ spec:
           try:
               with urllib.request.urlopen(req):
                   print(f"Vault '{path}' updated.")
-                  return True
           except Exception as e:
-              print(f"Vault write '{path}' failed: {e}")
-              return False
+              print(f"ERROR: Vault write '{path}' failed: {e}")
+              sys.exit(1)
 
       def sync_to_vault(users):
-          existing = vault_read(VAULT_SECRET_USERS) or {}
-          changed = False
+          existing = vault_read(VAULT_SECRET_USERS)
+          changed  = False
           for u in users:
               if u["password"] and existing.get(u["username"]) != u["password"]:
                   existing[u["username"]] = u["password"]
                   changed = True
           if changed:
               vault_write(VAULT_SECRET_USERS, existing)
-
-      # ── Pipeline dropdown update ─────────────────────────────────────────────
-
-      def update_pipeline_dropdown(usernames):
-          if not usernames:
-              return
-          ns = _k8s_namespace()
-          path = f"/apis/tekton.dev/v1/namespaces/{ns}/pipelines/ftp-file-pipeline"
-          pipeline = k8s_request(path)
-          if not pipeline:
-              print("Warning: ftp-file-pipeline not found — skipping dropdown update.")
-              return
-          params = pipeline.get("spec", {}).get("params", [])
-          for p in params:
-              if p["name"] == "username":
-                  p["enum"] = usernames
-                  if p.get("default") not in usernames:
-                      p["default"] = usernames[0]
-          if k8s_request(path, method="PATCH", body={"spec": {"params": params}}):
-              print(f"ftp-file-pipeline username dropdown updated: {usernames}")
           else:
-              print("Warning: Failed to update ftp-file-pipeline dropdown.")
+              print("No changes — Vault is already up to date.")
 
       # ── Main ────────────────────────────────────────────────────────────────
 
-      print(f"Fetching users in OU '{TARGET_OU}' from {KEYCLOAK_URL}...")
-      users = get_users_in_ou(TARGET_OU)
-
+      print(f"Fetching users in OU '{TARGET_OU}' from realm '{KEYCLOAK_REALM}' at {KEYCLOAK_URL}...")
+      users   = get_users_in_ou(TARGET_OU)
       synced  = [u["username"] for u in users if u["password"]]
       skipped = [u["username"] for u in users if not u["password"]]
 
-      print(f"Found {len(users)} user(s) in OU: {[u['username'] for u in users]}")
+      print(f"Found {len(users)} user(s) in OU '{TARGET_OU}': {[u['username'] for u in users]}")
       if skipped:
-          print(f"Warning: {len(skipped)} user(s) have no password attribute and will be skipped: {skipped}")
+          print(f"Warning: {len(skipped)} user(s) skipped — no password attribute set: {skipped}")
+
+      if not synced:
+          print("No users to sync — exiting.")
+          sys.exit(0)
 
       sync_to_vault(users)
-      update_pipeline_dropdown(sorted(synced))
 
       print(f"\n{'='*50}")
-      print(f"  Sync complete: {len(synced)} user(s) saved to Vault")
+      print(f"  Sync complete: {len(synced)} user(s) written to Vault")
       print(f"{'='*50}")
-      vault_users = vault_read(VAULT_SECRET_USERS) or {}
+      vault_users = vault_read(VAULT_SECRET_USERS)
       if vault_users:
-          print(f"\nUsers in Vault (secret/{VAULT_SECRET_USERS}):")
+          print(f"\nUsers now in Vault (secret/{VAULT_SECRET_USERS}):")
           for u in sorted(vault_users.keys()):
               print(f"  - {u}")
-      else:
-          print("No users found in Vault after sync.")
       print(f"{'='*50}\n")
