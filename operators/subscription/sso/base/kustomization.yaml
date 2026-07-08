@@ -1,3 +1,8 @@
+# NOTE: keycloak-operator v26.6.4 (the version that actually installs from the community
+# catalog at deploy time) only ships the modern k8s.keycloak.org/v2alpha1 CRDs (Keycloak,
+# KeycloakRealmImport). The legacy keycloak.org/v1alpha1 CRDs (KeycloakRealm/KeycloakUser/
+# KeycloakClient - the old "rgb-realm" resources) have no matching CRDs on this cluster and
+# were dropped. realm/keycloak-realm-import.yaml (the "openshift" realm) is the source of truth.
 resources:
 - namespace.yaml
 - operatorgroup.yaml
@@ -7,10 +12,6 @@ resources:
 - postgres/service.yaml
 - postgres/deployment.yaml
 - keycloak-instance.yaml
-- keycloak-realm.yaml
-- keycloak-user.yaml
-- keycloak-user-computab0y.yaml
-- keycloak-client.yaml
 - realm/keycloak-realm-import.yaml
 - openshift-oauth.yaml
 - cluster-admin-binding.yaml

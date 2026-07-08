@@ -1,0 +1,35 @@
+# Red Hat + certified operator catalogs. OKD ships community-operators by default but not
+# these two - several operators in operators/subscription/* (oadp, edb-postgresql, loki,
+# tekton/openshift-pipelines-operator-rh, etc.) come from redhat-operators or
+# certified-operators, so both must exist before those Subscriptions can resolve.
+#
+# Requires a real Red Hat Customer Portal pull secret installed at openshift-config/pull-secret
+# (see ansible/contabo-okd/README.md) - registry.redhat.io rejects the placeholder pull secret
+# openshift-install generates by default.
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: redhat-operators
+  namespace: openshift-marketplace
+spec:
+  displayName: Red Hat Operators
+  image: registry.redhat.io/redhat/redhat-operator-index:v4.17
+  publisher: Red Hat
+  sourceType: grpc
+  updateStrategy:
+    registryPoll:
+      interval: 30m
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: certified-operators
+  namespace: openshift-marketplace
+spec:
+  displayName: Certified Operators
+  image: registry.redhat.io/redhat/certified-operator-index:v4.17
+  publisher: Red Hat
+  sourceType: grpc
+  updateStrategy:
+    registryPoll:
+      interval: 30m

@@ -1,5 +1,31 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-bases:
+# This overlay represents the actual deployed environment (the Contabo-hosted OKD
+# cluster at *.apps.okd.funky-bash.com). The base/ directory's domain references
+# (apps-crc.testing) are placeholders suited to a local CRC cluster; this overlay
+# patches them to the real cluster domain. Update the three patch files below if
+# the cluster's base domain ever changes.
+
+resources:
   - ../../base
+
+patches:
+  - path: keycloak-instance-patch.yaml
+    target:
+      group: k8s.keycloak.org
+      version: v2alpha1
+      kind: Keycloak
+      name: keycloak
+  - path: keycloak-realm-import-patch.yaml
+    target:
+      group: k8s.keycloak.org
+      version: v2alpha1
+      kind: KeycloakRealmImport
+      name: openshift-realm
+  - path: openshift-oauth-patch.yaml
+    target:
+      group: config.openshift.io
+      version: v1
+      kind: OAuth
+      name: cluster

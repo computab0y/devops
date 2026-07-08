@@ -4,7 +4,15 @@ metadata:
   name: cloud-native-postgresql
   namespace: openshift-operators
 spec:
-  channel: "stable-v1.24"
+  # stable-v1.24 did not exist in the certified-operators catalog at deploy time; "stable"
+  # (tracks latest, resolved to v1.29.0) is what actually resolved.
+  #
+  # NOTE: even with the channel fixed, this operator remained BLOCKED on this cluster: its
+  # manager image is pulled from docker.enterprisedb.com (EnterpriseDB's own registry, separate
+  # from registry.redhat.io) and needs a "postgresql-operator-pull-secret" with EDB credentials
+  # that this deployment never had. Get EDB trial/account credentials and create that secret in
+  # this namespace before expecting this CSV to reach Succeeded.
+  channel: "stable"
   installPlanApproval: Manual
   name: cloud-native-postgresql
   source: certified-operators

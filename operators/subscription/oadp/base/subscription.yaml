@@ -6,9 +6,11 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "3"    
 spec:
-  channel: "stable-1.1"
+  # stable-1.1 did not exist in the redhat-operators catalog at deploy time; stable-1.4
+  # (current CSV oadp-operator.v1.4.10) is what actually resolved. Adjust if your catalog differs.
+  channel: "stable-1.4"
   installPlanApproval: Manual
   name: redhat-oadp-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace 
-  startingCSV: oadp-operator.v1.1.0
+  # startingCSV removed - v1.1.0 no longer exists in stable-1.4; let OLM resolve latest in-channel

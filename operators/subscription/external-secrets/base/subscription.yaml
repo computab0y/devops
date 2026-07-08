@@ -6,8 +6,12 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  channel: stable-v1.1
+  # NOTE: the Red Hat productized package "openshift-external-secrets-operator" was not present
+  # in the redhat-operators catalog at deploy time on this cluster; the community package below
+  # is what actually resolves. If your catalog carries the RH package, switch source back to
+  # redhat-operators / name openshift-external-secrets-operator / channel stable-v1.1.
+  channel: alpha
   installPlanApproval: Automatic
-  name: openshift-external-secrets-operator
-  source: redhat-operators
+  name: external-secrets-operator
+  source: community-operators
   sourceNamespace: openshift-marketplace

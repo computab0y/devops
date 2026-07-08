@@ -1,0 +1,114 @@
+---
+# Day-2 configuration for the Contabo-hosted OKD single-node cluster: pull secret,
+# operator catalogs, all 17 operator Subscriptions, and every operand config
+# (Vault, external-secrets, Grafana + monitoring stack, Keycloak SSO + realm, Tekton
+# pipelines) from operators/subscription/* in this repo.
+#
+# This does NOT bootstrap OKD itself (FCOS image build / ignition / openshift-install -
+# a one-time manual process, see docs/ and terraform/contabo-okd/README.md). Run this
+# playbook after: (a) a fresh OKD install, or (b) a Contabo VPS resize (live migration
+# keeps the node's OS/disk, but if you ever rebuild from scratch, or just want to make
+# sure everything is applied, this playbook is idempotent - safe to re-run).
+#
+# Usage:
+#   ansible-playbook playbook.yml --tags bootstrap
+#   ansible-playbook playbook.yml --tags operators
+#   ansible-playbook playbook.yml --tags operands
+#   ansible-playbook playbook.yml            # everything, in order
+
+- name: Configure OKD cluster (bootstrap, operators, operands)
+  hosts: okd_node
+  become: true
+  vars_files:
+    - vars.yml
+
+  tasks:
+    # ---------------------------------------------------------------- bootstrap ---
+    - name: "bootstrap: copy pull secret to the node"
+      copy:
+        src: "{{ pull_secret_path }}"
+        dest: /tmp/pull-secret.json
+        mode: "0600"
+      tags: [bootstrap]
+
+    - name: "bootstrap: install the pull secret into openshift-config"
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      command: >
+        oc set data secret/pull-secret -n openshift-config
+        --from-file=.dockerconfigjson=/tmp/pull-secret.json
+      changed_when: true
+      tags: [bootstrap]
+
+    - name: "bootstrap: remove the pull secret copy from the node"
+      file:
+        path: /tmp/pull-secret.json
+        state: absent
+      tags: [bootstrap]
+
+    - name: "bootstrap: add redhat-operators + certified-operators CatalogSources"
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      command: >
+        oc apply -k {{ repo_url }}//cluster-bootstrap?ref={{ repo_ref }}
+      register: catalog_apply
+      changed_when: "'unchanged' not in catalog_apply.stdout"
+      tags: [bootstrap]
+
+    - name: "bootstrap: wait for both catalogs to be READY"
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      command: >
+        oc get catalogsource {{ item }} -n openshift-marketplace
+        -o jsonpath={.status.connectionState.lastObservedState}
+      register: catalog_state
+      until: catalog_state.stdout == "READY"
+      retries: 20
+      delay: 15
+      changed_when: false
+      loop:
+        - redhat-operators
+        - certified-operators
+      tags: [bootstrap]
+
+    - name: "bootstrap: get node name"
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      command: oc get nodes -o jsonpath={.items[0].metadata.name}
+      register: node_name
+      changed_when: false
+      tags: [bootstrap]
+
+    - name: "bootstrap: label the (only) node with the infra role"
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      command: >
+        oc label node {{ node_name.stdout }} node-role.kubernetes.io/infra=
+        --overwrite
+      changed_when: true
+      tags: [bootstrap]
+      # amq-streams and oadp's CSVs hardcode nodeSelector node-role.kubernetes.io/infra:
+      # "" (assuming a multi-node cluster with dedicated infra nodes); on this
+      # single-node cluster the one node has to carry that label too, or their pods sit
+      # Pending with a FailedScheduling node-affinity error.
+
+    # ---------------------------------------------------------------- operators ---
+    - name: "operators: deploy each operator subscription (2-pass apply, see tasks/deploy_operator.yml)"
+      include_tasks: tasks/deploy_operator.yml
+      loop: "{{ operators }}"
+      loop_control:
+        label: "{{ item.name }}"
+      tags: [operators]
+
+    # ----------------------------------------------------------------- operands ---
+    - name: "operands: deploy vault (dev-mode)"
+      include_tasks: tasks/deploy_vault.yml
+      tags: [operands, operand-vault]
+
+    - name: "operands: deploy Keycloak SSO + realm + OAuth wiring"
+      include_tasks: tasks/deploy_sso.yml
+      tags: [operands, operand-sso]
+
+    - name: "operands: deploy Tekton pipelines"
+      include_tasks: tasks/deploy_tekton.yml
+      tags: [operands, operand-tekton]

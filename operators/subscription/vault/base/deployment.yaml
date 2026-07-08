@@ -18,7 +18,9 @@ spec:
       containers:
       - name: vault
         image: hashicorp/vault:1.17
-        command: ["vault", "server", "-dev", "-dev-root-token-id=root", "-dev-listen-address=0.0.0.0:8200"]
+        # -dev-no-store-token avoids a permission-denied write to /.vault-token.tmp
+        # under OpenShift's restricted SCC (arbitrary non-root UID).
+        command: ["vault", "server", "-dev", "-dev-root-token-id=root", "-dev-listen-address=0.0.0.0:8200", "-dev-no-store-token"]
         ports:
         - containerPort: 8200
         env:

@@ -8,9 +8,9 @@ Infrastructure, operator subscriptions, Tekton pipelines, and deployment package
 
 ```
 devops/
-├── ansible/                          # Ansible playbooks
-│   ├── playbook.yml                  # Main playbook
-│   └── vars.yml                      # Variables
+├── cluster-bootstrap/                # CatalogSources (redhat-operators, certified-operators)
+│   ├── catalogsources.yaml
+│   └── kustomization.yaml
 │
 ├── docs/                             # Guides and documentation
 │   └── keycloak-vault-sync-guide.md  # Step-by-step guide to build the Keycloak→Vault pipeline
@@ -50,8 +50,14 @@ devops/
 │   ├── ftp-file-pipeline/            # FTP operations pipeline package
 │   └── ftp-file-pipeline.tar.gz
 │
-└── terraform/                        # Terraform infrastructure configs
-    └── main.tf
+├── terraform/                        # Terraform infrastructure configs
+│   ├── main.tf                       # Local CRC cluster bootstrap (Mac track)
+│   └── contabo-okd/                  # Contabo VPS + Cloudflare DNS (production track)
+│
+└── ansible/
+    ├── playbook.yml                  # Local CRC cluster bootstrap (Mac track)
+    ├── vars.yml
+    └── contabo-okd/                  # Full day-2 config for the Contabo cluster (production track)
 ```
 
 ---
@@ -143,6 +149,48 @@ docker-compose up -d
 ```
 
 ---
+
+## Production track: Contabo-hosted OKD (`terraform/contabo-okd` + `ansible/contabo-okd`)
+
+Everything above (kustomize bases in `operators/subscription/*`, the `terraform/main.tf`
++ `ansible/playbook.yml` at the repo root) targets a **local CRC cluster** on a Mac -
+CRC-specific bits like `apps-crc.testing` hostnames show up throughout the bases as a
+result.
+
+This repo also runs on a real, publicly-reachable single-node OKD cluster on a Contabo
+VPS (`*.apps.okd.funky-bash.com`), used as the "always-on" instance rather than the local
+CRC one. Two directories support that specific deployment:
+
+- **`terraform/contabo-okd/`** - manages the Contabo compute instance (size/plan) and the
+  Cloudflare DNS records pointing at it. See its README for the VPS resize workflow
+  (Contabo doesn't support in-place resize via API/Terraform - it's a manual "Live
+  Migration" step in the Customer Control Panel, with Terraform reconciling state
+  afterward).
+- **`ansible/contabo-okd/`** - repeatable day-2 configuration: pull secret, operator
+  catalogs, all 17 real operator Subscriptions, and every operand (Vault,
+  external-secrets, Grafana + monitoring stack, Keycloak SSO + realm, Tekton pipelines).
+  Applies every `operators/subscription/*` kustomization straight from this GitHub repo
+  via `oc apply -k https://github.com/...`, so it always deploys whatever's currently
+  committed here.
+
+Where the two tracks share `operators/subscription/*` bases, `overlay/env/` is the
+Contabo/production overlay - it patches the CRC-specific hostnames
+(`apps-crc.testing`) to the real cluster domain (`apps.okd.funky-bash.com`) via
+`sso/overlay/env/*-patch.yaml`. A handful of bugs found while deploying this for real
+were also fixed directly in the base manifests (they were bugs regardless of
+environment): channel/version drift in `oadp`, `edb-postgresql`, and `external-secrets`'
+Subscriptions; `otel/base/subscription.yaml` was a hand-vendored, unresolvable
+ClusterServiceVersion rather than an actual Subscription; `external-secrets/base`
+assumed CRD versions and a Red-Hat-specific `ExternalSecretsConfig` CRD that don't exist
+for the community operator that actually installs; `sso/base` referenced legacy
+`keycloak.org/v1alpha1` CRDs that keycloak-operator v26.6.4 no longer ships (superseded
+by the `k8s.keycloak.org/v2alpha1` `KeycloakRealmImport` resource, which is what's
+actually used); `vault/base/deployment.yaml` now bakes in the `-dev-no-store-token` flag
+Vault's dev-mode needs under OpenShift's restricted SCC.
+
+`edb-postgresql` remains genuinely blocked regardless of environment - its manager image
+is pulled from EnterpriseDB's own registry, requiring separate credentials this
+deployment doesn't have (documented in `operators/subscription/edb-postgresql/base/subscription.yaml`).
 
 ## Operators
 

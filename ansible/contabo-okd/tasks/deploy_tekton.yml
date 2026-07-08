@@ -1,0 +1,78 @@
+---
+# Deploys operators/subscription/tekton (openshift-pipelines-operator-rh + the
+# daily-health-check pipeline + the keycloak-vault-sync / ftp-file-pipeline
+# definitions). Needs one extra step beyond the generic operator flow: the
+# ftp-file-pipeline Pipeline uses `enum` param constraints, which are gated behind the
+# `enable-param-enum` feature flag on the cluster's TektonConfig - off by default on
+# this operator version - so it must be turned on after the operator installs but
+# before the second apply pass tries to create that Pipeline.
+#
+# NOTE: no PipelineRuns are triggered here on purpose. ftp-file-pipeline's default
+# ftp-host (see ftp-pipeline/pipeline-config.yaml) is a private IP on Ray's local
+# Mac/Parallels network, unreachable from this cluster. The Task/Pipeline objects are
+# deployed and ready to use, but won't succeed until pointed at a reachable FTP host.
+
+- name: "tekton: first apply pass (namespace/OperatorGroup/Subscription)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc apply -k {{ repo_url }}//operators/subscription/tekton/base?ref={{ repo_ref }}
+  register: tekton_apply1
+  failed_when: false
+  changed_when: "'unchanged' not in tekton_apply1.stdout"
+
+- name: "tekton: wait for Subscription InstallPlanRef"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc get subscription openshift-pipelines-operator-rh -n openshift-pipelines-operator
+    -o jsonpath={.status.installPlanRef.name}
+  register: tekton_install_plan_ref
+  until: tekton_install_plan_ref.stdout | length > 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: "tekton: get currentCSV"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc get subscription openshift-pipelines-operator-rh -n openshift-pipelines-operator
+    -o jsonpath={.status.currentCSV}
+  register: tekton_current_csv
+  until: tekton_current_csv.stdout | length > 0
+  retries: 18
+  delay: 10
+  changed_when: false
+
+- name: "tekton: wait for CSV to reach Succeeded"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc get csv {{ tekton_current_csv.stdout }} -n openshift-pipelines-operator
+    -o jsonpath={.status.phase}
+  register: tekton_csv_phase
+  until: tekton_csv_phase.stdout == "Succeeded"
+  retries: 30
+  delay: 20
+  changed_when: false
+
+- name: "tekton: enable the enable-param-enum feature flag (needed by ftp-file-pipeline's enum params)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc patch tektonconfig config --type merge
+    -p '{"spec":{"pipeline":{"enable-param-enum":true}}}'
+  changed_when: true
+
+- name: "tekton: second apply pass (health-check + ftp-pipeline Task/Pipeline definitions)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc apply -k {{ repo_url }}//operators/subscription/tekton/base?ref={{ repo_ref }}
+  register: tekton_apply2
+  changed_when: "'unchanged' not in tekton_apply2.stdout"
+
+- name: "tekton: show second apply pass output"
+  debug:
+    var: tekton_apply2.stdout_lines

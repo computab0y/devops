@@ -1,0 +1,4 @@
+# JSON6902 patch: fix the "openshift" client's redirect URI to the real cluster domain.
+- op: replace
+  path: /spec/realm/clients/0/redirectUris/0
+  value: "https://oauth-openshift.apps.okd.funky-bash.com/oauth2callback/keycloak"

@@ -12,7 +12,7 @@ spec:
   - name: keycloak-realm
     type: string
     description: "The Keycloak realm to sync users from"
-    default: "rgb-realm"
+    default: "openshift"
   - name: vault-address
     type: string
     description: "The address of the Vault server"

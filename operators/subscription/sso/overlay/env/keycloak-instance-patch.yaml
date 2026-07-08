@@ -1,0 +1,5 @@
+# JSON6902 patch: point the Keycloak route/issuer hostname at the real cluster apps
+# domain instead of the base's local-CRC placeholder (apps-crc.testing).
+- op: replace
+  path: /spec/hostname/hostname
+  value: keycloak-keycloak.apps.okd.funky-bash.com

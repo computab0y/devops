@@ -60,3 +60,7 @@ Thumbs.db
 .terraform/
 .terraform.lock.hcl
 
+
+# Ansible
+*.retry
+vars.local.yml

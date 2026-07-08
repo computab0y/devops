@@ -1,0 +1,19 @@
+# Copy this file to terraform.tfvars and fill in real values.
+# terraform.tfvars is already covered by .gitignore's `*.tfvars` pattern - never commit it.
+
+contabo_client_id     = "INT-XXXXXXXX"
+contabo_client_secret = "REPLACE_ME"
+contabo_api_user      = "you@example.com"
+contabo_api_password  = "REPLACE_ME"
+
+cloudflare_api_token = "REPLACE_ME"
+cloudflare_zone_id   = "REPLACE_ME"
+
+existing_instance_id = "203424384"
+product_id           = "REPLACE_ME" # see variables.tf for how to look this up
+instance_ipv4        = "62.84.179.61"
+
+display_name = "okd-funky-bash"
+region       = "EU"
+base_domain  = "funky-bash.com"
+cluster_name = "okd"

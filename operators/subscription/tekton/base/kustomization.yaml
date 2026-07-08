@@ -8,7 +8,9 @@ resources:
 - health-check/serviceaccount.yaml
 - ftp-pipeline/externalsecret.yaml
 - ftp-pipeline/vault-token.yaml
+- ftp-pipeline/pipeline-config.yaml
 - ftp-pipeline/task.yaml
+- ftp-pipeline/ftp-operations-task.yaml
 - ftp-pipeline/pipeline.yaml
 - ftp-pipeline/ftp-file-pipeline.yaml
 - ftp-pipeline/ftp-vm-ssh-key.yaml

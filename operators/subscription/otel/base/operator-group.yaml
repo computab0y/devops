@@ -6,5 +6,8 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  targetNamespaces:
-    - open-telemetry
+  # opentelemetry-operator.v0.154.0 (the version that actually resolves from the
+  # community catalog) only supports the AllNamespaces install mode, not OwnNamespace -
+  # targetNamespaces must be empty or CSV install fails with
+  # "OwnNamespace InstallModeType not supported".
+  targetNamespaces: []

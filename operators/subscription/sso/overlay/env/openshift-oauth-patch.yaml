@@ -1,0 +1,4 @@
+# JSON6902 patch: fix the Keycloak OpenID issuer to the real cluster domain.
+- op: replace
+  path: /spec/identityProviders/1/openID/issuer
+  value: "https://keycloak-keycloak.apps.okd.funky-bash.com/realms/openshift"

@@ -1,0 +1,84 @@
+---
+# Deploys one operators/subscription/<name> directory. Applied twice: the first pass
+# creates the namespace/OperatorGroup/Subscription (and any operand CRs whose CRDs
+# happen to already exist); the second pass - run after the operator's CSV reaches
+# Succeeded - picks up any operand CRs that couldn't resolve on the first pass because
+# their CRDs didn't exist yet (e.g. grafana-instance.yaml needs the Grafana CRD, which
+# only appears once the grafana-operator CSV installs). This mirrors how ArgoCD's
+# SkipDryRunOnMissingResource sync option handles the same problem, but done as an
+# explicit two-pass apply since we're not using ArgoCD here.
+#
+# Expects loop_var `item` with keys: name, ns, manual_approval, path
+
+- name: "{{ item.name }}: first apply pass (namespace/OperatorGroup/Subscription)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc apply -k {{ repo_url }}//operators/subscription/{{ item.name }}/{{ item.path }}?ref={{ repo_ref }}
+  register: apply1
+  failed_when: false
+  changed_when: "'unchanged' not in apply1.stdout"
+
+- name: "{{ item.name }}: show first apply pass output"
+  debug:
+    var: apply1.stdout_lines
+
+- name: "{{ item.name }}: wait for Subscription to get an InstallPlanRef"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc get subscription {{ item.name }} -n {{ item.ns }} -o jsonpath={.status.installPlanRef.name}
+  register: install_plan_ref
+  until: install_plan_ref.stdout | length > 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: "{{ item.name }}: approve InstallPlan (manual-approval subscriptions only)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc patch installplan {{ install_plan_ref.stdout }} -n {{ item.ns }}
+    --type merge -p '{"spec":{"approved":true}}'
+  when: item.manual_approval
+  changed_when: true
+
+- name: "{{ item.name }}: get currentCSV from Subscription"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc get subscription {{ item.name }} -n {{ item.ns }} -o jsonpath={.status.currentCSV}
+  register: current_csv
+  until: current_csv.stdout | length > 0
+  retries: 18
+  delay: 10
+  changed_when: false
+
+- name: "{{ item.name }}: wait for CSV {{ current_csv.stdout }} to reach Succeeded"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc get csv {{ current_csv.stdout }} -n {{ item.ns }} -o jsonpath={.status.phase}
+  register: csv_phase
+  until: csv_phase.stdout == "Succeeded"
+  retries: 30
+  delay: 20
+  changed_when: false
+  # Don't hard-fail the whole run over one slow/blocked operator (edb-postgresql is a
+  # known, documented case - see edb-postgresql/base/subscription.yaml). Later operators
+  # still get a chance to deploy.
+  ignore_errors: true
+
+- name: "{{ item.name }}: second apply pass (operand CRs, now that the operator is installed)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc apply -k {{ repo_url }}//operators/subscription/{{ item.name }}/{{ item.path }}?ref={{ repo_ref }}
+  register: apply2
+  when: csv_phase.stdout == "Succeeded"
+  changed_when: "'unchanged' not in apply2.stdout"
+
+- name: "{{ item.name }}: show second apply pass output"
+  debug:
+    var: apply2.stdout_lines
+  when: csv_phase.stdout == "Succeeded"

@@ -1,0 +1,23 @@
+---
+# Vault (dev-mode) has no OLM Subscription - it's a plain Deployment/Service/Route,
+# not an operator - so it's just a single kustomize apply. The -dev-no-store-token
+# flag (needed under OpenShift's restricted SCC) is already baked into
+# operators/subscription/vault/base/deployment.yaml.
+
+- name: "vault: apply"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc apply -k {{ repo_url }}//operators/subscription/vault/base?ref={{ repo_ref }}
+  register: vault_apply
+  changed_when: "'unchanged' not in vault_apply.stdout"
+
+- name: "vault: wait for the vault pod to be Running"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc get pods -n vault -l app=vault -o jsonpath={.items[0].status.phase}
+  register: vault_phase
+  until: vault_phase.stdout == "Running"
+  retries: 20
+  delay: 10
+  changed_when: false

@@ -5,7 +5,7 @@ metadata:
   namespace: openshift-pipelines-operator
 data:
   keycloak-url: "http://keycloak-service.keycloak.svc:8080"
-  keycloak-realm: "rgb-realm"
+  keycloak-realm: "openshift"
   ftp-host: "10.211.55.4"
   ftp-port: "21"
   vault-address: "http://vault.vault.svc:8200"
