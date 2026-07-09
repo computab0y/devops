@@ -27,15 +27,13 @@ postgres_hostpath_dir: "/var/lib/local-pvs/postgres-keycloak"
 # `sso` and `tekton` are handled by their own dedicated task files further down the
 # playbook (they need extra steps interleaved - storage/secret wiring for sso, a
 # TektonConfig feature-flag patch for tekton) so they are NOT in this generic list.
-# acs (rhacs-operator), amq-streams, istio, jaeger, and kiali were deployed once but
-# intentionally removed from this cluster on 2026-07-09 to free up resources on the
-# single 8 vCPU/24GB node - none of them were actually in use (no ServiceMeshControlPlane,
-# Kafka, or ACS Central ever got configured) and together they were a large share of the
-# node's CPU/memory pressure. Re-add entries here (see git history for the exact lines) if
-# you actually need service mesh, Kafka, or cluster security scanning later - ideally after
-# upsizing the node, since this is exactly the kind of load that caused the outage on
-# 2026-07-09 (see PROJECT_STATUS.md).
+# acs (rhacs-operator), amq-streams, istio, jaeger, and kiali were removed on 2026-07-09
+# during a resource-exhaustion outage on the single 8 vCPU/24GB node (see
+# PROJECT_STATUS.md), then re-added on 2026-07-09 after upsizing the VPS to restore
+# room for them.
 operators:
+  - { name: acs,                        ns: rhacs-operator,                       manual_approval: false, path: overlay/env }
+  - { name: amq-streams,                ns: amq-streams,                          manual_approval: true,  path: overlay/env }
   - { name: devworkspaces,              ns: openshift-operators,                  manual_approval: true,  path: overlay/env }
   - { name: edb-postgresql,             ns: openshift-operators,                  manual_approval: true,  path: overlay/env }
   - { name: elasticsearch-eck-operator, ns: openshift-operators,                  manual_approval: true,  path: overlay/env }
@@ -43,6 +41,9 @@ operators:
   - { name: external-secrets,           ns: openshift-external-secrets-operator,  manual_approval: false, path: base }
   - { name: gitops,                     ns: openshift-gitops-operator,            manual_approval: false, path: base }
   - { name: grafana,                    ns: grafana-operator,                     manual_approval: false, path: overlay/env }
+  - { name: istio,                      ns: openshift-operators,                  manual_approval: true,  path: overlay/env }
+  - { name: jaeger,                     ns: openshift-operators,                  manual_approval: true,  path: overlay/env }
+  - { name: kiali,                      ns: openshift-operators,                  manual_approval: true,  path: overlay/env }
   - { name: loki,                       ns: openshift-operators-redhat,           manual_approval: false, path: overlay/env }
   - { name: oadp,                       ns: openshift-adp,                        manual_approval: true,  path: overlay/env }
   - { name: openshift-logging,          ns: openshift-logging,                    manual_approval: true,  path: overlay/env }
