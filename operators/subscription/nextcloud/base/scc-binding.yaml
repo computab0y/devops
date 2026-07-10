@@ -1,0 +1,17 @@
+# The upstream nextcloud:29-apache image isn't written for OpenShift's restricted
+# arbitrary-UID model - its entrypoint does root-level chown then runs the actual web
+# server as www-data (uid 33) - so the namespace's default ServiceAccount needs anyuid.
+# Equivalent to: oc adm policy add-scc-to-user anyuid -z default -n nextcloud
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nextcloud-default-anyuid
+  namespace: nextcloud
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: nextcloud
+roleRef:
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+  apiGroup: rbac.authorization.k8s.io

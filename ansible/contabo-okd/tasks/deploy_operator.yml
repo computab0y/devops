@@ -9,13 +9,35 @@
 # explicit two-pass apply since we're not using ArgoCD here.
 #
 # Expects loop_var `item` with keys: name, ns, manual_approval, path
+#
+# Two bugs fixed here (2026-07-10), both found the hard way running this by hand as a
+# throwaway bash script before either fix existed:
+#
+# 1. Namespace/Subscription apply race: a single kustomize apply bundles the Namespace
+#    and the Subscription together; applying once can occasionally race the namespace's
+#    etcd write and fail with "namespaces \"X\" not found". Retried a few times instead
+#    of hard-failing on the first attempt.
+#
+# 2. Subscription object names frequently do NOT match the directory name under
+#    operators/subscription/ - e.g. the `acs` directory's Subscription is actually named
+#    `acs-operator`; `amq-streams` -> `amq-streams-operator`; `edb-postgresql` ->
+#    `cloud-native-postgresql`; `elasticsearch` -> `elasticsearch-operator`; `oadp` ->
+#    `redhat-oadp-operator`; `openshift-logging` -> `cluster-logging`; `otel` ->
+#    `opentelemetry-operator`; `devworkspaces` -> a long auto-generated name. Rather than
+#    hand-maintain a lookup table that will just drift again the next time a catalog
+#    build changes package/channel naming, the real Subscription name is parsed straight
+#    out of the apply's own output (kustomize/oc always prints one line per resource,
+#    e.g. "subscription.operators.coreos.com/acs-operator created") instead of assumed.
 
-- name: "{{ item.name }}: first apply pass (namespace/OperatorGroup/Subscription)"
+- name: "{{ item.name }}: first apply pass (namespace/OperatorGroup/Subscription), retried for the namespace-creation race"
   environment:
     KUBECONFIG: "{{ kubeconfig_path }}"
   command: >
     oc apply -k {{ repo_url }}//operators/subscription/{{ item.name }}/{{ item.path }}?ref={{ repo_ref }}
   register: apply1
+  retries: 4
+  delay: 5
+  until: apply1.rc == 0
   failed_when: false
   changed_when: "'unchanged' not in apply1.stdout"
 
@@ -23,11 +45,32 @@
   debug:
     var: apply1.stdout_lines
 
+- name: "{{ item.name }}: determine the real Subscription name from apply output"
+  set_fact:
+    subscription_name: >-
+      {{
+        (apply1.stdout_lines
+          | select('match', '^subscription\.operators\.coreos\.com/')
+          | map('regex_replace', '^subscription\.operators\.coreos\.com/([^ ]+).*$', '\1')
+          | list
+          | first)
+        if (apply1.stdout_lines | select('match', '^subscription\.operators\.coreos\.com/') | list | length > 0)
+        else item.name
+      }}
+  # Falls back to item.name (the directory name) if for some reason nothing matched -
+  # keeps old behavior for any operator whose name genuinely does match its directory,
+  # and fails obviously downstream (subscription not found) rather than silently, if the
+  # apply output format ever changes.
+
+- name: "{{ item.name }}: show resolved Subscription name"
+  debug:
+    msg: "directory={{ item.name }} -> subscription={{ subscription_name }}"
+
 - name: "{{ item.name }}: wait for Subscription to get an InstallPlanRef"
   environment:
     KUBECONFIG: "{{ kubeconfig_path }}"
   command: >
-    oc get subscription {{ item.name }} -n {{ item.ns }} -o jsonpath={.status.installPlanRef.name}
+    oc get subscription {{ subscription_name }} -n {{ item.ns }} -o jsonpath={.status.installPlanRef.name}
   register: install_plan_ref
   until: install_plan_ref.stdout | length > 0
   retries: 30
@@ -47,7 +90,7 @@
   environment:
     KUBECONFIG: "{{ kubeconfig_path }}"
   command: >
-    oc get subscription {{ item.name }} -n {{ item.ns }} -o jsonpath={.status.currentCSV}
+    oc get subscription {{ subscription_name }} -n {{ item.ns }} -o jsonpath={.status.currentCSV}
   register: current_csv
   until: current_csv.stdout | length > 0
   retries: 18

@@ -57,6 +57,48 @@
   delay: 20
   changed_when: false
 
+# tekton-results (the openshift-pipelines-operator's own results-storage feature) spins
+# up a "tekton-results-postgres" StatefulSet with its own volumeClaimTemplate-generated
+# PVC (postgredb-tekton-results-postgres-0) - this cluster has no StorageClass/CSI
+# provisioner at all, so, same story as Keycloak's Postgres, it needs a manually-created
+# hostPath PersistentVolume to bind against. This can be created any time before the
+# operator gets around to creating that PVC; doing it right after the CSV succeeds is
+# early enough.
+- name: "tekton: create hostPath directory for tekton-results Postgres data on the node"
+  become: true
+  file:
+    path: /var/lib/local-pvs/tekton-results-postgres
+    state: directory
+    mode: "0777"
+
+- name: "tekton: relabel hostPath directory for container access (SELinux)"
+  become: true
+  command: chcon -Rt container_file_t /var/lib/local-pvs/tekton-results-postgres
+  changed_when: true
+
+- name: "tekton: create static PersistentVolume for tekton-results Postgres"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc apply -f -
+  args:
+    stdin: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: tekton-results-postgres-pv
+      spec:
+        capacity:
+          storage: 1Gi
+        accessModes:
+          - ReadWriteOnce
+        persistentVolumeReclaimPolicy: Retain
+        hostPath:
+          path: /var/lib/local-pvs/tekton-results-postgres
+        claimRef:
+          namespace: openshift-pipelines
+          name: postgredb-tekton-results-postgres-0
+  changed_when: true
+
 - name: "tekton: enable the enable-param-enum feature flag (needed by ftp-file-pipeline's enum params)"
   environment:
     KUBECONFIG: "{{ kubeconfig_path }}"

@@ -1,2 +1,3 @@
 resources:
 - catalogsources.yaml
+- machineconfig-crio-no-watchdog.yaml

@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: nextcloud
+  namespace: nextcloud
+spec:
+  host: nextcloud.apps.okd.funky-bash.com
+  to:
+    kind: Service
+    name: nextcloud
+  port:
+    targetPort: 80
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

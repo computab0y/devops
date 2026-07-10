@@ -226,19 +226,56 @@
   changed_when: true
   no_log: true
 
-- name: "sso: copy the cluster's default ingress CA into openshift-config/keycloak-ca-bundle"
+# NOTE (2026-07-10): This used to copy openshift-config-managed/default-ingress-cert,
+# on the assumption the Keycloak route always rides the cluster's self-signed ingress
+# CA. That broke the day cert-manager + Let's Encrypt was put in front of *.apps - the
+# ConfigMap kept the stale self-signed CA, the "openshift" OpenID IDP's token exchange
+# started failing with "x509: certificate signed by unknown authority", and the
+# `authentication` ClusterOperator went Degraded. Fixed by capturing whatever chain the
+# route is *actually* serving instead of assuming a specific CA source - this way it
+# self-heals across CA changes (self-signed today, Let's Encrypt tomorrow, whatever else
+# later) instead of silently going stale again.
+- name: "sso: fetch the Keycloak route's live-served TLS certificate chain"
   environment:
     KUBECONFIG: "{{ kubeconfig_path }}"
   shell: >
-    oc get configmap default-ingress-cert -n openshift-config-managed
-    -o jsonpath={.data.ca-bundle\.crt} > /tmp/keycloak-ca.crt &&
+    echo | openssl s_client -connect keycloak-keycloak.{{ cluster_apps_domain }}:443
+    -servername keycloak-keycloak.{{ cluster_apps_domain }} -showcerts 2>/dev/null
+    | awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/' > /tmp/keycloak-ca.crt
+  changed_when: true
+
+- name: "sso: fail loudly if the fetched chain looks empty (don't silently apply a broken CA bundle)"
+  command: test -s /tmp/keycloak-ca.crt
+  changed_when: false
+
+- name: "sso: append the public Let's Encrypt root (ISRG Root X1) as a trust anchor"
+  # Servers don't send their own root in the handshake (clients are expected to already
+  # trust it), and this cluster's minimal container images don't necessarily carry a
+  # full public CA trust store, so append it explicitly. This is a no-op safety net if
+  # the wildcard cert is still on Let's Encrypt; if it's ever moved to a different CA,
+  # just drop this task (or swap the URL).
+  shell: curl -fsSL https://letsencrypt.org/certs/isrgrootx1.pem >> /tmp/keycloak-ca.crt
+  changed_when: true
+
+- name: "sso: publish the fetched chain as openshift-config/keycloak-ca-bundle"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: >
     oc create configmap keycloak-ca-bundle -n openshift-config
     --from-file=ca.crt=/tmp/keycloak-ca.crt --dry-run=client -o yaml | oc apply -f -
   changed_when: true
 
-# No need to re-apply openshift-oauth.yaml: the authentication-operator watches the
-# secret/configmap it references and rolls a new oauth-server automatically once they
-# exist with the right content.
+# The authentication-operator does watch this ConfigMap and is *supposed* to roll a new
+# oauth-server pod automatically once it changes - in practice this was observed to lag
+# badly (the running pod kept serving TLS errors from its stale in-memory trust pool for
+# hours after the ConfigMap was already correct), so force it explicitly every run
+# instead of trusting the watch.
+- name: "sso: restart oauth-openshift so it picks up the (possibly changed) CA bundle immediately"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc delete pod -l app=oauth-openshift -n openshift-authentication
+  changed_when: true
+  failed_when: false
 
 - name: "sso: wait for the authentication clusteroperator to settle"
   environment:

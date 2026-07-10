@@ -46,7 +46,7 @@
         state: absent
       tags: [bootstrap]
 
-    - name: "bootstrap: add redhat-operators + certified-operators CatalogSources"
+    - name: "bootstrap: add CatalogSources + crio-watchdog MachineConfig"
       environment:
         KUBECONFIG: "{{ kubeconfig_path }}"
       command: >
@@ -54,6 +54,28 @@
       register: catalog_apply
       changed_when: "'unchanged' not in catalog_apply.stdout"
       tags: [bootstrap]
+      # This kustomization also includes machineconfig-crio-no-watchdog.yaml (see
+      # PROJECT_STATUS.md for why) - applying/changing a MachineConfig makes the MCO
+      # render a new rendered-master config and roll it out, which reboots every
+      # control-plane node once (a few minutes on a healthy node). The wait step below
+      # handles that; on a cluster that already has this MachineConfig from a previous
+      # run, "changed_when" will correctly report no-op and no reboot happens.
+
+    - name: "bootstrap: wait for the master MachineConfigPool to finish updating (crio-watchdog MachineConfig triggers a one-time reboot)"
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+      command: >
+        oc get machineconfigpool master
+        -o jsonpath={.status.conditions[?(@.type=="Updated")].status}
+      register: mcp_updated
+      until: mcp_updated.stdout == "True"
+      retries: 40
+      delay: 30
+      changed_when: false
+      tags: [bootstrap]
+      # 40 * 30s = 20 min ceiling - generous because this includes an actual node
+      # reboot, not just a quick reconcile. If this MachineConfig was already applied in
+      # a previous run, the pool is already Updated and this returns immediately.
 
     - name: "bootstrap: wait for both catalogs to be READY"
       environment:
@@ -112,3 +134,10 @@
     - name: "operands: deploy Tekton pipelines"
       include_tasks: tasks/deploy_tekton.yml
       tags: [operands, operand-tekton]
+
+    - name: "operands: deploy Nextcloud (cross-device file storage + Keycloak SSO client)"
+      include_tasks: tasks/deploy_nextcloud.yml
+      tags: [operands, operand-nextcloud]
+      # Depends on operand-sso having already run at least once (needs the "openshift"
+      # realm and keycloak-service to exist) - keep this after deploy_sso.yml in the
+      # task order.

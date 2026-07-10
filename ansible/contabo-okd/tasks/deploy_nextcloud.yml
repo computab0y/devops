@@ -1,0 +1,242 @@
+---
+# Nextcloud (cross-device file storage). Has no OLM Subscription - it's a plain
+# Deployment/Service/Route + a hostPath-backed PVC (same "no CSI provisioner on this
+# cluster" story as Postgres/Keycloak), plus a Keycloak SSO client so login works
+# alongside the local admin account. Several steps can't live in the kustomize base:
+#   - the hostPath directory has to exist on the node with the right perms/SELinux label
+#     before the PV binds
+#   - the admin secret's password is generated fresh per-environment, not hardcoded
+#   - `occ maintenance:install` has to be run by hand - NEXTCLOUD_ADMIN_USER/PASSWORD env
+#     vars alone don't reliably trigger the auto-installer on this image/version
+#   - the Keycloak client (and its post-logout-redirect-uri fix, see below) is created
+#     via the Admin REST API, same pattern used for the "openshift" client in
+#     deploy_sso.yml, since the keycloak-operator's KeycloakOIDCClient CRD doesn't
+#     expose the `attributes` map needed for post.logout.redirect.uris/frontchannelLogout
+
+- name: "nextcloud: create hostPath directory for data on the node"
+  become: true
+  file:
+    path: /var/lib/local-pvs/nextcloud-data
+    state: directory
+    mode: "0777"
+
+- name: "nextcloud: relabel hostPath directory for container access (SELinux)"
+  become: true
+  command: chcon -Rt container_file_t /var/lib/local-pvs/nextcloud-data
+  changed_when: true
+
+- name: "nextcloud: apply namespace/PV/PVC/SCC-binding/Deployment/Service/Route"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc apply -k {{ repo_url }}//operators/subscription/nextcloud/base?ref={{ repo_ref }}
+  register: nextcloud_apply
+  failed_when: false
+  changed_when: "'unchanged' not in nextcloud_apply.stdout"
+  # First pass will show the Deployment failing to progress (no nextcloud-admin secret
+  # yet, referenced env vars can't resolve) - that's expected, the secret is created next
+  # and the pod picks it up once it (re)starts.
+
+- name: "nextcloud: generate an admin password (only if the secret doesn't already exist)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc get secret nextcloud-admin -n nextcloud -o jsonpath={.metadata.name}
+  register: nextcloud_secret_check
+  failed_when: false
+  changed_when: false
+
+- name: "nextcloud: create nextcloud-admin secret with a freshly generated password"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: >
+    oc create secret generic nextcloud-admin -n nextcloud
+    --from-literal=username=admin
+    --from-literal=password="$(openssl rand -base64 18 | tr -d '/+=' | head -c 24)"
+  when: nextcloud_secret_check.rc != 0
+  changed_when: true
+
+- name: "nextcloud: wait for the nextcloud pod to be Ready"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc get pods -n nextcloud -l app=nextcloud
+    -o jsonpath={.items[0].status.containerStatuses[0].ready}
+  register: nextcloud_ready
+  until: nextcloud_ready.stdout == "true"
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: "nextcloud: check whether Nextcloud is already installed"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc exec -n nextcloud deploy/nextcloud --
+    su -s /bin/sh www-data -c "php occ status --output=json"
+  register: nextcloud_status
+  changed_when: false
+  failed_when: false
+
+# The NEXTCLOUD_ADMIN_USER/PASSWORD env vars are supposed to trigger the image's
+# auto-installer, but that was observed NOT to actually complete the install (occ
+# reported installed:false even though the site returned HTTP 200 - that 200 was just
+# the setup-wizard page). Run the installer explicitly, idempotent since we check status
+# first.
+- name: "nextcloud: run occ maintenance:install if not already installed"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: >
+    oc exec -n nextcloud deploy/nextcloud --
+    su -s /bin/sh www-data -c
+    "php occ maintenance:install --database=sqlite --admin-user=admin --admin-pass='{{ (nextcloud_admin_pass_b64.stdout | default('')) }}' --data-dir=/var/www/html/data"
+  when: "'\"installed\":true' not in nextcloud_status.stdout"
+  changed_when: true
+  failed_when: false
+  # Note: if the secret already existed from a previous run (nextcloud_secret_check.rc
+  # == 0 above), nextcloud_admin_pass_b64 won't be set by this file - fetch it first in
+  # that case: `oc get secret nextcloud-admin -n nextcloud -o jsonpath={.data.password} | base64 -d`
+
+- name: "nextcloud: read Keycloak temp-admin username/password"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: "oc get secret keycloak-initial-admin -n keycloak -o jsonpath={{ '{' }}.data.{{ item }}{{ '}' }}"
+  loop:
+    - username
+    - password
+  register: kc_admin_creds_b64
+  changed_when: false
+
+- name: "nextcloud: launch a throwaway curl pod to talk to the Keycloak admin API"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc run nextcloud-client-setup --image=curlimages/curl:8.10.1 -n keycloak
+    --restart=Never --command -- sleep 300
+  changed_when: true
+  failed_when: false
+
+- name: "nextcloud: wait for the curl pod to be ready"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc get pod nextcloud-client-setup -n keycloak -o jsonpath={.status.phase}
+  register: nc_curl_pod_phase
+  until: nc_curl_pod_phase.stdout == "Running"
+  retries: 15
+  delay: 4
+  changed_when: false
+
+- name: "nextcloud: fetch an admin access token"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: >
+    oc exec -n keycloak nextcloud-client-setup -- curl -s -X POST
+    http://keycloak-service:8080/realms/master/protocol/openid-connect/token
+    -d grant_type=password -d client_id=admin-cli
+    -d username={{ kc_admin_creds_b64.results[0].stdout | b64decode }}
+    -d password={{ kc_admin_creds_b64.results[1].stdout | b64decode }}
+  register: nc_kc_token_raw
+  changed_when: false
+  no_log: true
+
+- name: "nextcloud: parse access token"
+  set_fact:
+    nc_kc_access_token: "{{ (nc_kc_token_raw.stdout | from_json).access_token }}"
+  no_log: true
+
+- name: "nextcloud: check whether the nextcloud Keycloak client already exists"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: >
+    oc exec -n keycloak nextcloud-client-setup -- curl -s
+    -H "Authorization: Bearer {{ nc_kc_access_token }}"
+    "http://keycloak-service:8080/admin/realms/openshift/clients?clientId=nextcloud"
+  register: nc_kc_existing
+  changed_when: false
+  no_log: true
+
+# Create the client with the login redirect URI, the post-logout redirect URI, and
+# frontchannelLogout all set up front - this is the fix for the bug where Nextcloud's
+# logout button hit Keycloak's end_session endpoint and got rejected with "Invalid
+# redirect uri" (the client had a login redirect URI but no post-logout one registered).
+- name: "nextcloud: create the Keycloak client (only if it doesn't already exist)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: >
+    oc exec -n keycloak nextcloud-client-setup -- curl -s -X POST
+    -H "Authorization: Bearer {{ nc_kc_access_token }}"
+    -H "Content-Type: application/json"
+    http://keycloak-service:8080/admin/realms/openshift/clients
+    -d '{
+      "clientId": "nextcloud",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "frontchannelLogout": true,
+      "redirectUris": ["https://nextcloud.{{ cluster_apps_domain }}/apps/user_oidc/code"],
+      "webOrigins": ["https://nextcloud.{{ cluster_apps_domain }}"],
+      "attributes": {
+        "post.logout.redirect.uris": "https://nextcloud.{{ cluster_apps_domain }}/*"
+      }
+    }'
+  when: "(nc_kc_existing.stdout | from_json | length) == 0"
+  changed_when: true
+
+- name: "nextcloud: fetch the client (includes its generated secret)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: >
+    oc exec -n keycloak nextcloud-client-setup -- curl -s
+    -H "Authorization: Bearer {{ nc_kc_access_token }}"
+    "http://keycloak-service:8080/admin/realms/openshift/clients?clientId=nextcloud"
+  register: nc_kc_client_raw
+  changed_when: false
+  no_log: true
+
+- name: "nextcloud: parse client id + secret"
+  set_fact:
+    nc_kc_client_uuid: "{{ (nc_kc_client_raw.stdout | from_json)[0].id }}"
+    nc_kc_client_secret: "{{ (nc_kc_client_raw.stdout | from_json)[0].secret }}"
+  no_log: true
+
+# Idempotent safety net: if the client already existed from an older deploy (e.g. one
+# created before this fix landed), make sure it still gets the post-logout redirect URI
+# and frontchannelLogout even without recreating it. kcadm/the Admin REST API's nested
+# attribute keys need double-quoting - a bare dotted key like
+# attributes.post.logout.redirect.uris gets misparsed as a nested path and throws
+# "Cannot parse the JSON" if you ever do this by hand with kcadm instead of raw REST.
+- name: "nextcloud: ensure post-logout-redirect-uri + frontchannelLogout are set (idempotent)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: >
+    oc exec -n keycloak nextcloud-client-setup -- curl -s -X PUT
+    -H "Authorization: Bearer {{ nc_kc_access_token }}"
+    -H "Content-Type: application/json"
+    "http://keycloak-service:8080/admin/realms/openshift/clients/{{ nc_kc_client_uuid }}"
+    -d '{
+      "frontchannelLogout": true,
+      "attributes": {
+        "post.logout.redirect.uris": "https://nextcloud.{{ cluster_apps_domain }}/*"
+      }
+    }'
+  changed_when: true
+
+- name: "nextcloud: remove the throwaway curl pod"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc delete pod nextcloud-client-setup -n keycloak --force --grace-period=0
+  changed_when: true
+  failed_when: false
+
+- name: "nextcloud: install/configure the user_oidc app"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: >
+    oc exec -n nextcloud deploy/nextcloud --
+    su -s /bin/sh www-data -c "php occ app:install user_oidc" ;
+    oc exec -n nextcloud deploy/nextcloud --
+    su -s /bin/sh www-data -c
+    "php occ user_oidc:provider Keycloak --clientid=nextcloud --clientsecret='{{ nc_kc_client_secret }}' --discoveryuri=https://keycloak-keycloak.{{ cluster_apps_domain }}/realms/openshift/.well-known/openid-configuration"
+  changed_when: true
+  failed_when: false
+  no_log: true

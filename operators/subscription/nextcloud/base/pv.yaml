@@ -1,0 +1,20 @@
+# This cluster has no StorageClass/CSI provisioner at all (bare SNO install), so Nextcloud's
+# data volume is backed by a manually-created hostPath PersistentVolume - same pattern as
+# Postgres/Keycloak. The hostPath directory needs to exist on the node with mode 0777 AND an
+# SELinux relabel (chcon -Rt container_file_t) before this binds successfully - see
+# deploy_nextcloud.yml.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nextcloud-data-pv
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 50Gi
+  claimRef:
+    name: nextcloud-data-pvc
+    namespace: nextcloud
+  hostPath:
+    path: /var/lib/local-pvs/nextcloud-data
+  persistentVolumeReclaimPolicy: Retain

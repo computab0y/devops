@@ -1,0 +1,13 @@
+# NOTE: nextcloud-admin (the Secret referenced by deployment.yaml's env) is intentionally
+# NOT included here - it's created imperatively by deploy_nextcloud.yml with a freshly
+# generated password, same reasoning as postgres/secret.yaml elsewhere in this repo not
+# being hardcoded. Apply this base, then run deploy_nextcloud.yml's remaining steps
+# (secret, SCC grant needs the namespace to exist first, occ install, Keycloak SSO client).
+resources:
+  - namespace.yaml
+  - pv.yaml
+  - pvc.yaml
+  - scc-binding.yaml
+  - deployment.yaml
+  - service.yaml
+  - route.yaml

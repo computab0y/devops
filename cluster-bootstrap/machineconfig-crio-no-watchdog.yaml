@@ -1,0 +1,28 @@
+# Disables the crio systemd watchdog on every control-plane node.
+#
+# Why: after a hard/rescue-mode reboot, crio runs a one-time "unclean shutdown" storage
+# integrity check (internal_wipe/internal_repair in crio.toml) before it can start
+# normally. On this cluster that check legitimately took longer than the default
+# WatchdogUSec=1min, so systemd kept killing crio mid-check and restarting it from
+# scratch - an infinite loop ("crio.service: Failed with result 'watchdog'" every
+# 1-3 minutes forever) that blocked etcd/kube-apiserver/kubelet/the router, i.e. the
+# entire cluster, from ever coming back up after that kind of reboot. Disabling the
+# watchdog lets the check actually finish once instead of getting killed partway through
+# every time.
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  name: 99-crio-no-watchdog
+  labels:
+    machineconfiguration.openshift.io/role: master
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    storage:
+      files:
+        - path: /etc/systemd/system/crio.service.d/99-no-watchdog.conf
+          mode: 0644
+          overwrite: true
+          contents:
+            source: data:text/plain;charset=utf-8;base64,W1NlcnZpY2VdCldhdGNoZG9nU2VjPTAK
