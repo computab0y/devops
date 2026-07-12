@@ -1,0 +1,77 @@
+# guacd + a Tailscale sidecar sharing the same pod (and therefore the same network
+# namespace) - the standard, officially-documented pattern for giving a container
+# access to a tailnet. Once the tailscale container brings up its tun interface inside
+# this shared netns, guacd can dial home-network machines directly by their Tailscale
+# IP (100.x.x.x) or MagicDNS name, no proxy/SOCKS layer needed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guacd
+  namespace: guacamole
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: guacd
+  template:
+    metadata:
+      labels:
+        app: guacd
+    spec:
+      serviceAccountName: guacd
+      containers:
+        - name: guacd
+          image: guacamole/guacd
+          ports:
+            - containerPort: 4822
+          volumeMounts:
+            - name: drive
+              mountPath: /etc/guacamole/drive
+        - name: tailscale
+          image: tailscale/tailscale:stable
+          env:
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-authkey
+                  key: TS_AUTHKEY
+            - name: TS_STATE_DIR
+              value: /var/lib/tailscale
+            - name: TS_USERSPACE
+              value: "false"
+            - name: TS_EXTRA_ARGS
+              value: "--hostname=guacd-okd --accept-routes"
+            # The tailscale image auto-detects it's running in Kubernetes and defaults
+            # to storing state in a Kubernetes Secret object (needing extra get/update
+            # RBAC on a "tailscale" Secret). We already have a PVC-backed
+            # TS_STATE_DIR for this, so disable that auto-detection and use the
+            # filesystem instead - simpler, no extra RBAC needed.
+            - name: TS_KUBE_SECRET
+              value: ""
+          securityContext:
+            # NET_ADMIN/NET_RAW capabilities alone were NOT sufficient here - SELinux
+            # confinement (separate from Linux capabilities) still blocked opening
+            # /dev/net/tun with "permission denied". Running just this container
+            # privileged (not the whole pod - guacd itself stays unprivileged) is
+            # Tailscale's own documented fix for SELinux-enforcing hosts like this
+            # CentOS-Stream-CoreOS node. Paired with the guacd ServiceAccount being
+            # bound to the built-in "privileged" SCC (see scc-bindings.yaml).
+            privileged: true
+          volumeMounts:
+            - name: tailscale-state
+              mountPath: /var/lib/tailscale
+            - name: dev-net-tun
+              mountPath: /dev/net/tun
+      volumes:
+        - name: drive
+          persistentVolumeClaim:
+            claimName: guacamole-drive-pvc
+        - name: tailscale-state
+          persistentVolumeClaim:
+            claimName: guacamole-tailscale-state-pvc
+        - name: dev-net-tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice

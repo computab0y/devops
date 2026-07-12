@@ -1,0 +1,19 @@
+# TLS terminates here at the router (edge), using the same *.apps.okd.funky-bash.com
+# Let's Encrypt wildcard cert as everything else in this cluster - this Route entirely
+# replaces the docker-compose original's cloudflared tunnel; nothing needs a separate
+# public exposure mechanism when it's already running on this cluster.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: guacamole
+  namespace: guacamole
+spec:
+  host: guacamole.apps.okd.funky-bash.com
+  to:
+    kind: Service
+    name: guacamole-nginx
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

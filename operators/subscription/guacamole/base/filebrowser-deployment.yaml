@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: filebrowser
+  namespace: guacamole
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: guacamole-filebrowser
+  template:
+    metadata:
+      labels:
+        app: guacamole-filebrowser
+    spec:
+      serviceAccountName: guacamole-filebrowser
+      containers:
+        - name: filebrowser
+          image: filebrowser/filebrowser
+          env:
+            - name: FB_BASEURL
+              value: /
+            # filebrowser's default port (80) needs root/CAP_NET_BIND_SERVICE, which
+            # OpenShift's arbitrary-UID model doesn't grant even with anyuid actually
+            # applying the image's own default UID - moving to a non-privileged port
+            # sidesteps the whole problem, same reasoning as nginx above.
+            - name: FB_PORT
+              value: "8080"
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: drive
+              mountPath: /srv
+            - name: fb-config
+              mountPath: /database
+      volumes:
+        - name: drive
+          persistentVolumeClaim:
+            claimName: guacamole-drive-pvc
+        - name: fb-config
+          persistentVolumeClaim:
+            claimName: guacamole-filebrowser-config-pvc

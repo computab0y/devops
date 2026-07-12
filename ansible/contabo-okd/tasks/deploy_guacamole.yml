@@ -1,0 +1,134 @@
+---
+# Apache Guacamole (browser-based RDP/VNC/SSH gateway) - moved here from a
+# separately-hosted home Linux box running the docker-compose stack in guacamole/ at
+# the repo root. Two things can't live in the kustomize base:
+#   - the hostPath directories (no CSI provisioner on this cluster, same story as
+#     every other stateful app here)
+#   - the guacamole-postgres-secret and tailscale-authkey Secrets - one generated
+#     fresh, one supplied by whoever runs this (see prerequisite below)
+#
+# PREREQUISITE: a Tailscale reusable auth key, generated at
+# https://login.tailscale.com/admin/settings/keys (reusable, tagged, reasonable
+# expiry - e.g. 90 days; note it'll need regenerating and re-supplying when it
+# expires, this task does NOT auto-renew it). Pass it as -e tailscale_authkey=tskey-...
+# or set it in a gitignored vars.local.yml. The guacd pod's Tailscale sidecar uses
+# this to join your tailnet non-interactively; each home PC you want to reach also
+# needs Tailscale installed and joined to the same tailnet (that part is manual, one
+# app install per machine, done outside this playbook).
+#
+# After this deploys, log into https://guacamole.apps.okd.funky-bash.com as the
+# default admin (guacadmin/guacadmin - CHANGE THIS IMMEDIATELY, see below) and add a
+# connection per home PC using its Tailscale IP/MagicDNS name as the hostname.
+
+- name: "guacamole: create hostPath directories on the node"
+  become: true
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0777"
+  loop:
+    - /var/lib/local-pvs/guacamole-postgres
+    - /var/lib/local-pvs/guacamole-tailscale-state
+    - /var/lib/local-pvs/guacamole-drive
+    - /var/lib/local-pvs/guacamole-filebrowser-config
+
+- name: "guacamole: relabel hostPath directories for container access (SELinux)"
+  become: true
+  command: chcon -Rt container_file_t {{ item }}
+  changed_when: true
+  loop:
+    - /var/lib/local-pvs/guacamole-postgres
+    - /var/lib/local-pvs/guacamole-tailscale-state
+    - /var/lib/local-pvs/guacamole-drive
+    - /var/lib/local-pvs/guacamole-filebrowser-config
+
+- name: "guacamole: apply namespace/SCC/storage/workloads/routes"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc apply -k {{ repo_url }}//operators/subscription/guacamole/base?ref={{ repo_ref }}
+  register: guacamole_apply
+  failed_when: false
+  changed_when: "'unchanged' not in guacamole_apply.stdout"
+  # First pass will show postgres/guacamole/guacd failing to progress (their Secrets
+  # don't exist yet) - expected, created next.
+
+- name: "guacamole: check whether the postgres secret already exists"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc get secret guacamole-postgres-secret -n guacamole -o jsonpath={.metadata.name}
+  register: guac_pg_secret_check
+  failed_when: false
+  changed_when: false
+
+- name: "guacamole: create guacamole-postgres-secret with a freshly generated password"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: >
+    oc create secret generic guacamole-postgres-secret -n guacamole
+    --from-literal=POSTGRES_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
+  when: guac_pg_secret_check.rc != 0
+  changed_when: true
+
+- name: "guacamole: check whether the tailscale-authkey secret already exists"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc get secret tailscale-authkey -n guacamole -o jsonpath={.metadata.name}
+  register: guac_ts_secret_check
+  failed_when: false
+  changed_when: false
+
+- name: "guacamole: create tailscale-authkey secret from tailscale_authkey var"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc create secret generic tailscale-authkey -n guacamole
+    --from-literal=TS_AUTHKEY={{ tailscale_authkey }}
+  when: guac_ts_secret_check.rc != 0
+  changed_when: true
+  no_log: true
+  # Fails loudly here (undefined variable) if tailscale_authkey wasn't supplied and
+  # the secret doesn't already exist - intentional, better than deploying a guacd pod
+  # that can never join the tailnet.
+
+- name: "guacamole: second apply pass (workloads can now start with their secrets present)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc apply -k {{ repo_url }}//operators/subscription/guacamole/base?ref={{ repo_ref }}
+  register: guacamole_apply2
+  changed_when: "'unchanged' not in guacamole_apply2.stdout"
+
+- name: "guacamole: wait for the guacd pod (guacd + tailscale sidecar) to be Ready"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc get pods -n guacamole -l app=guacd
+    -o jsonpath={.items[0].status.containerStatuses[*].ready}
+  register: guacd_ready
+  until: "'false' not in guacd_ready.stdout and guacd_ready.stdout | length > 0"
+  retries: 20
+  delay: 10
+  changed_when: false
+
+- name: "guacamole: wait for the guacamole webapp pod to be Ready"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc get pods -n guacamole -l app=guacamole
+    -o jsonpath={.items[0].status.containerStatuses[0].ready}
+  register: guacamole_ready
+  until: guacamole_ready.stdout == "true"
+  retries: 20
+  delay: 10
+  changed_when: false
+
+- name: "guacamole: remind to change the default admin password"
+  debug:
+    msg: >-
+      Guacamole is up at https://guacamole.apps.okd.funky-bash.com - log in with the
+      DEFAULT credentials guacadmin/guacadmin and change that password immediately
+      (Settings > Preferences once logged in), then add a connection per home PC using
+      its Tailscale IP or MagicDNS hostname. Confirm the guacd pod actually joined your
+      tailnet first: `oc exec -n guacamole deploy/guacd -c tailscale -- tailscale status`
+      should list it, not just say "Logged out."

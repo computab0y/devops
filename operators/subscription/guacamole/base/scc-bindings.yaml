@@ -1,0 +1,51 @@
+# guacd's tailscale sidecar needs raw TUN device access to create its tailnet
+# interface. Granting NET_ADMIN/NET_RAW capabilities alone (via a narrower custom SCC)
+# was NOT enough on this cluster - SELinux confinement (a separate enforcement layer
+# from Linux capabilities) still blocked opening /dev/net/tun with "permission
+# denied". Tailscale's own guidance for SELinux-enforcing hosts (which OpenShift/
+# CentOS-Stream-CoreOS is) is to run that one container privileged - that disables
+# SELinux confinement for it specifically, not the whole pod's other container (guacd
+# itself stays unprivileged).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: guacd-privileged
+  namespace: guacamole
+subjects:
+  - kind: ServiceAccount
+    name: guacd
+    namespace: guacamole
+roleRef:
+  kind: ClusterRole
+  name: system:openshift:scc:privileged
+  apiGroup: rbac.authorization.k8s.io
+---
+# postgres:15-alpine and filebrowser/filebrowser aren't built for OpenShift's
+# arbitrary-UID model (same reasoning as Nextcloud's grant elsewhere in this repo).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: guacamole-postgres-anyuid
+  namespace: guacamole
+subjects:
+  - kind: ServiceAccount
+    name: guacamole-postgres
+    namespace: guacamole
+roleRef:
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: guacamole-filebrowser-anyuid
+  namespace: guacamole
+subjects:
+  - kind: ServiceAccount
+    name: guacamole-filebrowser
+    namespace: guacamole
+roleRef:
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+  apiGroup: rbac.authorization.k8s.io

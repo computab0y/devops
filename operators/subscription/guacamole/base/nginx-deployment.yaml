@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: guacamole
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: guacamole-nginx
+  template:
+    metadata:
+      labels:
+        app: guacamole-nginx
+    spec:
+      containers:
+        # nginx:alpine's default entrypoint scripts assume root (writing to
+        # /var/cache/nginx, /etc/nginx/conf.d, etc.) and fail under OpenShift's
+        # arbitrary non-root UID. nginxinc/nginx-unprivileged is purpose-built for
+        # exactly this - non-root by design, no elevated SCC needed.
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+            - name: config
+              mountPath: /usr/share/nginx/html/funky-bash.css
+              subPath: funky-bash.css
+            - name: cache
+              mountPath: /var/cache/nginx
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: guacamole-nginx-config
+        - name: cache
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

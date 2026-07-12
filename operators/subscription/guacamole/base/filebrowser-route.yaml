@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: guacamole-files
+  namespace: guacamole
+spec:
+  host: guacamole-files.apps.okd.funky-bash.com
+  to:
+    kind: Service
+    name: guacamole-filebrowser
+  port:
+    targetPort: 80
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

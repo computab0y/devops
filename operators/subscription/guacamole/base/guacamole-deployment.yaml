@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guacamole
+  namespace: guacamole
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: guacamole
+  template:
+    metadata:
+      labels:
+        app: guacamole
+    spec:
+      containers:
+        - name: guacamole
+          image: guacamole/guacamole
+          env:
+            - name: GUACD_HOSTNAME
+              value: guacd
+            - name: POSTGRESQL_HOSTNAME
+              value: postgres
+            - name: POSTGRESQL_DATABASE
+              value: guacamole_db
+            - name: POSTGRESQL_USER
+              value: guacamole_user
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: guacamole-postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: TOTP_ENABLED
+              value: "true"
+            - name: REMOTE_IP_VALVE_ENABLED
+              value: "true"
+            - name: IP_ADDRESS_HEADER
+              value: X-Forwarded-For
+            - name: MAX_FAILED_LOGINS
+              value: "100"
+          ports:
+            - containerPort: 8080

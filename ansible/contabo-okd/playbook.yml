@@ -141,3 +141,11 @@
       # Depends on operand-sso having already run at least once (needs the "openshift"
       # realm and keycloak-service to exist) - keep this after deploy_sso.yml in the
       # task order.
+
+    - name: "operands: deploy Guacamole (RDP/VNC/SSH gateway into the home network via Tailscale)"
+      include_tasks: tasks/deploy_guacamole.yml
+      tags: [operands, operand-guacamole]
+      # Requires -e tailscale_authkey=tskey-... on first run (see
+      # tasks/deploy_guacamole.yml header for how to generate one). Independent of the
+      # other operands - can run standalone via:
+      #   ansible-playbook playbook.yml --tags operand-guacamole -e tailscale_authkey=tskey-...

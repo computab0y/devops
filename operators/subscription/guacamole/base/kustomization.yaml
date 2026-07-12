@@ -1,0 +1,28 @@
+# NOTE: two Secrets are intentionally NOT included here and must exist before this
+# kustomization is applied (created by deploy_guacamole.yml, same reasoning as
+# nextcloud-admin/postgres secrets elsewhere in this repo not being hardcoded):
+#   - guacamole-postgres-secret (key: POSTGRES_PASSWORD) - freshly generated
+#   - tailscale-authkey (key: TS_AUTHKEY) - a Tailscale reusable auth key, supplied by
+#     whoever runs the deploy (generate one at
+#     https://login.tailscale.com/admin/settings/keys - reusable, tagged, with a
+#     reasonable expiry)
+resources:
+  - namespace.yaml
+  - serviceaccounts.yaml
+  - scc-bindings.yaml
+  - storage.yaml
+  - filebrowser-storage.yaml
+  - postgres-initdb-configmap.yaml
+  - postgres-deployment.yaml
+  - postgres-service.yaml
+  - guacd-deployment.yaml
+  - guacd-service.yaml
+  - guacamole-deployment.yaml
+  - guacamole-service.yaml
+  - nginx-configmap.yaml
+  - nginx-deployment.yaml
+  - nginx-service.yaml
+  - route.yaml
+  - filebrowser-deployment.yaml
+  - filebrowser-service.yaml
+  - filebrowser-route.yaml

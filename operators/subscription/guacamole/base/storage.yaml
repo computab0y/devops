@@ -1,0 +1,91 @@
+# This cluster has no StorageClass/CSI provisioner (bare SNO install), so every
+# volume below is a manually-created hostPath PersistentVolume - same pattern used
+# for Postgres/Keycloak, Nextcloud, and tekton-results elsewhere in this repo. The
+# hostPath directories themselves are created + SELinux-relabeled by
+# deploy_guacamole.yml before this kustomization is applied.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: guacamole-postgres-pv
+spec:
+  accessModes: [ReadWriteOnce]
+  capacity:
+    storage: 2Gi
+  claimRef:
+    name: guacamole-postgres-pvc
+    namespace: guacamole
+  hostPath:
+    path: /var/lib/local-pvs/guacamole-postgres
+  persistentVolumeReclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: guacamole-postgres-pvc
+  namespace: guacamole
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: ""
+  volumeName: guacamole-postgres-pv
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: guacamole-tailscale-state-pv
+spec:
+  accessModes: [ReadWriteOnce]
+  capacity:
+    storage: 200Mi
+  claimRef:
+    name: guacamole-tailscale-state-pvc
+    namespace: guacamole
+  hostPath:
+    path: /var/lib/local-pvs/guacamole-tailscale-state
+  persistentVolumeReclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: guacamole-tailscale-state-pvc
+  namespace: guacamole
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 200Mi
+  storageClassName: ""
+  volumeName: guacamole-tailscale-state-pv
+---
+# Shared between guacd (Guacamole's in-session file transfer feature) and filebrowser
+# (a browsable web UI over the same files) - same reasoning as the docker-compose
+# original, which mounted the same host directory into both containers.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: guacamole-drive-pv
+spec:
+  accessModes: [ReadWriteOnce]
+  capacity:
+    storage: 20Gi
+  claimRef:
+    name: guacamole-drive-pvc
+    namespace: guacamole
+  hostPath:
+    path: /var/lib/local-pvs/guacamole-drive
+  persistentVolumeReclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: guacamole-drive-pvc
+  namespace: guacamole
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: ""
+  volumeName: guacamole-drive-pv

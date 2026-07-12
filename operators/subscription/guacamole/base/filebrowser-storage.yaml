@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: guacamole-filebrowser-config-pv
+spec:
+  accessModes: [ReadWriteOnce]
+  capacity:
+    storage: 200Mi
+  claimRef:
+    name: guacamole-filebrowser-config-pvc
+    namespace: guacamole
+  hostPath:
+    path: /var/lib/local-pvs/guacamole-filebrowser-config
+  persistentVolumeReclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: guacamole-filebrowser-config-pvc
+  namespace: guacamole
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 200Mi
+  storageClassName: ""
+  volumeName: guacamole-filebrowser-config-pv

@@ -1,0 +1,75 @@
+# Same reverse-proxy config as the docker-compose original (path redirect + page
+# title/branding substitution), with two changes from upstream:
+#  - listen 8080 instead of 80 - binding port 80 needs root/CAP_NET_BIND_SERVICE,
+#    which OpenShift's default restricted SCC (arbitrary non-root UID) doesn't grant.
+#  - absolute_redirect off + explicit X-Forwarded-Proto https - without this, nginx's
+#    `return 301 /guacamole/` gets rendered as an ABSOLUTE URL using nginx's own
+#    $scheme/$server_port (http on :8080, since that's all nginx itself ever sees -
+#    TLS already terminated at the OpenShift router in front of it), producing a
+#    broken http://host:8080/guacamole/ redirect visible to the browser. Emitting a
+#    relative Location header instead sidesteps the whole scheme/port guessing problem.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: guacamole-nginx-config
+  namespace: guacamole
+data:
+  default.conf: "server {\n    listen 8080;\n    server_name localhost;\n    absolute_redirect off;\n\n\
+    \    location = / {\n        return 301 /guacamole/;\n    }\n\n    location / {\n        proxy_pass\
+    \ http://guacamole:8080;\n        proxy_buffering off;\n        proxy_http_version 1.1;\n        proxy_set_header\
+    \ Host $host;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header\
+    \ X-Forwarded-Proto https;\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header\
+    \ Connection $http_connection;\n\n        # Prevent backend compression so Nginx can read and modify\
+    \ the text\n        proxy_set_header Accept-Encoding \"\";\n\n        # Inject custom page title and\
+    \ hide the logo text across all file types\n        sub_filter 'Apache Guacamole' 'Command Centre';\n\
+    \        sub_filter_once off;\n        sub_filter_types *;\n    }\n}\n"
+  funky-bash.css: '@import url(''https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'');
+
+    body, html { background: #0f172a !important; font-family: ''Inter'', sans-serif !important; color:
+    #f8fafc !important; }
+
+    body::before, body::after { display: none !important; }
+
+    .login-ui { background: #0f172a !important; display: flex !important; align-items: center !important;
+    justify-content: center !important; min-height: 100vh !important; }
+
+    .login-dialog-middle { display: flex !important; align-items: center !important; justify-content:
+    center !important; width: 100% !important; }
+
+    .login-dialog.notification { background: #1e293b !important; border: 1px solid #334155 !important;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important; border-radius: 8px !important; padding: 40px !important;
+    width: 400px !important; max-width: 95vw !important; }
+
+    .login-dialog.notification::before, .login-dialog.notification::after { display: none !important;
+    }
+
+    .logo { display: none !important; }
+
+    .version { text-align: center !important; margin-bottom: 24px !important; color: #94a3b8 !important;
+    }
+
+    .app-name { font-size: 1.5rem !important; font-weight: 600 !important; color: #e2e8f0 !important;
+    text-align: center !important; margin-bottom: 20px !important; letter-spacing: normal !important;
+    animation: none !important; text-shadow: none !important; }
+
+    .app-name::after { content: none !important; }
+
+    .login-dialog .labeled-field label { color: #cbd5e1 !important; font-size: 0.85rem !important; font-weight:
+    500 !important; }
+
+    .login-dialog input[type="text"], .login-dialog input[type="password"] { background: #0f172a !important;
+    border: 1px solid #475569 !important; color: #f8fafc !important; border-radius: 4px !important; padding:
+    10px 12px !important; }
+
+    .login-dialog input[type="text"]:focus, .login-dialog input[type="password"]:focus { border-color:
+    #3b82f6 !important; box-shadow: 0 0 0 1px #3b82f6 !important; outline: none !important; }
+
+    .login-dialog .login-button { background: #2563eb !important; color: #ffffff !important; border: none
+    !important; border-radius: 4px !important; padding: 10px 20px !important; font-weight: 500 !important;
+    width: 100% !important; transition: background 0.2s !important; }
+
+    .login-dialog .login-button:hover { background: #1d4ed8 !important; }
+
+    .header { background: #1e293b !important; border-bottom: 1px solid #334155 !important; }
+
+    '
