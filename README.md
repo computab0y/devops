@@ -8,6 +8,12 @@ Infrastructure, operator subscriptions, Tekton pipelines, and deployment package
 
 ```
 devops/
+├── apps/                              # Application source (built by Tekton, not applied via kustomize)
+│   └── sample-app/                    # Minimal status app — Dockerfile + stdlib Python
+│
+├── argocd/                            # ArgoCD Application CRs (applied once, then self-managing)
+│   └── sample-app-application.yaml
+│
 ├── cluster-bootstrap/                # CatalogSources (redhat-operators, certified-operators)
 │   ├── catalogsources.yaml
 │   └── kustomization.yaml
@@ -41,6 +47,9 @@ devops/
 │       │       │   ├── ftp-file-pipeline.yaml      # ftp-file-pipeline Pipeline
 │       │       │   └── pipeline-config.yaml        # ConfigMap + Secret
 │       │       └── health-check/     # Cluster health check pipeline
+│       ├── sample-app/                # sample-app: build (Tekton) + deploy (ArgoCD) + Vault + Grafana demo
+│       │   └── base/
+│       │       └── pipeline/          # sample-app-ci Pipeline: clone -> buildah build/push -> update manifest in git
 │       ├── test-app/                 # Mock trading API, Swagger UI, mock FTP server
 │       └── vault/                    # HashiCorp Vault deployment
 │
@@ -64,7 +73,21 @@ devops/
 
 ## Pipelines
 
-Two Tekton pipelines are deployed in the `openshift-pipelines-operator` namespace.
+### sample-app-ci
+
+Full GitHub → Tekton → ArgoCD → Vault → Grafana demo pipeline. See
+[`apps/sample-app/README.md`](apps/sample-app/README.md) for the complete
+walkthrough — setup, Vault secrets, running the pipeline, and the Grafana link.
+
+| | |
+|---|---|
+| Source | `operators/subscription/sample-app/base/pipeline/pipeline.yaml` |
+| Namespace | `sample-app` |
+| App source | `apps/sample-app/` |
+| Deploy mechanism | ArgoCD Application `argocd/sample-app-application.yaml` (Tekton only builds + commits the image tag; ArgoCD applies it to the cluster) |
+| Vault paths | `secret/sample-app` (app credential), `secret/sample-app-pipeline` (git push token) |
+
+Two other Tekton pipelines are deployed in the `openshift-pipelines-operator` namespace.
 Run `keycloak-vault-sync` first — it populates Vault and the username dropdown for `ftp-file-pipeline`.
 
 ### keycloak-vault-sync

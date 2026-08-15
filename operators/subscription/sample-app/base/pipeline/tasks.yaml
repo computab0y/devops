@@ -1,0 +1,49 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: update-manifest-image
+  namespace: sample-app
+spec:
+  description: |
+    Rewrites the Deployment's image tag in the cloned repo and pushes the
+    commit back to git. ArgoCD (watching this repo/path) then syncs the
+    change to the cluster — this is what connects the Tekton build to the
+    ArgoCD deploy.
+  params:
+  - name: image
+    type: string
+    description: "Fully-qualified image ref, including tag, to deploy"
+  - name: manifest-path
+    type: string
+    description: "Path (within the repo) of the Deployment manifest to patch"
+  workspaces:
+  - name: source
+    description: "Cloned repo, already checked out by the fetch-source task"
+  - name: git-credentials
+    description: "basic-auth workspace with a GitHub push token (sourced from Vault)"
+  steps:
+  - name: commit-and-push
+    image: alpine/git:latest
+    workingDir: $(workspaces.source.path)
+    script: |
+      #!/usr/bin/env sh
+      set -eu
+
+      git config --global user.email "tekton-pipeline@sample-app.local"
+      git config --global user.name "sample-app CI"
+      git config --global credential.helper store
+
+      GIT_USER="$(cat "$(workspaces.git-credentials.path)/username")"
+      GIT_TOKEN="$(cat "$(workspaces.git-credentials.path)/password")"
+      echo "https://${GIT_USER}:${GIT_TOKEN}@github.com" > ~/.git-credentials
+
+      sed -i "s#image: image-registry.openshift-image-registry.svc:5000/sample-app/sample-app:.*#image: $(params.image)#" "$(params.manifest-path)"
+
+      if git diff --quiet -- "$(params.manifest-path)"; then
+        echo "No image change — skipping commit."
+        exit 0
+      fi
+
+      git add "$(params.manifest-path)"
+      git commit -m "sample-app: deploy $(params.image)"
+      git push origin HEAD:main

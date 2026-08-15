@@ -1,0 +1,27 @@
+# ArgoCD Application for sample-app. Apply once (it's the one resource in
+# this repo not applied via `oc apply -k`, since it targets the openshift-gitops
+# namespace and bootstraps ArgoCD's ownership of everything under
+# operators/subscription/sample-app/base):
+#   oc apply -f argocd/sample-app-application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sample-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/computab0y/devops.git
+    targetRevision: main
+    path: operators/subscription/sample-app/base
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sample-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
