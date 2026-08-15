@@ -1,0 +1,10 @@
+resources:
+- namespace.yaml
+- imagestream.yaml
+- external-secret.yaml
+- deployment.yaml
+- service.yaml
+- route.yaml
+- pipeline/git-credentials-external-secret.yaml
+- pipeline/tasks.yaml
+- pipeline/pipeline.yaml

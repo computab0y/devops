@@ -1,0 +1,26 @@
+# Example PipelineRun — not applied by kustomize/ArgoCD.
+# Start with:
+#   oc create -f operators/subscription/sample-app/base/pipeline/pipelinerun.yaml
+# or:
+#   tkn pipeline start sample-app-ci -n sample-app \
+#     --workspace name=source,claimName=sample-app-source-pvc \
+#     --workspace name=git-credentials,secret=sample-app-git-credentials
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: sample-app-ci-
+  namespace: sample-app
+spec:
+  pipelineRef:
+    name: sample-app-ci
+  workspaces:
+  - name: source
+    volumeClaimTemplate:
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+  - name: git-credentials
+    secret:
+      secretName: sample-app-git-credentials

@@ -1,0 +1,67 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: sample-app-ci
+  namespace: sample-app
+spec:
+  description: |
+    CI for sample-app: clone -> build & push image (buildah) -> update the
+    image tag in git. ArgoCD owns the actual cluster deploy by syncing the
+    manifest change this pipeline commits.
+  params:
+  - name: repo-url
+    type: string
+    default: "https://github.com/computab0y/devops.git"
+  - name: revision
+    type: string
+    default: "main"
+  - name: image
+    type: string
+    default: "image-registry.openshift-image-registry.svc:5000/sample-app/sample-app"
+  workspaces:
+  - name: source
+  - name: git-credentials
+  tasks:
+  - name: fetch-source
+    taskRef:
+      name: git-clone
+      kind: ClusterTask
+    workspaces:
+    - name: output
+      workspace: source
+    - name: basic-auth
+      workspace: git-credentials
+    params:
+    - name: url
+      value: $(params.repo-url)
+    - name: revision
+      value: $(params.revision)
+
+  - name: build-and-push
+    runAfter: ["fetch-source"]
+    taskRef:
+      name: buildah
+      kind: ClusterTask
+    workspaces:
+    - name: source
+      workspace: source
+    params:
+    - name: IMAGE
+      value: "$(params.image):$(tasks.fetch-source.results.commit)"
+    - name: CONTEXT
+      value: "apps/sample-app"
+
+  - name: update-manifest
+    runAfter: ["build-and-push"]
+    taskRef:
+      name: update-manifest-image
+    workspaces:
+    - name: source
+      workspace: source
+    - name: git-credentials
+      workspace: git-credentials
+    params:
+    - name: image
+      value: "$(params.image):$(tasks.fetch-source.results.commit)"
+    - name: manifest-path
+      value: "operators/subscription/sample-app/base/deployment.yaml"
