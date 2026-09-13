@@ -1,0 +1,142 @@
+# NOTE: The Artifactory Repository Configuration REST API this Task calls
+# (GET/POST /api/repositories/{repoKey}) is gated behind an Artifactory Pro/
+# Enterprise license. On Artifactory OSS / JFrog Container Registry every run
+# fails with HTTP 400 "This REST API is available only in Artifactory Pro".
+# Confirmed against a real OSS instance on 2026-09-13. The triggering CronJob
+# (cronjob.yaml) is suspended until this cluster's Artifactory is licensed —
+# see docs/artifactory-dockerhub-sync-guide.md for the manual workaround.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: artifactory-dockerhub-sync
+  namespace: openshift-pipelines-operator
+spec:
+  params:
+  - name: artifactory-url
+    type: string
+    description: "Base URL of the Artifactory instance, e.g. http://artifactory.artifactory.svc:8082"
+    default: ""
+  - name: repo-keys
+    type: string
+    description: "Comma-separated list of remote repository keys to update"
+    default: "docker-remote,oci-remote"
+  - name: vault-address
+    type: string
+    description: "The address of the Vault server"
+    default: "http://vault.vault.svc:8200"
+  steps:
+  - name: sync
+    image: python:3.11-slim
+    env:
+    - name: VAULT_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: vault-token
+          key: token
+    - name: VAULT_SECRET_DOCKERHUB
+      valueFrom:
+        configMapKeyRef:
+          name: artifactory-pipeline-config
+          key: vault-secret-dockerhub
+    - name: ARTIFACTORY_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: artifactory-pipeline-env
+          key: artifactory-username
+    - name: ARTIFACTORY_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: artifactory-pipeline-env
+          key: artifactory-token
+    script: |
+      #!/usr/bin/env python3
+      import os, sys, json, base64, urllib.request
+
+      VAULT_ADDR         = "$(params.vault-address)"
+      ARTIFACTORY_URL    = "$(params.artifactory-url)".rstrip("/")
+      REPO_KEYS          = [k.strip() for k in "$(params.repo-keys)".split(",") if k.strip()]
+      VAULT_SECRET_DOCKERHUB = os.environ.get("VAULT_SECRET_DOCKERHUB")
+      VAULT_TOKEN         = os.environ.get("VAULT_TOKEN")
+      ARTIFACTORY_USERNAME = os.environ.get("ARTIFACTORY_USERNAME")
+      ARTIFACTORY_TOKEN    = os.environ.get("ARTIFACTORY_TOKEN")
+
+      if not ARTIFACTORY_URL:
+          print("ERROR: artifactory-url param is required.")
+          sys.exit(1)
+
+      # ── Vault ───────────────────────────────────────────────────────────────
+
+      def vault_read(path):
+          req = urllib.request.Request(
+              f"{VAULT_ADDR}/v1/secret/data/{path}",
+              headers={"X-Vault-Token": VAULT_TOKEN}
+          )
+          try:
+              with urllib.request.urlopen(req) as r:
+                  return json.loads(r.read().decode()).get("data", {}).get("data", {})
+          except Exception as e:
+              print(f"ERROR: Vault read '{path}' failed: {e}")
+              sys.exit(1)
+
+      # ── Artifactory ─────────────────────────────────────────────────────────
+
+      def artifactory_auth_header():
+          creds = f"{ARTIFACTORY_USERNAME}:{ARTIFACTORY_TOKEN}".encode()
+          return {"Authorization": f"Basic {base64.b64encode(creds).decode()}"}
+
+      def artifactory_get_repo(repo_key):
+          url = f"{ARTIFACTORY_URL}/artifactory/api/repositories/{repo_key}"
+          req = urllib.request.Request(url, headers=artifactory_auth_header())
+          try:
+              with urllib.request.urlopen(req) as r:
+                  return json.loads(r.read().decode())
+          except Exception as e:
+              body = e.read().decode() if hasattr(e, "read") else ""
+              print(f"ERROR: Failed to fetch repo config for '{repo_key}': {e} {body}")
+              return None
+
+      def artifactory_update_repo(repo_key, config):
+          url = f"{ARTIFACTORY_URL}/artifactory/api/repositories/{repo_key}"
+          headers = artifactory_auth_header()
+          headers["Content-Type"] = "application/json"
+          req = urllib.request.Request(url, data=json.dumps(config).encode(), headers=headers, method="POST")
+          try:
+              with urllib.request.urlopen(req):
+                  print(f"'{repo_key}' updated with DockerHub credentials.")
+                  return True
+          except Exception as e:
+              body = e.read().decode() if hasattr(e, "read") else ""
+              print(f"ERROR: Failed to update repo config for '{repo_key}': {e} {body}")
+              return False
+
+      # ── Main ────────────────────────────────────────────────────────────────
+
+      print(f"Reading DockerHub credentials from Vault (secret/{VAULT_SECRET_DOCKERHUB})...")
+      dockerhub = vault_read(VAULT_SECRET_DOCKERHUB)
+      dh_username = dockerhub.get("username")
+      dh_token    = dockerhub.get("token")
+
+      if not dh_username or not dh_token:
+          print(f"ERROR: Vault secret 'secret/{VAULT_SECRET_DOCKERHUB}' must contain 'username' and 'token' fields.")
+          sys.exit(1)
+
+      print(f"Updating {len(REPO_KEYS)} repo(s): {REPO_KEYS}")
+      results = {}
+      for repo_key in REPO_KEYS:
+          config = artifactory_get_repo(repo_key)
+          if config is None:
+              results[repo_key] = False
+              continue
+          config["username"] = dh_username
+          config["password"] = dh_token
+          results[repo_key] = artifactory_update_repo(repo_key, config)
+
+      print(f"\n{'='*50}")
+      print("  Artifactory DockerHub credential sync complete")
+      print(f"{'='*50}")
+      for repo_key, ok in results.items():
+          print(f"  - {repo_key}: {'OK' if ok else 'FAILED'}")
+      print(f"{'='*50}\n")
+
+      if not all(results.values()):
+          sys.exit(1)

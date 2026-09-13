@@ -1,0 +1,19 @@
+# Grants the default ServiceAccount the anyuid SCC so stock DockerHub images
+# (nginx, httpd) can run as their default root user. Stock images generally
+# aren't built to OpenShift's "arbitrary UID" convention: nginx can't write to
+# /var/cache/nginx and httpd can't bind port 80 under the default restricted
+# SCC. Scoped to this one throwaway namespace — applied 2026-09-13 with Ray's
+# explicit approval (a security-relevant permission grant).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: default-anyuid
+  namespace: artifactory-pullthrough-test
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: artifactory-pullthrough-test
+roleRef:
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+  apiGroup: rbac.authorization.k8s.io

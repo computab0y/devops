@@ -14,3 +14,7 @@ resources:
 - ftp-pipeline/pipeline.yaml
 - ftp-pipeline/ftp-file-pipeline.yaml
 - ftp-pipeline/ftp-vm-ssh-key.yaml
+- artifactory-pipeline/task.yaml
+- artifactory-pipeline/pipeline.yaml
+- artifactory-pipeline/pipeline-config.yaml
+- artifactory-pipeline/cronjob.yaml

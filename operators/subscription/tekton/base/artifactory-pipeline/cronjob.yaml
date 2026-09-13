@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: artifactory-dockerhub-sync-trigger
+  namespace: openshift-pipelines-operator
+spec:
+  # Weekly, Sunday 03:00 — adjust to taste, or trigger manually any time you rotate the DockerHub token in Vault.
+  schedule: "0 3 * * 0"
+  # Suspended: this Task calls the Artifactory Repository Configuration REST API
+  # (GET/POST /api/repositories/{repoKey}), which JFrog gates behind a Pro/Enterprise
+  # license. On Artifactory OSS / JFrog Container Registry it always fails with
+  # HTTP 400 "This REST API is available only in Artifactory Pro". Until this
+  # cluster's Artifactory is licensed, set the DockerHub account on docker-remote
+  # and oci-remote by hand instead (Administration > Repositories > Remote > <repo>
+  # > Basic > User Name / Password-Access Token). Flip this back to false if you
+  # upgrade to Pro. See docs/artifactory-dockerhub-sync-guide.md.
+  suspend: true
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: pipeline
+          containers:
+          - name: trigger
+            image: quay.io/openshift/origin-cli:latest
+            env:
+            - name: ARTIFACTORY_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: artifactory-pipeline-config
+                  key: artifactory-url
+            - name: REPO_KEYS
+              valueFrom:
+                configMapKeyRef:
+                  name: artifactory-pipeline-config
+                  key: repo-keys
+            command:
+            - /bin/bash
+            - -c
+            - >
+              oc create pipelinerun artifactory-dockerhub-sync-$(date +%Y%m%d-%H%M)
+              --from-pipeline artifactory-dockerhub-sync
+              -p artifactory-url=$ARTIFACTORY_URL
+              -p repo-keys=$REPO_KEYS
+          restartPolicy: OnFailure

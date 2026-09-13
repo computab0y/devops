@@ -1,0 +1,30 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: artifactory-dockerhub-sync
+  namespace: openshift-pipelines-operator
+spec:
+  params:
+  - name: artifactory-url
+    type: string
+    description: "Base URL of the Artifactory instance, e.g. http://artifactory.artifactory.svc:8082"
+    default: ""
+  - name: repo-keys
+    type: string
+    description: "Comma-separated list of remote repository keys to update"
+    default: "docker-remote,oci-remote"
+  - name: vault-address
+    type: string
+    description: "The address of the Vault server"
+    default: "http://vault.vault.svc:8200"
+  tasks:
+  - name: sync-dockerhub-creds
+    taskRef:
+      name: artifactory-dockerhub-sync
+    params:
+    - name: artifactory-url
+      value: $(params.artifactory-url)
+    - name: repo-keys
+      value: $(params.repo-keys)
+    - name: vault-address
+      value: $(params.vault-address)

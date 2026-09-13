@@ -13,7 +13,8 @@ devops/
 │   └── kustomization.yaml
 │
 ├── docs/                             # Guides and documentation
-│   └── keycloak-vault-sync-guide.md  # Step-by-step guide to build the Keycloak→Vault pipeline
+│   ├── keycloak-vault-sync-guide.md  # Step-by-step guide to build the Keycloak→Vault pipeline
+│   └── artifactory-dockerhub-sync-guide.md  # Step-by-step guide to build the Artifactory→DockerHub sync pipeline
 │
 ├── guacamole/                        # Apache Guacamole (remote desktop gateway)
 │   ├── docker-compose.yml            # Full stack: Guacamole, guacd, PostgreSQL, nginx
@@ -40,8 +41,14 @@ devops/
 │       │       │   ├── ftp-operations-task.yaml    # ftp-operations Task
 │       │       │   ├── ftp-file-pipeline.yaml      # ftp-file-pipeline Pipeline
 │       │       │   └── pipeline-config.yaml        # ConfigMap + Secret
+│       │       ├── artifactory-pipeline/  # Artifactory→DockerHub credential sync pipeline
+│       │       │   ├── task.yaml                   # artifactory-dockerhub-sync Task
+│       │       │   ├── pipeline.yaml               # artifactory-dockerhub-sync Pipeline
+│       │       │   ├── pipeline-config.yaml        # ConfigMap + Secret
+│       │       │   └── cronjob.yaml                # Weekly auto re-sync trigger
 │       │       └── health-check/     # Cluster health check pipeline
 │       ├── test-app/                 # Mock trading API, Swagger UI, mock FTP server
+│       ├── artifactory-pullthrough-test/  # Proof that images pull through Artifactory's docker-remote
 │       └── vault/                    # HashiCorp Vault deployment
 │
 ├── packages/                         # Standalone deployment packages
@@ -64,8 +71,9 @@ devops/
 
 ## Pipelines
 
-Two Tekton pipelines are deployed in the `openshift-pipelines-operator` namespace.
+Three Tekton pipelines are deployed in the `openshift-pipelines-operator` namespace.
 Run `keycloak-vault-sync` first — it populates Vault and the username dropdown for `ftp-file-pipeline`.
+`artifactory-dockerhub-sync` is independent of the other two.
 
 ### keycloak-vault-sync
 
@@ -110,6 +118,43 @@ Connects to an FTP server as a Vault-managed user and performs file operations.
 ```bash
 tkn pipeline start ftp-file-pipeline -p username=myuser -p action=list-files -p target-folder=SUBMISSION -n openshift-pipelines-operator
 ```
+
+### artifactory-dockerhub-sync
+
+Reads DockerHub credentials from Vault and writes them into the Artifactory `docker-remote` / `oci-remote`
+remote repository configs, clearing the "set a DockerHub account" admin notice.
+
+**⚠️ Currently non-functional on Artifactory OSS / JFrog Container Registry:** the
+Artifactory Repository Configuration REST API this Task calls is Pro/Enterprise-licensed
+only — confirmed by a real run against this cluster's Artifactory on 2026-09-13
+(`HTTP 400: "This REST API is available only in Artifactory Pro"`). The
+`artifactory-dockerhub-sync-trigger` CronJob is suspended as a result. The admin notice
+was cleared by hand instead — see `docs/artifactory-dockerhub-sync-guide.md` for the manual
+steps and full background. This pipeline is left in place in case Artifactory is ever
+licensed for Pro.
+
+| | |
+|---|---|
+| Source | `operators/subscription/tekton/base/artifactory-pipeline/task.yaml` |
+| Namespace | `openshift-pipelines-operator` |
+| Vault path | `secret/dockerhub` |
+
+**Start parameters:**
+
+| Parameter | Default | Description |
+|---|---|---|
+| `artifactory-url` | _(required)_ | Base URL of the Artifactory instance |
+| `repo-keys` | `docker-remote,oci-remote` | Comma-separated remote repository keys to update |
+| `vault-address` | `http://vault.vault.svc:8200` | Vault server address |
+
+```bash
+tkn pipeline start artifactory-dockerhub-sync -p artifactory-url=http://artifactory.artifactory.svc:8082 -n openshift-pipelines-operator
+```
+
+A weekly CronJob (`artifactory-dockerhub-sync-trigger`, currently suspended — see above)
+would otherwise re-run this automatically — see `docs/artifactory-dockerhub-sync-guide.md`
+for full setup, including seeding Vault with DockerHub credentials and generating an
+Artifactory access token.
 
 ---
 

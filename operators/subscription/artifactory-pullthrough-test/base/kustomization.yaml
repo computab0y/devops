@@ -1,0 +1,5 @@
+resources:
+- namespace.yaml
+- rbac.yaml
+- nginx.yaml
+- httpd.yaml

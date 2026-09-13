@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: artifactory-pipeline-config
+  namespace: openshift-pipelines-operator
+data:
+  vault-secret-dockerhub: "dockerhub"
+  # Used by the CronJob trigger — fill in your real Artifactory URL (the manual tkn/console
+  # start can still override this per-run).
+  artifactory-url: "CHANGE_ME"
+  repo-keys: "docker-remote,oci-remote"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: artifactory-pipeline-env
+  namespace: openshift-pipelines-operator
+type: Opaque
+stringData:
+  # Admin (or scoped service) user in Artifactory used to call the repositories API.
+  artifactory-username: "CHANGE_ME"
+  # An Artifactory access token / identity token for that user (Administration > Access Tokens,
+  # or User Profile > Generate an Identity Token on newer versions). Do not use the account password.
+  artifactory-token: "CHANGE_ME"

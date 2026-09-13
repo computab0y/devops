@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-via-artifactory
+  namespace: artifactory-pullthrough-test
+  labels:
+    app: nginx-via-artifactory
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-via-artifactory
+  template:
+    metadata:
+      labels:
+        app: nginx-via-artifactory
+    spec:
+      imagePullSecrets:
+      - name: artifactory-pull-secret
+      containers:
+      - name: nginx
+        image: artifactory-artifactory.apps.okd.funky-bash.com/docker/library/nginx:alpine
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-via-artifactory
+  namespace: artifactory-pullthrough-test
+spec:
+  selector:
+    app: nginx-via-artifactory
+  ports:
+  - port: 80
+    targetPort: 80
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: nginx-via-artifactory
+  namespace: artifactory-pullthrough-test
+spec:
+  to:
+    kind: Service
+    name: nginx-via-artifactory
+  port:
+    targetPort: 80
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
