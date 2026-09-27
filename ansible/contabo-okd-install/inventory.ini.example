@@ -1,0 +1,6 @@
+# terraform/contabo-okd-rebuild writes inventory.ini; this is what it looks like.
+[installer_host]
+okd-node ansible_host=62.84.179.61 ansible_user=root ansible_ssh_private_key_file=~/.ssh/contabo_okd_ssh_key
+
+[installer_host:vars]
+ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'

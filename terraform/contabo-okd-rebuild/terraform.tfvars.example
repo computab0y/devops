@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars (gitignored) and fill in. Do NOT put confirm_wipe_instance_id
+# here - pass it on the command line so a stray `terraform apply` can never wipe the node.
+
+contabo_client_id     = "INT-XXXXXXXX"
+contabo_client_secret = "REPLACE_ME"
+contabo_api_user      = "you@example.com"
+contabo_api_password  = "REPLACE_ME"
+
+cloudflare_api_token = "REPLACE_ME"
+cloudflare_zone_id   = "REPLACE_ME"
+
+existing_instance_id = "203424384"
+product_id           = "REPLACE_ME" # cntb get instance 203424384 -o json
+debian_image_id      = "REPLACE_ME" # cntb get images --standardImage=true | grep -i debian-12
+instance_ipv4        = "62.84.179.61"
+
+ssh_private_key_path = "~/.ssh/contabo_okd_ssh_key"

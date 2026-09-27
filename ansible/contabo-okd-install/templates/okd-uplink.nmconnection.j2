@@ -1,0 +1,18 @@
+# Static uplink for the Contabo VPS (Contabo does not hand out addresses via DHCP).
+# Matched by MAC so it works whatever SCOS names the NIC (ens18 on this host).
+# Used for the live (kexec'd) installer and, via a MachineConfig, on the installed node.
+[connection]
+id=okd-uplink
+type=ethernet
+autoconnect=true
+
+[ethernet]
+mac-address={{ node.mac }}
+
+[ipv4]
+method=manual
+address1={{ node.ip }}/{{ node.prefix }},{{ node.gateway }}
+dns={{ node.dns | join(';') }};
+
+[ipv6]
+method=disabled

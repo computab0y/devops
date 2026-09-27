@@ -1,0 +1,29 @@
+# From-scratch OKD SNO install onto the Contabo VPS, after terraform/contabo-okd-rebuild
+# has reinstalled it as plain Debian. Override via -e or a gitignored vars.local.yml.
+
+okd_version: "4.22.0-okd-scos.10"
+cluster_name: "okd"
+base_domain: "funky-bash.com"
+
+# Private key for root@Debian and core@SCOS; the .pub next to it goes into install-config.
+# Created by the playbook if missing. ansible/contabo-okd/inventory.ini uses the same path.
+ssh_private_key_path: "~/.ssh/contabo_okd_ssh_key"
+
+# Red Hat pull secret (needed later by day-2 for registry.redhat.io operator catalogs).
+pull_secret_path: "~/Downloads/pull-secret.txt"
+
+# Working dir for openshift-install on this Mac. Holds the admin kubeconfig and
+# kubeadmin password afterwards - keep it, back it up, never commit it.
+install_dir: "~/okd-install-contabo"
+
+# Break-glass HTPasswd user served by the `developer` identity provider that
+# operators/subscription/sso/base/openshift-oauth.yaml already declares (Secret
+# openshift-config/htpass-secret). Password is generated and stored in
+# {{ install_dir }}/auth/breakglass-password.
+breakglass_user: "breakglass"
+
+# Used only if the Debian host's resolv.conf has nothing usable (Contabo resolvers).
+fallback_dns: ["213.136.95.10", "213.136.95.11"]
+
+# Minutes to wait for bootstrap / full install to complete.
+bootstrap_timeout_min: 60
