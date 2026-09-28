@@ -1,0 +1,30 @@
+# must-gather-clean runtime image for the sanitised must-gather pipeline.
+# Downloads the upstream linux release for the build host's architecture and
+# verifies BOTH the tarball and the extracted binary against pinned SHA256 values
+# (taken from the release's SHA256_SUM file).
+FROM registry.access.redhat.com/ubi9/ubi:latest
+
+ARG MGC_VERSION=v0.0.5
+ARG MGC_SHA256_TGZ_AMD64=d9cbe97bd052c8775185055d75d45f1933d706af96dc0c54c4ce2b1db2167b43
+ARG MGC_SHA256_BIN_AMD64=73db97926b1d6168faefd9bb7ca70b95d6087edc656d18c3a773c6c308970f72
+ARG MGC_SHA256_TGZ_ARM64=068c2f36c5fb0e4ce7a0c635f5bb1d9e81f7fd10fc629b12d2e5c6fb321ea002
+ARG MGC_SHA256_BIN_ARM64=2bd947efa8f392287d7e2392b6405815885eb8da6fda147dfa57c15642076314
+
+RUN set -euo pipefail; \
+    case "$(uname -m)" in \
+      x86_64)  arch=amd64; tgz_sum=$MGC_SHA256_TGZ_AMD64; bin_sum=$MGC_SHA256_BIN_AMD64 ;; \
+      aarch64) arch=arm64; tgz_sum=$MGC_SHA256_TGZ_ARM64; bin_sum=$MGC_SHA256_BIN_ARM64 ;; \
+      *) echo "unsupported arch $(uname -m)" >&2; exit 1 ;; \
+    esac; \
+    cd /tmp; \
+    curl -fsSL -o mgc.tgz "https://github.com/openshift/must-gather-clean/releases/download/${MGC_VERSION}/must-gather-clean-linux-${arch}.tar.gz"; \
+    echo "${tgz_sum}  mgc.tgz" | sha256sum --check; \
+    tar -xzf mgc.tgz must-gather-clean; \
+    echo "${bin_sum}  must-gather-clean" | sha256sum --check; \
+    install -m 0755 must-gather-clean /usr/local/bin/must-gather-clean; \
+    rm -f mgc.tgz must-gather-clean; \
+    must-gather-clean version
+
+# bash, tar, gzip, grep, findutils, coreutils and curl all ship in ubi9/ubi.
+ENV HOME=/tmp
+USER 1001

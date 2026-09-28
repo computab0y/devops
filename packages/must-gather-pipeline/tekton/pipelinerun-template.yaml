@@ -1,0 +1,33 @@
+# Used by scripts/start-run.sh, which fills in RUN_ID / CLUSTER_ALIAS / UPLOAD.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: sanitised-must-gather-
+  namespace: must-gather-pipelines
+spec:
+  pipelineRef:
+    name: sanitised-must-gather
+  taskRunTemplate:
+    # no SCC grants -> pods admitted under restricted-v2
+    serviceAccountName: must-gather-tasks
+  timeouts:
+    pipeline: 2h
+  params:
+    - { name: clusterAlias, value: CLUSTER_ALIAS }
+    - { name: runId, value: RUN_ID }
+    - { name: since, value: 24h }
+    - { name: upload, value: "UPLOAD" }
+    - { name: artifactoryUrl, value: ARTIFACTORY_URL }
+  workspaces:
+    - name: data
+      persistentVolumeClaim:
+        claimName: must-gather-data
+    - name: kubeconfig
+      secret:
+        secretName: must-gather-kubeconfig
+    - name: mgc-config
+      secret:
+        secretName: mgc-config
+    - name: artifactory-auth
+      secret:
+        secretName: artifactory-auth

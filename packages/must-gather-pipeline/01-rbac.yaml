@@ -1,0 +1,40 @@
+# Two identities:
+#  - must-gather-runner: what `oc adm must-gather` authenticates as (via the kubeconfig
+#    Secret built by scripts/create-kubeconfig-secret.sh). must-gather creates a temporary
+#    namespace and a privileged gather pod, so this needs cluster-admin.
+#  - must-gather-tasks: what the Tekton task pods run as. No RBAC and no SCC grants, so
+#    OpenShift admits the pods under restricted-v2 (OpenShift Pipelines' default
+#    `pipeline` SA would get pipelines-scc instead).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: must-gather-runner
+  namespace: must-gather-pipelines
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: must-gather-runner-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: must-gather-runner
+    namespace: must-gather-pipelines
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: must-gather-runner-token
+  namespace: must-gather-pipelines
+  annotations:
+    kubernetes.io/service-account.name: must-gather-runner
+type: kubernetes.io/service-account-token
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: must-gather-tasks
+  namespace: must-gather-pipelines

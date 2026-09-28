@@ -1,0 +1,4 @@
+config/mgc-config.yaml
+config/canaries.txt
+*.tar.gz
+*.sha256

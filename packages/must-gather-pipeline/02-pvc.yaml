@@ -1,0 +1,12 @@
+# Default StorageClass (ceph-block on this cluster). 10Gi: raw + clean + tarball of one
+# 24h gather fit comfortably; raw/ is purged after packaging.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: must-gather-data
+  namespace: must-gather-pipelines
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi

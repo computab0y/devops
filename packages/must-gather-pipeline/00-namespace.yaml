@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: must-gather-pipelines
+  labels:
+    # Surface anything that would not pass PodSecurity "restricted"; SCC admission
+    # (restricted-v2 for the must-gather-tasks SA) is what actually constrains the pods.
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

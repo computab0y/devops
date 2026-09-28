@@ -1,0 +1,120 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: sanitised-must-gather
+  namespace: must-gather-pipelines
+spec:
+  description: >-
+    gather -> sanitise -> canary-check -> package -> (optional) upload.
+    Un-sanitised raw/ data is purged after packaging, or by `finally` if anything failed.
+  params:
+    - name: clusterAlias
+      description: Short name used in paths and the archive name (e.g. homelab).
+    - name: runId
+      description: Unique per run (e.g. 20260927-2345). A run refuses to reuse a runId.
+    - name: since
+      default: 24h
+    - name: cliImage
+      default: quay.io/openshift/origin-cli:4.22
+    - name: mgcImage
+      default: image-registry.openshift-image-registry.svc:5000/must-gather-pipelines/must-gather-clean:latest
+    - name: mustGatherImages
+      description: Space-separated extra gather images; empty = default OKD gather only.
+      default: ""
+    - name: upload
+      default: "false"
+    - name: artifactoryUrl
+      default: ""
+  workspaces:
+    - name: data
+    - name: kubeconfig
+    - name: mgc-config
+    - name: artifactory-auth
+      optional: true
+    - name: ca-bundle
+      optional: true
+  results:
+    - name: archiveName
+      value: $(tasks.package.results.archiveName)
+    - name: archiveSize
+      value: $(tasks.package.results.archiveSize)
+    - name: archiveSha256
+      value: $(tasks.package.results.archiveSha256)
+    - name: canaryPatternCount
+      value: $(tasks.canary-check.results.canaryPatternCount)
+    - name: canaryHits
+      value: $(tasks.canary-check.results.canaryHits)
+    - name: rawPurged
+      value: $(tasks.package.results.rawPurged)
+    - name: reportPresent
+      value: $(tasks.package.results.reportPresent)
+    - name: tempNamespacesCleaned
+      value: $(tasks.gather.results.tempNamespacesCleaned)
+  tasks:
+    - name: gather
+      taskRef: { name: mg-gather }
+      timeout: 1h
+      params:
+        - { name: clusterAlias, value: $(params.clusterAlias) }
+        - { name: runId, value: $(params.runId) }
+        - { name: since, value: $(params.since) }
+        - { name: cliImage, value: $(params.cliImage) }
+        - { name: mustGatherImages, value: $(params.mustGatherImages) }
+      workspaces:
+        - { name: data, workspace: data }
+        - { name: kubeconfig, workspace: kubeconfig }
+
+    - name: sanitise
+      runAfter: [gather]
+      taskRef: { name: mg-sanitise }
+      timeout: 1h
+      params: &common
+        - { name: clusterAlias, value: $(params.clusterAlias) }
+        - { name: runId, value: $(params.runId) }
+        - { name: mgcImage, value: $(params.mgcImage) }
+      workspaces:
+        - { name: data, workspace: data }
+        - { name: mgc-config, workspace: mgc-config }
+
+    - name: canary-check
+      runAfter: [sanitise]
+      taskRef: { name: mg-canary-check }
+      params: *common
+      workspaces:
+        - { name: data, workspace: data }
+        - { name: mgc-config, workspace: mgc-config }
+
+    - name: package
+      runAfter: [canary-check]
+      taskRef: { name: mg-package }
+      params: *common
+      workspaces:
+        - { name: data, workspace: data }
+
+    - name: upload
+      runAfter: [package]
+      when:
+        - { input: $(params.upload), operator: in, values: ["true"] }
+      taskRef: { name: mg-upload }
+      params:
+        - { name: clusterAlias, value: $(params.clusterAlias) }
+        - { name: runId, value: $(params.runId) }
+        - { name: archiveName, value: $(tasks.package.results.archiveName) }
+        - { name: artifactoryUrl, value: $(params.artifactoryUrl) }
+        - { name: mgcImage, value: $(params.mgcImage) }
+      workspaces:
+        - { name: data, workspace: data }
+        - { name: artifactory-auth, workspace: artifactory-auth }
+        - { name: ca-bundle, workspace: ca-bundle }
+
+  finally:
+    - name: purge-raw-on-failure
+      when:
+        - { input: $(tasks.status), operator: notin, values: ["Succeeded", "Completed"] }
+      taskRef: { name: mg-purge-raw }
+      params:
+        - { name: clusterAlias, value: $(params.clusterAlias) }
+        - { name: runId, value: $(params.runId) }
+        - { name: mgcImage, value: $(params.mgcImage) }
+      workspaces:
+        - { name: data, workspace: data }

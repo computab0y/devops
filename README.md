@@ -55,7 +55,9 @@ devops/
 │   ├── keycloak-vault-pipeline/      # Keycloak→Vault sync pipeline package
 │   ├── keycloak-vault-pipeline.tar.gz
 │   ├── ftp-file-pipeline/            # FTP operations pipeline package
-│   └── ftp-file-pipeline.tar.gz
+│   ├── ftp-file-pipeline.tar.gz
+│   ├── must-gather-pipeline/         # Sanitised must-gather → canary check → Artifactory
+│   └── must-gather-pipeline.tar.gz
 │
 ├── terraform/                        # Terraform infrastructure configs
 │   ├── main.tf                       # Local CRC cluster bootstrap (Mac track)

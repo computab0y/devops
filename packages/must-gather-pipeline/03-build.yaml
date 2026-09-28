@@ -1,0 +1,26 @@
+# Builds image/Containerfile into the internal registry:
+#   image-registry.openshift-image-registry.svc:5000/must-gather-pipelines/must-gather-clean:latest
+# Run with: oc -n must-gather-pipelines start-build must-gather-clean --from-dir=image --follow
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: must-gather-clean
+  namespace: must-gather-pipelines
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: must-gather-clean
+  namespace: must-gather-pipelines
+spec:
+  source:
+    type: Binary
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Containerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: must-gather-clean:latest
+  runPolicy: Serial

@@ -1,0 +1,359 @@
+# Tasks for the sanitised must-gather pipeline.
+#
+# PVC layout, per run:   <data>/<clusterAlias>/<runId>/
+#   raw/       oc adm must-gather output          (purged after packaging, or on failure)
+#   clean/     must-gather-clean output            (what gets shipped)
+#   report/    report.yaml + tool logs             (maps originals -> replacements: NEVER ship or print)
+#   archive/   <clusterAlias>-<runId>-must-gather-sanitised.tar.gz (+ .sha256)
+#
+# All params reach scripts through env vars, never by inline $(params.x) substitution,
+# so a param value can't inject shell. Tool output that can contain un-sanitised names
+# goes to report/*.log on the PVC, not to the step log (Tekton Results keeps step logs).
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-gather
+  namespace: must-gather-pipelines
+spec:
+  description: Run oc adm must-gather against the cluster in the kubeconfig Secret.
+  params:
+    - name: clusterAlias
+    - name: runId
+    - name: since
+    - name: cliImage
+    - name: mustGatherImages
+      description: Space-separated extra must-gather images. Empty = default gather only.
+      default: ""
+  workspaces:
+    - name: data
+    - name: kubeconfig
+      readOnly: true
+  results:
+    - name: rawSize
+    - name: tempNamespacesCleaned
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    env:
+      - name: HOME
+        value: /tmp
+  steps:
+    - name: gather
+      image: $(params.cliImage)
+      env:
+        - { name: CLUSTER_ALIAS, value: $(params.clusterAlias) }
+        - { name: RUN_ID, value: $(params.runId) }
+        - { name: SINCE, value: $(params.since) }
+        - { name: MG_IMAGES, value: $(params.mustGatherImages) }
+        - { name: KUBECONFIG, value: $(workspaces.kubeconfig.path)/kubeconfig }
+        - { name: DATA, value: $(workspaces.data.path) }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        umask 027
+        DIR="$DATA/$CLUSTER_ALIAS/$RUN_ID"
+        if [ -e "$DIR" ]; then echo "run dir already exists - use a fresh runId" >&2; exit 1; fi
+        mkdir -p "$DIR/raw" "$DIR/report"
+        echo "gathering from $(oc whoami --show-server) as $(oc whoami), since=$SINCE"
+
+        args=(--dest-dir="$DIR/raw" --since="$SINCE" --timeout=50m)
+        if [ -n "${MG_IMAGES// }" ]; then
+          args+=(--image-stream=openshift/must-gather)
+          for img in $MG_IMAGES; do args+=(--image="$img"); done
+        fi
+
+        # must-gather logs node names, IPs etc. - keep them on the PVC with the report.
+        rc=0
+        oc adm must-gather "${args[@]}" > "$DIR/report/must-gather.log" 2>&1 || rc=$?
+        echo "oc adm must-gather exit code: $rc (full log: report/must-gather.log)"
+        [ "$rc" -eq 0 ] || { tail -n 5 "$DIR/report/must-gather.log" | sed 's/^/  | /'; exit "$rc"; }
+
+        size=$(du -sh "$DIR/raw" | cut -f1)
+        echo "raw size: $size"
+        printf '%s' "$size" > "$(results.rawSize.path)"
+
+        # must-gather deletes its temporary openshift-must-gather-* namespace on exit;
+        # deletion is asynchronous, so give it up to 3 minutes.
+        cleaned=false
+        for _ in $(seq 1 36); do
+          left=$(oc get ns -o name | grep -c '^namespace/openshift-must-gather-' || true)
+          [ "$left" -eq 0 ] && { cleaned=true; break; }
+          sleep 5
+        done
+        echo "temporary must-gather namespaces cleaned up: $cleaned"
+        printf '%s' "$cleaned" > "$(results.tempNamespacesCleaned.path)"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-sanitise
+  namespace: must-gather-pipelines
+spec:
+  description: Obfuscate/omit sensitive data with must-gather-clean.
+  params:
+    - name: clusterAlias
+    - name: runId
+    - name: mgcImage
+  workspaces:
+    - name: data
+    - name: mgc-config
+      readOnly: true
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    env:
+      - name: HOME
+        value: /tmp
+  steps:
+    - name: clean
+      image: $(params.mgcImage)
+      env:
+        - { name: DIR, value: $(workspaces.data.path)/$(params.clusterAlias)/$(params.runId) }
+        - { name: CONFIG, value: $(workspaces.mgc-config.path)/config.yaml }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        umask 027
+        [ -d "$DIR/raw" ] || { echo "no raw/ in run dir" >&2; exit 1; }
+        rm -rf "$DIR/clean"
+        rc=0
+        # </dev/null: with a non-TTY stdin must-gather-clean switches to pipe mode and
+        # waits on stdin forever instead of processing -i.
+        must-gather-clean -c "$CONFIG" -i "$DIR/raw" -o "$DIR/clean" -r "$DIR/report" \
+          < /dev/null > "$DIR/report/must-gather-clean.log" 2>&1 || rc=$?
+        echo "must-gather-clean exit code: $rc (log: report/must-gather-clean.log)"
+        [ "$rc" -eq 0 ] || exit "$rc"
+        [ -f "$DIR/report/report.yaml" ] || { echo "report.yaml missing" >&2; exit 1; }
+        echo "clean size: $(du -sh "$DIR/clean" | cut -f1), files: $(find "$DIR/clean" -type f | wc -l)"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-canary-check
+  namespace: must-gather-pipelines
+spec:
+  description: >-
+    Fail if any known-sensitive string (canary) survived sanitising, in file contents,
+    file/dir names, or inside .gz files. Prints counts only, never the matches.
+  params:
+    - name: clusterAlias
+    - name: runId
+    - name: mgcImage
+  workspaces:
+    - name: data
+    - name: mgc-config
+      readOnly: true
+  results:
+    - name: canaryPatternCount
+    - name: canaryHits
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    env:
+      - name: HOME
+        value: /tmp
+  steps:
+    - name: check
+      image: $(params.mgcImage)
+      env:
+        - { name: DIR, value: $(workspaces.data.path)/$(params.clusterAlias)/$(params.runId) }
+        - { name: CANARIES, value: $(workspaces.mgc-config.path)/canaries.txt }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        pats=$(mktemp)
+        # one literal per line; '#' comments and blank lines ignored
+        grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$CANARIES" | sed 's/[[:space:]]*$//' > "$pats"
+        # IPv4 canaries also appear dash-separated in node/host names (10-0-1-2)
+        grep -E '^[0-9]+(\.[0-9]+){3}$' "$pats" | tr '.' '-' >> "$pats" || true
+        sort -u -o "$pats" "$pats"
+        n=$(wc -l < "$pats")
+        [ "$n" -gt 0 ] || { echo "no canaries configured - refusing to pass" >&2; exit 1; }
+
+        cd "$DIR/clean"
+        content=$(grep -rIilF -f "$pats" . | wc -l || true)
+        names=$(find . -mindepth 1 | grep -icF -f "$pats" || true)
+        gz=0
+        while IFS= read -r -d '' f; do
+          if zcat -f "$f" 2>/dev/null | grep -qiF -f "$pats"; then gz=$((gz+1)); fi
+        done < <(find . -type f -name '*.gz' -print0)
+        hits=$((content + names + gz))
+
+        echo "canary patterns checked: $n"
+        echo "files with canary in contents: $content, paths containing a canary: $names, .gz files with canary: $gz"
+        printf '%s' "$n" > "$(results.canaryPatternCount.path)"
+        printf '%s' "$hits" > "$(results.canaryHits.path)"
+        if [ "$hits" -ne 0 ]; then
+          echo "FAIL: sensitive data survived sanitising - nothing will be packaged." >&2
+          echo "Inspect on the PVC with: grep -rIilF -f <canaries> clean/  (do not paste output anywhere)" >&2
+          exit 1
+        fi
+        echo "PASS: no canaries found"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-package
+  namespace: must-gather-pipelines
+spec:
+  description: Tar+gzip clean/, checksum it, purge raw/, verify report/ is kept.
+  params:
+    - name: clusterAlias
+    - name: runId
+    - name: mgcImage
+  workspaces:
+    - name: data
+  results:
+    - name: archiveName
+    - name: archiveSize
+    - name: archiveSha256
+    - name: rawPurged
+    - name: reportPresent
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    env:
+      - name: HOME
+        value: /tmp
+  steps:
+    - name: package
+      image: $(params.mgcImage)
+      env:
+        - { name: CLUSTER_ALIAS, value: $(params.clusterAlias) }
+        - { name: RUN_ID, value: $(params.runId) }
+        - { name: DIR, value: $(workspaces.data.path)/$(params.clusterAlias)/$(params.runId) }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        umask 027
+        name="${CLUSTER_ALIAS}-${RUN_ID}-must-gather-sanitised.tar.gz"
+        mkdir -p "$DIR/archive"
+        tar -C "$DIR" -czf "$DIR/archive/$name" clean
+        (cd "$DIR/archive" && sha256sum "$name" > "$name.sha256")
+        size=$(stat -c %s "$DIR/archive/$name")
+        sha=$(cut -d' ' -f1 "$DIR/archive/$name.sha256")
+
+        rm -rf "$DIR/raw"
+        purged=false; [ ! -e "$DIR/raw" ] && purged=true
+        report=false; [ -f "$DIR/report/report.yaml" ] && report=true
+
+        echo "archive: $name  size: $size bytes ($(numfmt --to=iec "$size"))  sha256: $sha"
+        echo "raw/ purged: $purged   report/ present: $report"
+        printf '%s' "$name"   > "$(results.archiveName.path)"
+        printf '%s' "$size"   > "$(results.archiveSize.path)"
+        printf '%s' "$sha"    > "$(results.archiveSha256.path)"
+        printf '%s' "$purged" > "$(results.rawPurged.path)"
+        printf '%s' "$report" > "$(results.reportPresent.path)"
+        [ "$purged" = true ] && [ "$report" = true ]
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-upload
+  namespace: must-gather-pipelines
+spec:
+  description: PUT the archive (+ .sha256) to Artifactory. Only runs when upload=true.
+  params:
+    - name: clusterAlias
+    - name: runId
+    - name: archiveName
+    - name: artifactoryUrl
+    - name: mgcImage
+  workspaces:
+    - name: data
+    - name: artifactory-auth
+      description: Secret with keys `username` and `password`.
+      readOnly: true
+      optional: true
+    - name: ca-bundle
+      description: ConfigMap/Secret with key `ca.crt` for a private Artifactory CA.
+      readOnly: true
+      optional: true
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    env:
+      - name: HOME
+        value: /tmp
+  steps:
+    - name: upload
+      image: $(params.mgcImage)
+      env:
+        - { name: DIR, value: $(workspaces.data.path)/$(params.clusterAlias)/$(params.runId)/archive }
+        - { name: NAME, value: $(params.archiveName) }
+        - { name: URL, value: $(params.artifactoryUrl) }
+        - { name: AUTH_BOUND, value: $(workspaces.artifactory-auth.bound) }
+        - { name: AUTH, value: $(workspaces.artifactory-auth.path) }
+        - { name: CA_BOUND, value: $(workspaces.ca-bundle.bound) }
+        - { name: CA, value: $(workspaces.ca-bundle.path) }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        [ -n "$URL" ] || { echo "artifactoryUrl is empty" >&2; exit 1; }
+        [ "$AUTH_BOUND" = true ] || { echo "upload=true needs the artifactory-auth workspace" >&2; exit 1; }
+        opts=(-fsS --retry 3)
+        [ "$CA_BOUND" = true ] && opts+=(--cacert "$CA/ca.crt")
+        # credentials via a curl config file so they never appear in argv
+        cfg=$(mktemp); chmod 600 "$cfg"
+        printf 'user = "%s:%s"\n' "$(cat "$AUTH/username")" "$(cat "$AUTH/password")" > "$cfg"
+        for f in "$NAME" "$NAME.sha256"; do
+          curl "${opts[@]}" -K "$cfg" -T "$DIR/$f" "${URL%/}/$f" > /dev/null
+          echo "uploaded $f"
+        done
+        rm -f "$cfg"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-purge-raw
+  namespace: must-gather-pipelines
+spec:
+  description: Remove un-sanitised raw/ data (used in `finally` when the run failed).
+  params:
+    - name: clusterAlias
+    - name: runId
+    - name: mgcImage
+  workspaces:
+    - name: data
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+  steps:
+    - name: purge
+      image: $(params.mgcImage)
+      env:
+        - { name: DIR, value: $(workspaces.data.path)/$(params.clusterAlias)/$(params.runId) }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        if [ -d "$DIR/raw" ]; then rm -rf "$DIR/raw"; echo "purged raw/ after failed run"; else echo "no raw/ to purge"; fi
