@@ -258,6 +258,9 @@ spec:
         mkdir -p "$DIR/archive"
         tar -C "$DIR" -czf "$DIR/archive/$name" clean
         (cd "$DIR/archive" && sha256sum "$name" > "$name.sha256")
+        # the tarball is now the copy of clean/ - check it reads back, then free the space
+        tar -tzf "$DIR/archive/$name" > /dev/null
+        rm -rf "$DIR/clean"
         size=$(stat -c %s "$DIR/archive/$name")
         sha=$(cut -d' ' -f1 "$DIR/archive/$name.sha256")
 
@@ -266,7 +269,7 @@ spec:
         report=false; [ -f "$DIR/report/report.yaml" ] && report=true
 
         echo "archive: $name  size: $size bytes ($(numfmt --to=iec "$size"))  sha256: $sha"
-        echo "raw/ purged: $purged   report/ present: $report"
+        echo "raw/ purged: $purged   clean/ purged (kept in tarball): $([ ! -e "$DIR/clean" ] && echo true || echo false)   report/ present: $report"
         printf '%s' "$name"   > "$(results.archiveName.path)"
         printf '%s' "$size"   > "$(results.archiveSize.path)"
         printf '%s' "$sha"    > "$(results.archiveSha256.path)"
@@ -365,3 +368,64 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
         if [ -d "$DIR/raw" ]; then rm -rf "$DIR/raw"; echo "purged raw/ after failed run"; else echo "no raw/ to purge"; fi
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-retention
+  namespace: must-gather-pipelines
+spec:
+  description: >-
+    Keep the PVC from filling up: drop clean/ and raw/ from every run except the current
+    one, and delete whole run directories (archive + report) beyond the newest keepRuns
+    per clusterAlias. runIds must sort chronologically (start-run.sh uses UTC timestamps).
+  params:
+    - name: clusterAlias
+    - name: runId
+    - name: keepRuns
+      default: "3"
+    - name: mgcImage
+  workspaces:
+    - name: data
+  results:
+    - name: runsDeleted
+    - name: pvcUsage
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+  steps:
+    - name: prune
+      image: $(params.mgcImage)
+      env:
+        - { name: DATA, value: $(workspaces.data.path) }
+        - { name: CUR, value: $(params.clusterAlias)/$(params.runId) }
+        - { name: KEEP, value: $(params.keepRuns) }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        case "$KEEP" in ''|*[!0-9]*) echo "keepRuns must be a number" >&2; exit 1;; esac
+        [ "$KEEP" -ge 1 ] || { echo "keepRuns must be >= 1" >&2; exit 1; }
+        cd "$DATA"
+        deleted=0
+        for alias in $(find . -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | grep -v '^lost+found$' | sort); do
+          kept=0
+          for run in $(find "$alias" -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | sort -r); do
+            path="$alias/$run"
+            if [ "$path" = "$CUR" ]; then kept=$((kept+1)); continue; fi
+            rm -rf "$path/clean" "$path/raw"
+            if [ "$kept" -lt "$KEEP" ]; then
+              kept=$((kept+1))
+            else
+              rm -rf "$path"; deleted=$((deleted+1)); echo "deleted old run $path"
+            fi
+          done
+        done
+        usage=$(df -h "$DATA" | awk 'NR==2 {print $3" used of "$2" ("$5")"}')
+        echo "runs deleted: $deleted   PVC: $usage"
+        printf '%s' "$deleted" > "$(results.runsDeleted.path)"
+        printf '%s' "$usage"   > "$(results.pvcUsage.path)"

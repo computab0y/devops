@@ -7,6 +7,7 @@ packages the result, and uploads it to Artifactory.
 
 ```
  gather ──> sanitise ──> canary-check ──> package ──> upload (if upload=true)
+                                                          finally: retention (keep newest keepRuns)
    │           │              │               │
    raw/      clean/        fails run       tar.gz + sha256,
              report/       on any hit      raw/ purged
@@ -62,7 +63,7 @@ searches `clean/` case-insensitively in file contents, file/directory names and 
 printed, never the matching text.
 
 **package** - `tar czf <alias>-<runId>-must-gather-sanitised.tar.gz clean/` + a
-`.sha256`, deletes `raw/`, and verifies `raw/` is gone and `report/report.yaml` is
+`.sha256`, reads the tarball back, deletes `clean/` and `raw/`, and verifies `raw/` is gone and `report/report.yaml` is
 still there.
 
 **upload** (only when `upload=true`) - PUTs the tarball and `.sha256` to
@@ -75,6 +76,18 @@ config file so they never appear in a process list. The `artifactory-auth` and
 
 **finally / purge-raw-on-failure** - if any task failed, deletes `raw/` so
 un-sanitised data never lingers on the PVC.
+
+**finally / retention** - runs after every run, success or failure, and never touches the
+current run. It removes `clean/` and `raw/` from all earlier runs, then keeps only the
+newest `keepRuns` runs (default **3**) per clusterAlias - older run directories,
+tarball and report included, are deleted. It reports PVC usage as the `pvcUsage`
+result. runIds must sort chronologically; `scripts/start-run.sh` uses UTC timestamps.
+With `upload=false` the PVC holds the only copy of a tarball, so fetch anything you
+want to keep (`scripts/fetch-archive.sh`) or raise `keepRuns`.
+
+Space per run after this: tarball (~100 MB on this cluster) + report. `package` already
+deletes the current run's `clean/` once the tarball has been written and read back; a
+run that fails the canary check keeps its `clean/` for inspection until the next run.
 
 ## Pod security
 

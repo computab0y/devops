@@ -6,7 +6,8 @@ metadata:
 spec:
   description: >-
     gather -> sanitise -> canary-check -> package -> (optional) upload.
-    Un-sanitised raw/ data is purged after packaging, or by `finally` if anything failed.
+    Un-sanitised raw/ data is purged after packaging, or by `finally` if anything failed;
+    `finally` also prunes old runs beyond keepRuns.
   params:
     - name: clusterAlias
       description: Short name used in paths and the archive name (e.g. homelab).
@@ -25,6 +26,9 @@ spec:
       default: "false"
     - name: artifactoryUrl
       default: ""
+    - name: keepRuns
+      description: Newest runs (archive + report) kept on the PVC per clusterAlias.
+      default: "3"
   workspaces:
     - name: data
     - name: kubeconfig
@@ -50,6 +54,10 @@ spec:
       value: $(tasks.package.results.reportPresent)
     - name: tempNamespacesCleaned
       value: $(tasks.gather.results.tempNamespacesCleaned)
+    - name: pvcUsage
+      value: $(finally.retention.results.pvcUsage)
+    - name: runsDeleted
+      value: $(finally.retention.results.runsDeleted)
   tasks:
     - name: gather
       taskRef: { name: mg-gather }
@@ -115,6 +123,17 @@ spec:
       params:
         - { name: clusterAlias, value: $(params.clusterAlias) }
         - { name: runId, value: $(params.runId) }
+        - { name: mgcImage, value: $(params.mgcImage) }
+      workspaces:
+        - { name: data, workspace: data }
+
+    # always runs (success or failure); never touches the current run
+    - name: retention
+      taskRef: { name: mg-retention }
+      params:
+        - { name: clusterAlias, value: $(params.clusterAlias) }
+        - { name: runId, value: $(params.runId) }
+        - { name: keepRuns, value: $(params.keepRuns) }
         - { name: mgcImage, value: $(params.mgcImage) }
       workspaces:
         - { name: data, workspace: data }
