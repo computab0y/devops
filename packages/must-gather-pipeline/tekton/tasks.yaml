@@ -56,6 +56,12 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
         umask 027
+        if [ ! -s "$KUBECONFIG" ]; then
+          echo "ERROR: no kubeconfig in the 'kubeconfig' workspace." >&2
+          echo "Bind it to Secret must-gather-kubeconfig (scripts/start-run.sh does this;" >&2
+          echo "in the console Start dialog choose Secret -> must-gather-kubeconfig, not Empty Directory)." >&2
+          exit 1
+        fi
         DIR="$DATA/$CLUSTER_ALIAS/$RUN_ID"
         if [ -e "$DIR" ]; then echo "run dir already exists - use a fresh runId" >&2; exit 1; fi
         mkdir -p "$DIR/raw" "$DIR/report"
@@ -124,6 +130,7 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
         umask 027
+        [ -s "$CONFIG" ] || { echo "ERROR: no config.yaml in the 'mgc-config' workspace - bind it to Secret mgc-config" >&2; exit 1; }
         [ -d "$DIR/raw" ] || { echo "no raw/ in run dir" >&2; exit 1; }
         rm -rf "$DIR/clean"
         rc=0
@@ -176,6 +183,7 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
+        [ -s "$CANARIES" ] || { echo "ERROR: no canaries.txt in the 'mgc-config' workspace - bind it to Secret mgc-config" >&2; exit 1; }
         pats=$(mktemp)
         # one literal per line; '#' comments and blank lines ignored
         grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$CANARIES" | sed 's/[[:space:]]*$//' > "$pats"

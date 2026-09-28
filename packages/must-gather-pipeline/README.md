@@ -97,6 +97,25 @@ tkn pipelinerun describe -n must-gather-pipelines <name>   # results: archive, s
 scripts/fetch-archive.sh homelab <runId>   # copy the tarball here and verify sha256
 ```
 
+### Starting from the OpenShift console
+
+The console's **Start** dialog does not know this pipeline's bindings and defaults every
+workspace to *Empty Directory* and the service account to `pipeline`. Set:
+
+| Field | Value |
+|---|---|
+| Service account (under *Advanced*) | `must-gather-tasks` |
+| `data` | PersistentVolumeClaim → `must-gather-data` |
+| `kubeconfig` | Secret → `must-gather-kubeconfig` |
+| `mgc-config` | Secret → `mgc-config` |
+| `artifactory-auth` | Secret → `artifactory-auth` (only if `upload` = `true`) |
+| `ca-bundle` | leave empty |
+
+With an empty `kubeconfig` workspace the gather task stops immediately with
+"no kubeconfig in the 'kubeconfig' workspace" (before this guard existed, `oc` fell back
+to the pod's own `pipeline` SA and failed with *cannot create resource "namespaces"*).
+`scripts/start-run.sh` sets all of this for you.
+
 Changing what gets hidden: edit `config/mgc-config.yaml` / `config/canaries.txt`, then
 ```bash
 oc create secret generic mgc-config -n must-gather-pipelines \
