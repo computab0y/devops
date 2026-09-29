@@ -22,6 +22,7 @@ packages the result, and uploads it to Artifactory.
 | `01-rbac.yaml` | `must-gather-runner` SA + cluster-admin + token Secret (identity used by `oc adm must-gather`); `must-gather-tasks` SA (identity the task pods run as - no grants, so `restricted-v2`) |
 | `02-pvc.yaml` | 10Gi `must-gather-data` PVC on the default StorageClass |
 | `03-build.yaml` + `image/Containerfile` | BuildConfig building the must-gather-clean image into the internal registry |
+| `04-scheduler.yaml` | daily CronJob that starts runs as SA `must-gather-scheduler` (can only create/list PipelineRuns here) |
 | `tekton/tasks.yaml` | the six Tasks |
 | `tekton/pipeline.yaml` | the Pipeline |
 | `tekton/pipelinerun-template.yaml` | run template used by `scripts/start-run.sh` |
@@ -110,6 +111,24 @@ tkn pipelinerun logs -f -n must-gather-pipelines <name>
 tkn pipelinerun describe -n must-gather-pipelines <name>   # results: archive, size, canaries...
 scripts/fetch-archive.sh homelab <runId>   # copy the tarball here and verify sha256
 ```
+
+### Scheduled runs
+
+CronJob `must-gather-daily` starts a run every day at **02:00 Europe/London** as service
+account **`must-gather-scheduler`**, so nothing depends on anyone's login. That SA can
+only `create`/`get`/`list` PipelineRuns in `must-gather-pipelines` - it can't read
+Secrets, create pods or touch other namespaces. The run itself then uses the same
+identities as a manual one (`must-gather-tasks` for the pods, `must-gather-runner` for
+the gather), with `upload=true` and `since=24h`.
+
+- It builds the run from ConfigMap `mg-pipelinerun-template` (= `tekton/pipelinerun-template.yaml`),
+  so scheduled and `start-run.sh` runs are identical. Re-create the ConfigMap after editing the template.
+- Scheduled runs carry the label `must-gather/trigger=schedule`:
+  `tkn pipelinerun list -n must-gather-pipelines --label must-gather/trigger=schedule`
+- If a run is still in progress when the next slot comes, that slot is skipped (runs share one PVC).
+- Change schedule, time zone or alias in `04-scheduler.yaml`; pause with
+  `oc patch cronjob must-gather-daily -n must-gather-pipelines -p '{"spec":{"suspend":true}}'`.
+- Run it now, as the SA: `oc create job --from=cronjob/must-gather-daily mg-now -n must-gather-pipelines`
 
 ### Starting from the OpenShift console
 
