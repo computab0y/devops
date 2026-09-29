@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 alias="${1:-homelab}"; upload="${2:-true}"; run_id="$(date -u +%Y%m%d-%H%M%S)"
-url="${ARTIFACTORY_URL:-http://artifactory.artifactory.svc:8082/artifactory/generic-local/must-gather}/$alias"
+url="${ARTIFACTORY_URL:-http://artifactory.artifactory.svc:8082/artifactory/generic-local/must-gather}"  # task appends /<alias>
 pr=$(sed -e "s|ARTIFACTORY_URL|$url|" -e "s/CLUSTER_ALIAS/$alias/g" -e "s/RUN_ID/$run_id/" -e "s/UPLOAD/$upload/" \
   tekton/pipelinerun-template.yaml)
 # without an upload the artifactory-auth workspace is left unbound (it's optional)

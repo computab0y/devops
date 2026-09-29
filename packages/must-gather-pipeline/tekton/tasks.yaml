@@ -318,6 +318,7 @@ spec:
         - { name: DIR, value: $(workspaces.data.path)/$(params.clusterAlias)/$(params.runId)/archive }
         - { name: NAME, value: $(params.archiveName) }
         - { name: URL, value: $(params.artifactoryUrl) }
+        - { name: CLUSTER_ALIAS, value: $(params.clusterAlias) }
         - { name: AUTH_BOUND, value: $(workspaces.artifactory-auth.bound) }
         - { name: AUTH, value: $(workspaces.artifactory-auth.path) }
         - { name: CA_BOUND, value: $(workspaces.ca-bundle.bound) }
@@ -326,15 +327,16 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
         [ -n "$URL" ] || { echo "artifactoryUrl is empty" >&2; exit 1; }
-        [ "$AUTH_BOUND" = true ] || { echo "upload=true needs the artifactory-auth workspace" >&2; exit 1; }
+        [ "$AUTH_BOUND" = true ] || { echo "ERROR: upload=true needs the artifactory-auth workspace - bind it to Secret artifactory-auth, or run with upload=false" >&2; exit 1; }
+        dest="${URL%/}/$CLUSTER_ALIAS"
         opts=(-fsS --retry 3)
         [ "$CA_BOUND" = true ] && opts+=(--cacert "$CA/ca.crt")
         # credentials via a curl config file so they never appear in argv
         cfg=$(mktemp); chmod 600 "$cfg"
         printf 'user = "%s:%s"\n' "$(cat "$AUTH/username")" "$(cat "$AUTH/password")" > "$cfg"
         for f in "$NAME" "$NAME.sha256"; do
-          curl "${opts[@]}" -K "$cfg" -T "$DIR/$f" "${URL%/}/$f" > /dev/null
-          echo "uploaded $f"
+          curl "${opts[@]}" -K "$cfg" -T "$DIR/$f" "$dest/$f" > /dev/null
+          echo "uploaded $dest/$f"
         done
         rm -f "$cfg"
 ---

@@ -66,7 +66,8 @@ printed, never the matching text.
 `.sha256`, reads the tarball back, deletes `clean/` and `raw/`, and verifies `raw/` is gone and `report/report.yaml` is
 still there.
 
-**upload** (only when `upload=true`) - PUTs the tarball and `.sha256` to
+**upload** (default on; `upload=false` skips it) - PUTs the tarball and `.sha256` to
+`<artifactoryUrl>/<alias>/`, by default
 `http://artifactory.artifactory.svc:8082/artifactory/generic-local/must-gather/<alias>/`
 using Secret `artifactory-auth` (`username`/`password`; `deploy.sh` creates it from
 `ARTIFACTORY_USERNAME`/`ARTIFACTORY_PASSWORD` - use a user that can only deploy to the
@@ -121,9 +122,11 @@ workspace to *Empty Directory* and the service account to `pipeline`. Set:
 | `data` | PersistentVolumeClaim → `must-gather-data` |
 | `kubeconfig` | Secret → `must-gather-kubeconfig` |
 | `mgc-config` | Secret → `mgc-config` |
-| `artifactory-auth` | Secret → `artifactory-auth` (only if `upload` = `true`) |
+| `artifactory-auth` | Secret → `artifactory-auth` (**required** - `upload` defaults to `true`) |
 | `ca-bundle` | leave empty |
 
+Leaving `artifactory-auth` empty with the default `upload=true` fails the upload
+task with a message saying so - set `upload` to `false` to keep the archive on the PVC only.
 With an empty `kubeconfig` workspace the gather task stops immediately with
 "no kubeconfig in the 'kubeconfig' workspace" (before this guard existed, `oc` fell back
 to the pod's own `pipeline` SA and failed with *cannot create resource "namespaces"*).

@@ -23,9 +23,11 @@ spec:
       description: Space-separated extra gather images; empty = default OKD gather only.
       default: ""
     - name: upload
-      default: "false"
+      description: Upload the archive to Artifactory (needs the artifactory-auth workspace). "false" keeps it on the PVC only.
+      default: "true"
     - name: artifactoryUrl
-      default: ""
+      description: Base URL; the upload goes to <artifactoryUrl>/<clusterAlias>/<archive>.
+      default: http://artifactory.artifactory.svc:8082/artifactory/generic-local/must-gather
     - name: keepRuns
       description: Newest runs (archive + report) kept on the PVC per clusterAlias.
       default: "3"
