@@ -1,4 +1,5 @@
-# Used by scripts/start-run.sh, which fills in RUN_ID / CLUSTER_ALIAS / UPLOAD.
+# Used by scripts/start-run.sh and the CronJob, which fill in RUN_ID / CLUSTER_ALIAS /
+# UPLOAD / GATHER_TYPE / INCLUDE_DEFAULT / ARTIFACTORY_URL.
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
@@ -16,6 +17,8 @@ spec:
     - { name: clusterAlias, value: CLUSTER_ALIAS }
     - { name: runId, value: RUN_ID }
     - { name: since, value: 24h }
+    - { name: gatherType, value: GATHER_TYPE }
+    - { name: includeDefault, value: "INCLUDE_DEFAULT" }
     - { name: upload, value: "UPLOAD" }
     - { name: artifactoryUrl, value: ARTIFACTORY_URL }
   workspaces:

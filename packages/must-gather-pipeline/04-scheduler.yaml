@@ -63,6 +63,8 @@ spec:
                 - { name: HOME, value: /tmp }
                 - { name: CLUSTER_ALIAS, value: okd }
                 - { name: UPLOAD, value: "true" }
+                - { name: GATHER_TYPE, value: default }
+                - { name: INCLUDE_DEFAULT, value: "true" }
                 - { name: ARTIFACTORY_URL, value: "http://artifactory.artifactory.svc:8082/artifactory/generic-local/must-gather" }
               command: [/bin/bash, -c]
               args:
@@ -74,10 +76,11 @@ spec:
                   if [ "$running" -gt 0 ]; then echo "a run is still in progress - skipping this slot"; exit 0; fi
                   run_id="$(date -u +%Y%m%d-%H%M%S)"
                   sed -e "s|ARTIFACTORY_URL|$ARTIFACTORY_URL|" -e "s/CLUSTER_ALIAS/$CLUSTER_ALIAS/g" \
-                      -e "s/RUN_ID/$run_id/" -e "s/UPLOAD/$UPLOAD/" /template/pipelinerun.yaml \
+                      -e "s/RUN_ID/$run_id/" -e "s/UPLOAD/$UPLOAD/" \
+                      -e "s/GATHER_TYPE/$GATHER_TYPE/" -e "s/INCLUDE_DEFAULT/$INCLUDE_DEFAULT/" /template/pipelinerun.yaml \
                     | oc label --local -f - must-gather/trigger=schedule -o yaml \
                     | oc create -f - -o jsonpath='started {.metadata.name}{"\n"}'
-                  echo "runId=$run_id alias=$CLUSTER_ALIAS upload=$UPLOAD"
+                  echo "runId=$run_id alias=$CLUSTER_ALIAS upload=$UPLOAD gatherType=$GATHER_TYPE"
               securityContext:
                 allowPrivilegeEscalation: false
                 runAsNonRoot: true

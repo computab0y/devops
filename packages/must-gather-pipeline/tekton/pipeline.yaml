@@ -19,8 +19,19 @@ spec:
       default: quay.io/openshift/origin-cli:4.22
     - name: mgcImage
       default: image-registry.openshift-image-registry.svc:5000/must-gather-pipelines/must-gather-clean:latest
+    - name: gatherType
+      description: >-
+        Which must-gather to run. default = standard cluster gather; acm, logging, acs,
+        odf, oadp, gitops = that operator's must-gather (must be installed); custom =
+        the images in mustGatherImages.
+      default: default
+      enum: [default, acm, logging, acs, odf, oadp, gitops, custom]
+    - name: includeDefault
+      description: With an operator/custom gather, also run the standard cluster gather.
+      default: "true"
+      enum: ["true", "false"]
     - name: mustGatherImages
-      description: Space-separated extra gather images; empty = default OKD gather only.
+      description: Space-separated must-gather images for gatherType=custom.
       default: ""
     - name: upload
       description: Upload the archive to Artifactory (needs the artifactory-auth workspace). "false" keeps it on the PVC only.
@@ -56,6 +67,8 @@ spec:
       value: $(tasks.package.results.reportPresent)
     - name: tempNamespacesCleaned
       value: $(tasks.gather.results.tempNamespacesCleaned)
+    - name: gatherImages
+      value: $(tasks.gather.results.gatherImages)
     - name: pvcUsage
       value: $(finally.retention.results.pvcUsage)
     - name: runsDeleted
@@ -69,6 +82,8 @@ spec:
         - { name: runId, value: $(params.runId) }
         - { name: since, value: $(params.since) }
         - { name: cliImage, value: $(params.cliImage) }
+        - { name: gatherType, value: $(params.gatherType) }
+        - { name: includeDefault, value: $(params.includeDefault) }
         - { name: mustGatherImages, value: $(params.mustGatherImages) }
       workspaces:
         - { name: data, workspace: data }
@@ -97,7 +112,11 @@ spec:
     - name: package
       runAfter: [canary-check]
       taskRef: { name: mg-package }
-      params: *common
+      params:
+        - { name: clusterAlias, value: $(params.clusterAlias) }
+        - { name: runId, value: $(params.runId) }
+        - { name: gatherType, value: $(params.gatherType) }
+        - { name: mgcImage, value: $(params.mgcImage) }
       workspaces:
         - { name: data, workspace: data }
 

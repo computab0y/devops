@@ -21,8 +21,16 @@ spec:
     - name: runId
     - name: since
     - name: cliImage
+    - name: gatherType
+      description: default | acm | logging | acs | odf | oadp | gitops | custom
+      default: default
+      enum: [default, acm, logging, acs, odf, oadp, gitops, custom]
+    - name: includeDefault
+      description: Also run the standard cluster gather alongside an operator gather.
+      default: "true"
+      enum: ["true", "false"]
     - name: mustGatherImages
-      description: Space-separated extra must-gather images. Empty = default gather only.
+      description: Space-separated must-gather images, used when gatherType=custom.
       default: ""
   workspaces:
     - name: data
@@ -31,6 +39,8 @@ spec:
   results:
     - name: rawSize
     - name: tempNamespacesCleaned
+    - name: gatherImages
+      description: Images actually run ("default" = standard gather only).
   stepTemplate:
     securityContext:
       allowPrivilegeEscalation: false
@@ -50,6 +60,8 @@ spec:
         - { name: RUN_ID, value: $(params.runId) }
         - { name: SINCE, value: $(params.since) }
         - { name: MG_IMAGES, value: $(params.mustGatherImages) }
+        - { name: GATHER_TYPE, value: $(params.gatherType) }
+        - { name: INCLUDE_DEFAULT, value: $(params.includeDefault) }
         - { name: KUBECONFIG, value: $(workspaces.kubeconfig.path)/kubeconfig }
         - { name: DATA, value: $(workspaces.data.path) }
       script: |
@@ -62,16 +74,71 @@ spec:
           echo "in the console Start dialog choose Secret -> must-gather-kubeconfig, not Empty Directory)." >&2
           exit 1
         fi
+
+        # --- which must-gather image(s) to run ---------------------------------------
+        # Operator types: use the image the installed operator's CSV advertises
+        # (operators.openshift.io/must-gather-image) so it matches the installed version;
+        # otherwise fall back to the vendor-documented image for that version.
+        csv_line() {  # "<csv>\t<version>\t<must-gather image>" for the first CSV matching ^$1
+          oc get csv -A -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.version}{"\t"}{.metadata.annotations.operators\.openshift\.io/must-gather-image}{"\n"}{end}' \
+            | grep -E "^$1" | sort -u | head -1 || true
+        }
+        images=()
+        case "$GATHER_TYPE" in
+          default) ;;
+          custom)
+            [ -n "${MG_IMAGES// }" ] || { echo "ERROR: gatherType=custom needs mustGatherImages" >&2; exit 1; }
+            for img in $MG_IMAGES; do images+=("$img"); done ;;
+          acm|logging|acs|odf|oadp|gitops)
+            case "$GATHER_TYPE" in
+              acm)     prefix='advanced-cluster-management[.]' ;;
+              logging) prefix='cluster-logging[.]' ;;
+              acs)     prefix='rhacs-operator[.]' ;;
+              odf)     prefix='odf-operator[.]' ;;
+              oadp)    prefix='oadp-operator[.]' ;;
+              gitops)  prefix='openshift-gitops-operator[.]' ;;
+            esac
+            line=$(csv_line "$prefix")
+            [ -n "$line" ] || { echo "ERROR: gatherType=$GATHER_TYPE, but that operator is not installed on this cluster" >&2; exit 1; }
+            csv=$(cut -f1 <<< "$line"); ver=$(cut -f2 <<< "$line"); img=$(cut -f3 <<< "$line")
+            minor=$(cut -d. -f1,2 <<< "$ver")
+            if [ -n "$img" ]; then
+              src="advertised by $csv"
+            else
+              src="documented image for $csv"
+              case "$GATHER_TYPE" in
+                acm) img="registry.redhat.io/rhacm2/acm-must-gather-rhel9:v$minor" ;;
+                odf) img="registry.redhat.io/odf4/odf-must-gather-rhel9:v$minor" ;;
+                logging)  # Red Hat's documented method: the running cluster-logging-operator image
+                  img=$(oc get deploy -A -o jsonpath='{range .items[?(@.metadata.name=="cluster-logging-operator")]}{.spec.template.spec.containers[0].image}{"\n"}{end}' | head -1) ;;
+                acs)
+                  echo "ERROR: $csv does not publish a must-gather image. ACS diagnostics come from" >&2
+                  echo "  roxctl central debug download-diagnostics   (or Platform Configuration > System Health > Generate Diagnostic Bundle)" >&2
+                  exit 1 ;;
+                *) echo "ERROR: $csv does not advertise a must-gather image" >&2; exit 1 ;;
+              esac
+              [ -n "$img" ] || { echo "ERROR: could not determine the $GATHER_TYPE must-gather image" >&2; exit 1; }
+            fi
+            echo "gatherType=$GATHER_TYPE -> $img ($src)"
+            images+=("$img") ;;
+          *) echo "ERROR: unknown gatherType '$GATHER_TYPE'" >&2; exit 1 ;;
+        esac
+
+        # only now create the run dir, so a bad gatherType leaves nothing on the PVC
         DIR="$DATA/$CLUSTER_ALIAS/$RUN_ID"
         if [ -e "$DIR" ]; then echo "run dir already exists - use a fresh runId" >&2; exit 1; fi
         mkdir -p "$DIR/raw" "$DIR/report"
         echo "gathering from $(oc whoami --show-server) as $(oc whoami), since=$SINCE"
 
         args=(--dest-dir="$DIR/raw" --since="$SINCE" --timeout=50m)
-        if [ -n "${MG_IMAGES// }" ]; then
-          args+=(--image-stream=openshift/must-gather)
-          for img in $MG_IMAGES; do args+=(--image="$img"); done
+        ran="default"
+        if [ ${#images[@]} -gt 0 ]; then
+          ran="${images[*]}"
+          if [ "$INCLUDE_DEFAULT" = true ]; then args+=(--image-stream=openshift/must-gather); ran="default $ran"; fi
+          for img in "${images[@]}"; do args+=(--image="$img"); done
         fi
+        echo "running must-gather image(s): $ran"
+        printf '%s' "$ran" > "$(results.gatherImages.path)"
 
         # must-gather logs node names, IPs etc. - keep them on the PVC with the report.
         rc=0
@@ -223,6 +290,8 @@ spec:
   params:
     - name: clusterAlias
     - name: runId
+    - name: gatherType
+      default: default
     - name: mgcImage
   workspaces:
     - name: data
@@ -249,12 +318,13 @@ spec:
       env:
         - { name: CLUSTER_ALIAS, value: $(params.clusterAlias) }
         - { name: RUN_ID, value: $(params.runId) }
+        - { name: GATHER_TYPE, value: $(params.gatherType) }
         - { name: DIR, value: $(workspaces.data.path)/$(params.clusterAlias)/$(params.runId) }
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
         umask 027
-        name="${CLUSTER_ALIAS}-${RUN_ID}-must-gather-sanitised.tar.gz"
+        name="${CLUSTER_ALIAS}-${RUN_ID}-${GATHER_TYPE}-must-gather-sanitised.tar.gz"
         mkdir -p "$DIR/archive"
         tar -C "$DIR" -czf "$DIR/archive/$name" clean
         (cd "$DIR/archive" && sha256sum "$name" > "$name.sha256")
@@ -419,6 +489,10 @@ spec:
           for run in $(find "$alias" -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | sort -r); do
             path="$alias/$run"
             if [ "$path" = "$CUR" ]; then kept=$((kept+1)); continue; fi
+            if ! ls "$path"/archive/*.tar.gz >/dev/null 2>&1; then
+              # an earlier run that never produced an archive (failed) - nothing worth keeping
+              rm -rf "$path"; deleted=$((deleted+1)); echo "deleted failed run $path"; continue
+            fi
             rm -rf "$path/clean" "$path/raw"
             if [ "$kept" -lt "$KEEP" ]; then
               kept=$((kept+1))

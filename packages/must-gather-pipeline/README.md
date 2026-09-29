@@ -23,7 +23,7 @@ packages the result, and uploads it to Artifactory.
 | `02-pvc.yaml` | 10Gi `must-gather-data` PVC on the default StorageClass |
 | `03-build.yaml` + `image/Containerfile` | BuildConfig building the must-gather-clean image into the internal registry |
 | `04-scheduler.yaml` | daily CronJob that starts runs as SA `must-gather-scheduler` (can only create/list PipelineRuns here) |
-| `tekton/tasks.yaml` | the six Tasks |
+| `tekton/tasks.yaml` | the seven Tasks |
 | `tekton/pipeline.yaml` | the Pipeline |
 | `tekton/pipelinerun-template.yaml` | run template used by `scripts/start-run.sh` |
 | `scripts/create-kubeconfig-secret.sh` | builds the `must-gather-kubeconfig` Secret from the runner token |
@@ -34,7 +34,8 @@ packages the result, and uploads it to Artifactory.
 
 ## How each stage works
 
-**gather** (`quay.io/openshift/origin-cli:4.22`) - runs `oc adm must-gather --since=24h`
+**gather** (`quay.io/openshift/origin-cli:4.22`) - works out which must-gather image(s) to
+run from `gatherType` (see *Choosing the type of must-gather*), then runs `oc adm must-gather --since=24h`
 using the kubeconfig Secret (SA `must-gather-runner`, cluster-admin, API
 `https://kubernetes.default.svc`). must-gather spins up a temporary
 `openshift-must-gather-*` namespace with a privileged gather pod - that's why the
@@ -63,7 +64,7 @@ searches `clean/` case-insensitively in file contents, file/directory names and 
 `.gz` files. Any hit fails the run before anything is packaged. Only counts are
 printed, never the matching text.
 
-**package** - `tar czf <alias>-<runId>-must-gather-sanitised.tar.gz clean/` + a
+**package** - `tar czf <alias>-<runId>-<gatherType>-must-gather-sanitised.tar.gz clean/` + a
 `.sha256`, reads the tarball back, deletes `clean/` and `raw/`, and verifies `raw/` is gone and `report/report.yaml` is
 still there.
 
@@ -80,7 +81,8 @@ config file so they never appear in a process list. The `artifactory-auth` and
 un-sanitised data never lingers on the PVC.
 
 **finally / retention** - runs after every run, success or failure, and never touches the
-current run. It removes `clean/` and `raw/` from all earlier runs, then keeps only the
+current run. It deletes earlier runs that never produced an archive (failed runs),
+removes `clean/` and `raw/` from the rest, then keeps only the
 newest `keepRuns` runs (default **3**) per clusterAlias - older run directories,
 tarball and report included, are deleted. It reports PVC usage as the `pvcUsage`
 result. runIds must sort chronologically; `scripts/start-run.sh` uses UTC timestamps.
@@ -112,6 +114,33 @@ tkn pipelinerun describe -n must-gather-pipelines <name>   # results: archive, s
 scripts/fetch-archive.sh homelab <runId>   # copy the tarball here and verify sha256
 ```
 
+### Choosing the type of must-gather
+
+Parameter **`gatherType`** is a dropdown in the console Start dialog (Tekton enum):
+
+| gatherType | Runs | Image comes from |
+|---|---|---|
+| `default` | standard cluster gather | `openshift/must-gather` image stream |
+| `acm` | Advanced Cluster Management | ACM CSV's must-gather annotation, else `registry.redhat.io/rhacm2/acm-must-gather-rhel9:v<installed X.Y>` |
+| `logging` | OpenShift Logging | CSV annotation, else the running `cluster-logging-operator` image (Red Hat's documented method) |
+| `acs` | Advanced Cluster Security | CSV annotation only - ACS doesn't publish a must-gather image, so without one the run stops and points you to `roxctl central debug download-diagnostics` |
+| `odf` | OpenShift Data Foundation | CSV annotation, else `registry.redhat.io/odf4/odf-must-gather-rhel9:v<installed X.Y>` |
+| `oadp` | OADP (backup/restore) | CSV annotation |
+| `gitops` | OpenShift GitOps | CSV annotation |
+| `custom` | whatever is in `mustGatherImages` (space-separated) | you |
+
+- The operator has to be installed; otherwise the gather task stops at once with
+  "that operator is not installed on this cluster" and leaves nothing on the PVC.
+- Using the image the installed operator's CSV advertises keeps the gather matched to
+  the installed version; `registry.redhat.io` images need the cluster pull secret.
+- **`includeDefault`** (default `true`) also runs the standard cluster gather in the same
+  must-gather - usually what support asks for. Set `false` for the operator gather only.
+- The type is part of the archive name: `<alias>-<runId>-<gatherType>-must-gather-sanitised.tar.gz`.
+- An invalid value (e.g. from the CLI) fails the run with `InvalidParamValue` before any task starts.
+- CLI: `scripts/start-run.sh <alias> <upload> <gatherType> <includeDefault>`, e.g.
+  `scripts/start-run.sh homelab true oadp true`; for `custom` set `MUST_GATHER_IMAGES="img1 img2"`.
+- Scheduled runs use `GATHER_TYPE` / `INCLUDE_DEFAULT` in `04-scheduler.yaml` (default: `default`).
+
 ### Scheduled runs
 
 CronJob `must-gather-daily` starts a run every day at **02:00 Europe/London** as service
@@ -138,6 +167,8 @@ workspace to *Empty Directory* and the service account to `pipeline`. Set:
 | Field | Value |
 |---|---|
 | Service account (under *Advanced*) | `must-gather-tasks` |
+| `gatherType` | pick from the dropdown (see above) |
+| `includeDefault` | `true` to also run the standard gather |
 | `data` | PersistentVolumeClaim → `must-gather-data` |
 | `kubeconfig` | Secret → `must-gather-kubeconfig` |
 | `mgc-config` | Secret → `mgc-config` |
