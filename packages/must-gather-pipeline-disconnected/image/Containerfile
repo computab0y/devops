@@ -1,0 +1,27 @@
+# must-gather-clean image for DISCONNECTED environments - no internet access at build.
+#
+# On a connected machine, download the linux release for your architecture and its
+# checksum from https://github.com/openshift/must-gather-clean/releases, extract the
+# `must-gather-clean` binary into this directory, then build with a base image mirrored
+# into Artifactory (see README step 3). The build verifies the binary's checksum.
+#
+#   podman build --build-arg BASE_IMAGE=artifactory.example.com/docker-local/ubi9/ubi:latest \
+#                --build-arg MGC_SHA256=<sha256 of the binary from SHA256_SUM> \
+#                -t artifactory.example.com/docker-local/tools/must-gather-clean:v0.0.5 .
+ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:latest
+FROM ${BASE_IMAGE}
+
+# v0.0.5 linux-amd64 binary; for arm64 pass
+# --build-arg MGC_SHA256=2bd947efa8f392287d7e2392b6405815885eb8da6fda147dfa57c15642076314
+ARG MGC_SHA256=73db97926b1d6168faefd9bb7ca70b95d6087edc656d18c3a773c6c308970f72
+
+COPY must-gather-clean /tmp/must-gather-clean
+RUN set -euo pipefail; \
+    echo "${MGC_SHA256}  /tmp/must-gather-clean" | sha256sum --check; \
+    install -m 0755 /tmp/must-gather-clean /usr/local/bin/must-gather-clean; \
+    rm -f /tmp/must-gather-clean; \
+    must-gather-clean version; \
+    for b in bash curl python3 tar gzip sha256sum find; do command -v $b >/dev/null || { echo "missing $b" >&2; exit 1; }; done
+
+ENV HOME=/tmp
+USER 1001

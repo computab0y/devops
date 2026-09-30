@@ -1,0 +1,715 @@
+# Tasks for the DISCONNECTED sanitised must-gather pipeline.
+#
+# PVC layout, per run:   <data>/<targetCluster>/<runId>/
+#   raw/  clean/  report/  archive/     (as in the connected version)
+#
+# Workspaces used across tasks:
+#   kubeconfigs      Secret mg-target-clusters, key <cluster>.kubeconfig per target
+#   sanitise-config  Secret mg-sanitise-config, keys <cluster>.config.yaml / <cluster>.canaries.txt
+#                    (default.config.yaml / default.canaries.txt used when a cluster has none)
+#   settings         ConfigMap mg-settings (Artifactory URLs, image catalogue)
+#   artifactory-auth Secret with `username` / `password` (search + upload)
+#   ca-bundle        optional ConfigMap/Secret with `ca.crt` for Artifactory's CA
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-resolve-image
+  namespace: must-gather-pipelines
+spec:
+  description: >-
+    Find the must-gather image(s) for the chosen gather type in Artifactory: work out the
+    version to match from the target cluster, search the Docker repo, pick the tag and
+    pin it by digest.
+  params:
+    - name: targetCluster
+    - name: runId
+      default: auto
+    - name: gatherType
+    - name: includeDefault
+      default: "true"
+    - name: imageTag
+      default: auto
+    - name: cliImage
+    - name: mgcImage
+  workspaces:
+    - name: kubeconfigs
+      readOnly: true
+    - name: settings
+      readOnly: true
+    - name: artifactory-auth
+      readOnly: true
+      optional: true
+    - name: ca-bundle
+      readOnly: true
+      optional: true
+  results:
+    - name: images
+      description: Space-separated pull specs, pinned by digest, to pass to oc adm must-gather.
+    - name: imageSummary
+    - name: runId
+      description: The runId to use - the runId param, or a UTC timestamp when it is "auto".
+  volumes:
+    - name: shared
+      emptyDir: {}
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    env:
+      - name: HOME
+        value: /tmp
+    volumeMounts:
+      - name: shared
+        mountPath: /shared
+  steps:
+    - name: target-versions
+      image: $(params.cliImage)
+      env:
+        - { name: TARGET, value: $(params.targetCluster) }
+        - { name: RUN_ID, value: $(params.runId) }
+        - { name: KUBECONFIGS, value: $(workspaces.kubeconfigs.path) }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        [ "$RUN_ID" = auto ] && RUN_ID="$(date -u +%Y%m%d-%H%M%S)"
+        case "$RUN_ID" in *[!A-Za-z0-9._-]*|'') echo "ERROR: runId may only contain letters, digits, . _ -" >&2; exit 1;; esac
+        printf '%s' "$RUN_ID" > "$(results.runId.path)"
+        echo "runId: $RUN_ID"
+        export KUBECONFIG="$KUBECONFIGS/$TARGET.kubeconfig"
+        if [ ! -s "$KUBECONFIG" ]; then
+          echo "ERROR: no kubeconfig for cluster '$TARGET' (key $TARGET.kubeconfig in Secret mg-target-clusters)." >&2
+          echo "Add it with scripts/add-cluster.sh." >&2
+          exit 1
+        fi
+        oc get clusterversion version -o jsonpath='{.status.desired.version}' > /shared/cluster-version
+        oc get csv -A -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.version}{"\n"}{end}' \
+          | sort -u > /shared/csvs
+        echo "target '$TARGET': version $(cat /shared/cluster-version), $(wc -l < /shared/csvs) operator CSVs"
+    - name: search-artifactory
+      image: $(params.mgcImage)
+      env:
+        - { name: GATHER_TYPE, value: $(params.gatherType) }
+        - { name: INCLUDE_DEFAULT, value: $(params.includeDefault) }
+        - { name: IMAGE_TAG, value: $(params.imageTag) }
+        - { name: SETTINGS, value: $(workspaces.settings.path) }
+        - { name: AUTH_BOUND, value: $(workspaces.artifactory-auth.bound) }
+        - { name: AUTH, value: $(workspaces.artifactory-auth.path) }
+        - { name: CA_BOUND, value: $(workspaces.ca-bundle.bound) }
+        - { name: CA, value: $(workspaces.ca-bundle.path) }
+        - { name: RESULT_IMAGES, value: $(results.images.path) }
+        - { name: RESULT_SUMMARY, value: $(results.imageSummary.path) }
+      script: |
+        #!/usr/bin/env python3
+        import base64, json, os, re, ssl, sys, urllib.error, urllib.parse, urllib.request
+
+        def die(msg):
+            print("ERROR: " + msg, file=sys.stderr); sys.exit(1)
+
+        def setting(key):
+            p = os.path.join(os.environ["SETTINGS"], key)
+            v = open(p).read().strip() if os.path.exists(p) else ""
+            if not v: die("setting %s missing from ConfigMap mg-settings" % key)
+            return v
+
+        art = setting("ARTIFACTORY_URL").rstrip("/")
+        repo = setting("DOCKER_REPO").strip("/")
+        prefix = setting("REGISTRY_PREFIX").rstrip("/")
+        catalog = {}
+        for line in setting("CATALOG").splitlines():
+            parts = line.split()
+            if len(parts) == 3 and not parts[0].startswith("#"):
+                catalog[parts[0]] = (parts[1], parts[2])
+
+        ctx = ssl.create_default_context()
+        if os.environ["CA_BOUND"] == "true":
+            ctx.load_verify_locations(os.path.join(os.environ["CA"], "ca.crt"))
+        headers = {}
+        if os.environ["AUTH_BOUND"] == "true":
+            a = os.environ["AUTH"]
+            cred = "%s:%s" % (open(a + "/username").read().strip(), open(a + "/password").read().strip())
+            headers["Authorization"] = "Basic " + base64.b64encode(cred.encode()).decode()
+
+        def call(url, method="GET", accept=None):
+            h = dict(headers)
+            if accept: h["Accept"] = accept
+            req = urllib.request.Request(url, headers=h, method=method)
+            try:
+                with urllib.request.urlopen(req, context=ctx, timeout=60) as r:
+                    return r.status, r.headers, r.read()
+            except urllib.error.HTTPError as e:
+                return e.code, e.headers, e.read()
+            except Exception as e:
+                die("cannot reach Artifactory (%s): %s" % (url.split("?")[0], e))
+
+        v2 = "%s/api/docker/%s/v2" % (art, repo)
+
+        # every repository path in the Docker repo (Docker v2 _catalog, paginated)
+        repos, url = [], v2 + "/_catalog?n=1000"
+        while url:
+            code, h, body = call(url)
+            if code == 401: die("Artifactory refused the credentials (HTTP 401) - check Secret artifactory-auth")
+            if code != 200: die("Docker catalog of repo '%s' returned HTTP %s" % (repo, code))
+            repos += json.loads(body).get("repositories") or []
+            m = re.search(r'<([^>]+)>;\s*rel="next"', h.get("Link", "") or "")
+            url = urllib.parse.urljoin(v2 + "/", m.group(1)) if m else None
+
+        cluster_version = open("/shared/cluster-version").read().strip()
+        csvs = [l.split("\t") for l in open("/shared/csvs").read().splitlines() if "\t" in l]
+
+        def xy(v):
+            m = re.match(r"v?(\d+)\.(\d+)", v)
+            return "%s.%s" % m.groups() if m else None
+
+        def resolve(gtype, tag_override):
+            if gtype not in catalog:
+                die("gatherType '%s' is not in the image catalogue (CATALOG in ConfigMap mg-settings)" % gtype)
+            names, strategy = catalog[gtype]
+            # 1. which version to match
+            if strategy == "cluster":
+                want, why = xy(cluster_version), "cluster version %s" % cluster_version
+            elif strategy.startswith("operator:"):
+                op = strategy.split(":", 1)[1]
+                found = [v for n, v in csvs if n.startswith(op + ".")]
+                if not found: die("gatherType '%s': operator %s is not installed on the target cluster" % (gtype, op))
+                want, why = xy(found[0]), "%s %s" % (op, found[0])
+            else:
+                die("catalogue entry for '%s' has unknown version rule '%s'" % (gtype, strategy))
+            # 2. find the image in Artifactory
+            path = None
+            for name in names.split("|"):
+                hits = sorted([r for r in repos if r == name or r.endswith("/" + name)], key=len)
+                if hits:
+                    path = hits[0]
+                    if len(hits) > 1: print("  note: %s found at %d paths, using %s" % (name, len(hits), path))
+                    break
+            if not path:
+                die("no image matching '%s' in Artifactory repo '%s' - mirror it first (README step 2)" % (names, repo))
+            code, _, body = call("%s/%s/tags/list" % (v2, path))
+            if code != 200: die("tags/list for %s returned HTTP %s" % (path, code))
+            tags = json.loads(body).get("tags") or []
+            # 3. choose the tag
+            if tag_override and tag_override != "auto":
+                if tag_override not in tags: die("tag '%s' not found for %s (have: %s)" % (tag_override, path, ", ".join(sorted(tags)[:20])))
+                tag, how = tag_override, "tag given in imageTag"
+            else:
+                rx = re.compile(r"^v?%s(\.\d+)?$" % re.escape(want))
+                cands = [t for t in tags if rx.match(t)]
+                if not cands:
+                    die("%s has no tag for %s (%s). Tags: %s. Mirror that version, or set imageTag."
+                        % (path, want, why, ", ".join(sorted(tags)[:20])))
+                tag = max(cands, key=lambda t: [int(x) for x in re.findall(r"\d+", t)])
+                how = "matches %s" % why
+            # 4. pin by digest
+            accept = ", ".join(["application/vnd.oci.image.index.v1+json",
+                                "application/vnd.docker.distribution.manifest.list.v2+json",
+                                "application/vnd.oci.image.manifest.v1+json",
+                                "application/vnd.docker.distribution.manifest.v2+json"])
+            code, h, _ = call("%s/%s/manifests/%s" % (v2, path, tag), method="HEAD", accept=accept)
+            digest = h.get("Docker-Content-Digest") if code == 200 else None
+            ref = "%s/%s@%s" % (prefix, path, digest) if digest else "%s/%s:%s" % (prefix, path, tag)
+            line = "%s: %s:%s (%s) -> %s" % (gtype, path, tag, how, ref)
+            print(line)
+            return ref, line
+
+        gtype = os.environ["GATHER_TYPE"]
+        picked = []
+        if gtype != "default" and os.environ["INCLUDE_DEFAULT"] == "true":
+            picked.append(resolve("default", "auto"))
+        picked.append(resolve(gtype, os.environ["IMAGE_TAG"]))
+
+        open(os.environ["RESULT_IMAGES"], "w").write(" ".join(r for r, _ in picked))
+        open(os.environ["RESULT_SUMMARY"], "w").write("; ".join(l for _, l in picked))
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-gather
+  namespace: must-gather-pipelines
+spec:
+  description: Run oc adm must-gather on the target cluster with the resolved image(s).
+  params:
+    - name: targetCluster
+    - name: runId
+    - name: since
+    - name: images
+    - name: cliImage
+  workspaces:
+    - name: data
+    - name: kubeconfigs
+      readOnly: true
+  results:
+    - name: rawSize
+    - name: tempNamespacesCleaned
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    env:
+      - name: HOME
+        value: /tmp
+  steps:
+    - name: gather
+      image: $(params.cliImage)
+      env:
+        - { name: TARGET, value: $(params.targetCluster) }
+        - { name: RUN_ID, value: $(params.runId) }
+        - { name: SINCE, value: $(params.since) }
+        - { name: IMAGES, value: $(params.images) }
+        - { name: KUBECONFIG, value: $(workspaces.kubeconfigs.path)/$(params.targetCluster).kubeconfig }
+        - { name: DATA, value: $(workspaces.data.path) }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        umask 027
+        [ -s "$KUBECONFIG" ] || { echo "ERROR: no kubeconfig for cluster '$TARGET'" >&2; exit 1; }
+        [ -n "${IMAGES// }" ] || { echo "ERROR: no must-gather images were resolved" >&2; exit 1; }
+        DIR="$DATA/$TARGET/$RUN_ID"
+        if [ -e "$DIR" ]; then echo "run dir already exists - use a fresh runId" >&2; exit 1; fi
+        mkdir -p "$DIR/raw" "$DIR/report"
+
+        args=(--dest-dir="$DIR/raw" --since="$SINCE" --timeout=50m)
+        for img in $IMAGES; do args+=(--image="$img"); done
+        echo "gathering from '$TARGET' with: $IMAGES"
+
+        list_mg_ns() { oc get ns -o name | sed -n 's|^namespace/\(openshift-must-gather-.*\)|\1|p' | sort; }
+        before=$(list_mg_ns)
+        oc adm must-gather "${args[@]}" > "$DIR/report/must-gather.log" 2>&1 &
+        mg=$!
+
+        # Watch the gather pod: oc adm must-gather waits out its whole timeout on a failed
+        # image pull, so give up after ~2 minutes of ErrImagePull/ImagePullBackOff.
+        # Record the temporary namespace so the `cleanup-target` finally task can remove it
+        # if this run is cancelled or times out.
+        tmpns=""; pullfail=0
+        while kill -0 "$mg" 2>/dev/null; do
+          if [ -z "$tmpns" ]; then
+            tmpns=$(comm -13 <(printf '%s\n' "$before") <(list_mg_ns) | head -1)
+            [ -n "$tmpns" ] && printf '%s' "$tmpns" > "$DIR/report/temp-namespace"
+          fi
+          if [ -n "$tmpns" ]; then
+            reasons=$(oc get pods -n "$tmpns" -o jsonpath='{range .items[*]}{range .status.initContainerStatuses[*]}{.state.waiting.reason}{"\n"}{end}{range .status.containerStatuses[*]}{.state.waiting.reason}{"\n"}{end}{end}' 2>/dev/null || true)
+            if grep -q -E 'ErrImagePull|ImagePullBackOff|InvalidImageName' <<< "$reasons"; then pullfail=$((pullfail+1)); else pullfail=0; fi
+            if [ "$pullfail" -ge 12 ]; then
+              echo "ERROR: the target cluster cannot pull the must-gather image from Artifactory (ImagePullBackOff for 2 minutes)." >&2
+              echo "HINT: add Artifactory to the target cluster's global pull secret, and its CA if not publicly trusted (README 'Target cluster prerequisites')." >&2
+              kill "$mg" 2>/dev/null || true; wait "$mg" 2>/dev/null || true
+              oc delete ns "$tmpns" --wait=false >/dev/null 2>&1 || true
+              exit 1
+            fi
+          fi
+          sleep 10
+        done
+        rc=0; wait "$mg" || rc=$?
+        echo "oc adm must-gather exit code: $rc (full log: report/must-gather.log)"
+        if [ "$rc" -ne 0 ]; then
+          tail -n 5 "$DIR/report/must-gather.log" | sed 's/^/  | /'
+          exit "$rc"
+        fi
+
+        size=$(du -sh "$DIR/raw" | cut -f1)
+        echo "raw size: $size"
+        printf '%s' "$size" > "$(results.rawSize.path)"
+
+        cleaned=false
+        for _ in $(seq 1 36); do
+          left=$(oc get ns -o name | grep -c '^namespace/openshift-must-gather-' || true)
+          [ "$left" -eq 0 ] && { cleaned=true; break; }
+          sleep 5
+        done
+        echo "temporary must-gather namespaces cleaned up on target: $cleaned"
+        printf '%s' "$cleaned" > "$(results.tempNamespacesCleaned.path)"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-sanitise
+  namespace: must-gather-pipelines
+spec:
+  description: Obfuscate/omit sensitive data with must-gather-clean, using the target cluster's config.
+  params:
+    - name: targetCluster
+    - name: runId
+    - name: mgcImage
+  workspaces:
+    - name: data
+    - name: sanitise-config
+      readOnly: true
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    env:
+      - name: HOME
+        value: /tmp
+  steps:
+    - name: clean
+      image: $(params.mgcImage)
+      env:
+        - { name: TARGET, value: $(params.targetCluster) }
+        - { name: DIR, value: $(workspaces.data.path)/$(params.targetCluster)/$(params.runId) }
+        - { name: CFG, value: $(workspaces.sanitise-config.path) }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        umask 027
+        CONFIG="$CFG/$TARGET.config.yaml"; [ -s "$CONFIG" ] || CONFIG="$CFG/default.config.yaml"
+        [ -s "$CONFIG" ] || { echo "ERROR: no $TARGET.config.yaml or default.config.yaml in Secret mg-sanitise-config" >&2; exit 1; }
+        echo "sanitiser config: $(basename "$CONFIG")"
+        [ -d "$DIR/raw" ] || { echo "no raw/ in run dir" >&2; exit 1; }
+        rm -rf "$DIR/clean"
+        rc=0
+        # </dev/null: with a non-TTY stdin must-gather-clean switches to pipe mode and waits forever
+        must-gather-clean -c "$CONFIG" -i "$DIR/raw" -o "$DIR/clean" -r "$DIR/report" \
+          < /dev/null > "$DIR/report/must-gather-clean.log" 2>&1 || rc=$?
+        echo "must-gather-clean exit code: $rc (log: report/must-gather-clean.log)"
+        [ "$rc" -eq 0 ] || exit "$rc"
+        [ -f "$DIR/report/report.yaml" ] || { echo "report.yaml missing" >&2; exit 1; }
+        echo "clean size: $(du -sh "$DIR/clean" | cut -f1), files: $(find "$DIR/clean" -type f | wc -l)"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-canary-check
+  namespace: must-gather-pipelines
+spec:
+  description: >-
+    Fail if any of the target cluster's canary strings survived sanitising (contents,
+    paths, .gz files). Prints counts only.
+  params:
+    - name: targetCluster
+    - name: runId
+    - name: mgcImage
+  workspaces:
+    - name: data
+    - name: sanitise-config
+      readOnly: true
+  results:
+    - name: canaryPatternCount
+    - name: canaryHits
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    env:
+      - name: HOME
+        value: /tmp
+  steps:
+    - name: check
+      image: $(params.mgcImage)
+      env:
+        - { name: TARGET, value: $(params.targetCluster) }
+        - { name: DIR, value: $(workspaces.data.path)/$(params.targetCluster)/$(params.runId) }
+        - { name: CFG, value: $(workspaces.sanitise-config.path) }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        CANARIES="$CFG/$TARGET.canaries.txt"; [ -s "$CANARIES" ] || CANARIES="$CFG/default.canaries.txt"
+        [ -s "$CANARIES" ] || { echo "ERROR: no $TARGET.canaries.txt or default.canaries.txt in Secret mg-sanitise-config" >&2; exit 1; }
+        pats=$(mktemp)
+        grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$CANARIES" | sed 's/[[:space:]]*$//' > "$pats"
+        grep -E '^[0-9]+(\.[0-9]+){3}$' "$pats" | tr '.' '-' >> "$pats" || true
+        sort -u -o "$pats" "$pats"
+        n=$(wc -l < "$pats")
+        [ "$n" -gt 0 ] || { echo "no canaries configured - refusing to pass" >&2; exit 1; }
+
+        cd "$DIR/clean"
+        content=$(grep -rIilF -f "$pats" . | wc -l || true)
+        names=$(find . -mindepth 1 | grep -icF -f "$pats" || true)
+        gz=0
+        while IFS= read -r -d '' f; do
+          if zcat -f "$f" 2>/dev/null | grep -qiF -f "$pats"; then gz=$((gz+1)); fi
+        done < <(find . -type f -name '*.gz' -print0)
+        hits=$((content + names + gz))
+
+        echo "canary list: $(basename "$CANARIES"), patterns checked: $n"
+        echo "files with canary in contents: $content, paths containing a canary: $names, .gz files with canary: $gz"
+        printf '%s' "$n" > "$(results.canaryPatternCount.path)"
+        printf '%s' "$hits" > "$(results.canaryHits.path)"
+        if [ "$hits" -ne 0 ]; then
+          echo "FAIL: sensitive data survived sanitising - nothing will be packaged." >&2
+          exit 1
+        fi
+        echo "PASS: no canaries found"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-package
+  namespace: must-gather-pipelines
+spec:
+  description: Tar+gzip clean/, checksum and read it back, purge clean/ and raw/, keep report/.
+  params:
+    - name: targetCluster
+    - name: runId
+    - name: gatherType
+    - name: mgcImage
+  workspaces:
+    - name: data
+  results:
+    - name: archiveName
+    - name: archiveSize
+    - name: archiveSha256
+    - name: rawPurged
+    - name: reportPresent
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    env:
+      - name: HOME
+        value: /tmp
+  steps:
+    - name: package
+      image: $(params.mgcImage)
+      env:
+        - { name: TARGET, value: $(params.targetCluster) }
+        - { name: RUN_ID, value: $(params.runId) }
+        - { name: GATHER_TYPE, value: $(params.gatherType) }
+        - { name: DIR, value: $(workspaces.data.path)/$(params.targetCluster)/$(params.runId) }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        umask 027
+        name="${TARGET}-${RUN_ID}-${GATHER_TYPE}-must-gather-sanitised.tar.gz"
+        mkdir -p "$DIR/archive"
+        tar -C "$DIR" -czf "$DIR/archive/$name" clean
+        (cd "$DIR/archive" && sha256sum "$name" > "$name.sha256")
+        tar -tzf "$DIR/archive/$name" > /dev/null
+        rm -rf "$DIR/clean" "$DIR/raw"
+        size=$(stat -c %s "$DIR/archive/$name")
+        sha=$(cut -d' ' -f1 "$DIR/archive/$name.sha256")
+        purged=false; [ ! -e "$DIR/raw" ] && purged=true
+        report=false; [ -f "$DIR/report/report.yaml" ] && report=true
+        echo "archive: $name  size: $size bytes ($(numfmt --to=iec "$size"))  sha256: $sha"
+        echo "raw/ purged: $purged   report/ present: $report"
+        printf '%s' "$name"   > "$(results.archiveName.path)"
+        printf '%s' "$size"   > "$(results.archiveSize.path)"
+        printf '%s' "$sha"    > "$(results.archiveSha256.path)"
+        printf '%s' "$purged" > "$(results.rawPurged.path)"
+        printf '%s' "$report" > "$(results.reportPresent.path)"
+        [ "$purged" = true ] && [ "$report" = true ]
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-upload
+  namespace: must-gather-pipelines
+spec:
+  description: PUT the archive (+ .sha256) to <ARTIFACTORY_URL>/<UPLOAD_PATH>/<cluster>/.
+  params:
+    - name: targetCluster
+    - name: runId
+    - name: archiveName
+    - name: mgcImage
+  workspaces:
+    - name: data
+    - name: settings
+      readOnly: true
+    - name: artifactory-auth
+      readOnly: true
+      optional: true
+    - name: ca-bundle
+      readOnly: true
+      optional: true
+  results:
+    - name: uploadUrl
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    env:
+      - name: HOME
+        value: /tmp
+  steps:
+    - name: upload
+      image: $(params.mgcImage)
+      env:
+        - { name: TARGET, value: $(params.targetCluster) }
+        - { name: DIR, value: $(workspaces.data.path)/$(params.targetCluster)/$(params.runId)/archive }
+        - { name: NAME, value: $(params.archiveName) }
+        - { name: SETTINGS, value: $(workspaces.settings.path) }
+        - { name: AUTH_BOUND, value: $(workspaces.artifactory-auth.bound) }
+        - { name: AUTH, value: $(workspaces.artifactory-auth.path) }
+        - { name: CA_BOUND, value: $(workspaces.ca-bundle.bound) }
+        - { name: CA, value: $(workspaces.ca-bundle.path) }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        [ "$AUTH_BOUND" = true ] || { echo "ERROR: upload needs the artifactory-auth workspace (Secret artifactory-auth), or run with upload=false" >&2; exit 1; }
+        art=$(cat "$SETTINGS/ARTIFACTORY_URL"); path=$(cat "$SETTINGS/UPLOAD_PATH")
+        dest="${art%/}/${path#/}"; dest="${dest%/}/$TARGET"
+        opts=(-fsS --retry 3)
+        [ "$CA_BOUND" = true ] && opts+=(--cacert "$CA/ca.crt")
+        cfg=$(mktemp); chmod 600 "$cfg"
+        printf 'user = "%s:%s"\n' "$(cat "$AUTH/username")" "$(cat "$AUTH/password")" > "$cfg"
+        for f in "$NAME" "$NAME.sha256"; do
+          curl "${opts[@]}" -K "$cfg" -T "$DIR/$f" "$dest/$f" > /dev/null
+          echo "uploaded $dest/$f"
+        done
+        rm -f "$cfg"
+        printf '%s' "$dest/$NAME" > "$(results.uploadUrl.path)"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-cleanup-target
+  namespace: must-gather-pipelines
+spec:
+  description: >-
+    Delete must-gather's temporary namespace on the target cluster if the gather left it
+    behind (cancelled or timed-out run). Uses the name the gather step recorded.
+  params:
+    - name: targetCluster
+    - name: runId
+    - name: cliImage
+  workspaces:
+    - name: data
+    - name: kubeconfigs
+      readOnly: true
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    env:
+      - name: HOME
+        value: /tmp
+  steps:
+    - name: cleanup
+      image: $(params.cliImage)
+      env:
+        - { name: F, value: $(workspaces.data.path)/$(params.targetCluster)/$(params.runId)/report/temp-namespace }
+        - { name: KUBECONFIG, value: $(workspaces.kubeconfigs.path)/$(params.targetCluster).kubeconfig }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        [ -s "$F" ] || { echo "no temporary namespace recorded"; exit 0; }
+        ns=$(cat "$F")
+        case "$ns" in openshift-must-gather-*) ;; *) echo "unexpected namespace name '$ns' - not touching it" >&2; exit 1;; esac
+        if oc get ns "$ns" >/dev/null 2>&1; then
+          oc delete ns "$ns" --wait=false >/dev/null; echo "deleted leftover $ns on target"
+        else
+          echo "$ns already gone"
+        fi
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-purge-raw
+  namespace: must-gather-pipelines
+spec:
+  description: Remove un-sanitised raw/ data (used in `finally` when the run failed).
+  params:
+    - name: targetCluster
+    - name: runId
+    - name: mgcImage
+  workspaces:
+    - name: data
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+  steps:
+    - name: purge
+      image: $(params.mgcImage)
+      env:
+        - { name: DIR, value: $(workspaces.data.path)/$(params.targetCluster)/$(params.runId) }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        if [ -d "$DIR/raw" ]; then rm -rf "$DIR/raw"; echo "purged raw/ after failed run"; else echo "no raw/ to purge"; fi
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: mg-retention
+  namespace: must-gather-pipelines
+spec:
+  description: >-
+    Keep the PVC from filling up: delete earlier runs with no archive (failed), drop clean/
+    and raw/ from the rest, keep the newest keepRuns runs per cluster. Never touches the
+    current run.
+  params:
+    - name: targetCluster
+    - name: runId
+    - name: keepRuns
+      default: "3"
+    - name: mgcImage
+  workspaces:
+    - name: data
+  results:
+    - name: runsDeleted
+    - name: pvcUsage
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+  steps:
+    - name: prune
+      image: $(params.mgcImage)
+      env:
+        - { name: DATA, value: $(workspaces.data.path) }
+        - { name: CUR, value: $(params.targetCluster)/$(params.runId) }
+        - { name: KEEP, value: $(params.keepRuns) }
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        case "$KEEP" in ''|*[!0-9]*) echo "keepRuns must be a number" >&2; exit 1;; esac
+        [ "$KEEP" -ge 1 ] || { echo "keepRuns must be >= 1" >&2; exit 1; }
+        cd "$DATA"
+        deleted=0
+        for cluster in $(find . -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | grep -v '^lost+found$' | sort); do
+          kept=0
+          for run in $(find "$cluster" -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | sort -r); do
+            path="$cluster/$run"
+            if [ "$path" = "$CUR" ]; then kept=$((kept+1)); continue; fi
+            if ! ls "$path"/archive/*.tar.gz >/dev/null 2>&1; then
+              rm -rf "$path"; deleted=$((deleted+1)); echo "deleted failed run $path"; continue
+            fi
+            rm -rf "$path/clean" "$path/raw"
+            if [ "$kept" -lt "$KEEP" ]; then
+              kept=$((kept+1))
+            else
+              rm -rf "$path"; deleted=$((deleted+1)); echo "deleted old run $path"
+            fi
+          done
+        done
+        usage=$(df -h "$DATA" | awk 'NR==2 {print $3" used of "$2" ("$5")"}')
+        echo "runs deleted: $deleted   PVC: $usage"
+        printf '%s' "$deleted" > "$(results.runsDeleted.path)"
+        printf '%s' "$usage"   > "$(results.pvcUsage.path)"

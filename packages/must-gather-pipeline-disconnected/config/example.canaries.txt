@@ -1,0 +1,9 @@
+# Canaries for ONE target cluster. Copy to config/<cluster>.canaries.txt (gitignored). One literal per line, matched
+# case-insensitively; any hit in the sanitised output fails the run.
+# Every value you obfuscate in mgc-config.yaml should be here too.
+example.com
+mycluster-abc12
+node1
+provider.example.net
+203.0.113.10
+myusername

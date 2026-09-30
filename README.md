@@ -57,7 +57,9 @@ devops/
 │   ├── ftp-file-pipeline/            # FTP operations pipeline package
 │   ├── ftp-file-pipeline.tar.gz
 │   ├── must-gather-pipeline/         # Sanitised must-gather → canary check → Artifactory
-│   └── must-gather-pipeline.tar.gz
+│   ├── must-gather-pipeline.tar.gz
+│   ├── must-gather-pipeline-disconnected/  # Air-gapped: pick cluster + type, image found in Artifactory
+│   └── must-gather-pipeline-disconnected.tar.gz
 │
 ├── terraform/                        # Terraform infrastructure configs
 │   ├── main.tf                       # Local CRC cluster bootstrap (Mac track)

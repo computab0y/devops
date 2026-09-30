@@ -1,0 +1,8 @@
+# Identity the Tekton task pods run as. No RBAC and no SCC grants -> restricted-v2.
+# The identity used ON EACH TARGET CLUSTER comes from that cluster's kubeconfig in
+# Secret mg-target-clusters (see scripts/target-kubeconfig.sh).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: must-gather-tasks
+  namespace: must-gather-pipelines

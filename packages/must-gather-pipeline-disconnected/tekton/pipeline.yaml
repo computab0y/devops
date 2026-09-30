@@ -1,0 +1,189 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: sanitised-must-gather
+  namespace: must-gather-pipelines
+spec:
+  description: >-
+    Disconnected sanitised must-gather: pick a cluster and a gather type; the pipeline finds
+    the matching must-gather image in Artifactory, gathers, sanitises, checks for canaries,
+    packages and uploads the result to Artifactory.
+  params:
+    - name: targetCluster
+      description: Cluster to gather from. The list is maintained by scripts/add-cluster.sh.
+      # add-cluster.sh rewrites this list - keep it on one line.
+      enum: ["example-cluster"]
+    - name: gatherType
+      description: >-
+        Which must-gather to run - each type maps to an image in the CATALOG of ConfigMap
+        mg-settings (default = the cluster must-gather).
+      default: default
+      enum: [default, acm, mce, logging, odf, oadp, gitops, cnv, servicemesh]
+    - name: includeDefault
+      description: With an operator gather, also run the standard cluster gather.
+      default: "true"
+      enum: ["true", "false"]
+    - name: imageTag
+      description: '"auto" picks the tag matching the installed version; or give an exact tag.'
+      default: auto
+    - name: since
+      default: 24h
+    - name: upload
+      description: Upload the archive to Artifactory. "false" keeps it on the PVC only.
+      default: "true"
+      enum: ["true", "false"]
+    - name: runId
+      description: '"auto" = UTC timestamp. Otherwise unique and chronologically sortable (retention sorts by it).'
+      default: auto
+    - name: keepRuns
+      description: Newest runs (archive + report) kept on the PVC per cluster.
+      default: "3"
+    - name: cliImage
+      description: An image with oc + bash, mirrored into Artifactory.
+      default: artifactory.example.com/docker-local/openshift4/ose-cli-rhel9:latest
+    - name: mgcImage
+      description: The must-gather-clean image built from image/Containerfile.
+      default: artifactory.example.com/docker-local/tools/must-gather-clean:v0.0.5
+  workspaces:
+    - name: data
+    - name: kubeconfigs
+    - name: sanitise-config
+    - name: settings
+    - name: artifactory-auth
+      optional: true
+    - name: ca-bundle
+      optional: true
+  results:
+    - name: runId
+      value: $(tasks.resolve-image.results.runId)
+    - name: images
+      value: $(tasks.resolve-image.results.images)
+    - name: imageSummary
+      value: $(tasks.resolve-image.results.imageSummary)
+    - name: archiveName
+      value: $(tasks.package.results.archiveName)
+    - name: archiveSize
+      value: $(tasks.package.results.archiveSize)
+    - name: archiveSha256
+      value: $(tasks.package.results.archiveSha256)
+    - name: uploadUrl
+      value: $(tasks.upload.results.uploadUrl)
+    - name: canaryPatternCount
+      value: $(tasks.canary-check.results.canaryPatternCount)
+    - name: canaryHits
+      value: $(tasks.canary-check.results.canaryHits)
+    - name: rawPurged
+      value: $(tasks.package.results.rawPurged)
+    - name: reportPresent
+      value: $(tasks.package.results.reportPresent)
+    - name: tempNamespacesCleaned
+      value: $(tasks.gather.results.tempNamespacesCleaned)
+    - name: pvcUsage
+      value: $(finally.retention.results.pvcUsage)
+  tasks:
+    - name: resolve-image
+      taskRef: { name: mg-resolve-image }
+      params:
+        - { name: targetCluster, value: $(params.targetCluster) }
+        - { name: runId, value: $(params.runId) }
+        - { name: gatherType, value: $(params.gatherType) }
+        - { name: includeDefault, value: $(params.includeDefault) }
+        - { name: imageTag, value: $(params.imageTag) }
+        - { name: cliImage, value: $(params.cliImage) }
+        - { name: mgcImage, value: $(params.mgcImage) }
+      workspaces:
+        - { name: kubeconfigs, workspace: kubeconfigs }
+        - { name: settings, workspace: settings }
+        - { name: artifactory-auth, workspace: artifactory-auth }
+        - { name: ca-bundle, workspace: ca-bundle }
+
+    - name: gather
+      runAfter: [resolve-image]
+      taskRef: { name: mg-gather }
+      timeout: 1h
+      params:
+        - { name: targetCluster, value: $(params.targetCluster) }
+        - { name: runId, value: $(tasks.resolve-image.results.runId) }
+        - { name: since, value: $(params.since) }
+        - { name: images, value: $(tasks.resolve-image.results.images) }
+        - { name: cliImage, value: $(params.cliImage) }
+      workspaces:
+        - { name: data, workspace: data }
+        - { name: kubeconfigs, workspace: kubeconfigs }
+
+    - name: sanitise
+      runAfter: [gather]
+      taskRef: { name: mg-sanitise }
+      timeout: 1h
+      params: &common
+        - { name: targetCluster, value: $(params.targetCluster) }
+        - { name: runId, value: $(tasks.resolve-image.results.runId) }
+        - { name: mgcImage, value: $(params.mgcImage) }
+      workspaces:
+        - { name: data, workspace: data }
+        - { name: sanitise-config, workspace: sanitise-config }
+
+    - name: canary-check
+      runAfter: [sanitise]
+      taskRef: { name: mg-canary-check }
+      params: *common
+      workspaces:
+        - { name: data, workspace: data }
+        - { name: sanitise-config, workspace: sanitise-config }
+
+    - name: package
+      runAfter: [canary-check]
+      taskRef: { name: mg-package }
+      params:
+        - { name: targetCluster, value: $(params.targetCluster) }
+        - { name: runId, value: $(tasks.resolve-image.results.runId) }
+        - { name: gatherType, value: $(params.gatherType) }
+        - { name: mgcImage, value: $(params.mgcImage) }
+      workspaces:
+        - { name: data, workspace: data }
+
+    - name: upload
+      runAfter: [package]
+      when:
+        - { input: $(params.upload), operator: in, values: ["true"] }
+      taskRef: { name: mg-upload }
+      params:
+        - { name: targetCluster, value: $(params.targetCluster) }
+        - { name: runId, value: $(tasks.resolve-image.results.runId) }
+        - { name: archiveName, value: $(tasks.package.results.archiveName) }
+        - { name: mgcImage, value: $(params.mgcImage) }
+      workspaces:
+        - { name: data, workspace: data }
+        - { name: settings, workspace: settings }
+        - { name: artifactory-auth, workspace: artifactory-auth }
+        - { name: ca-bundle, workspace: ca-bundle }
+
+  finally:
+    # removes must-gather's temporary namespace on the target if a run left it behind
+    - name: cleanup-target
+      taskRef: { name: mg-cleanup-target }
+      params:
+        - { name: targetCluster, value: $(params.targetCluster) }
+        - { name: runId, value: $(tasks.resolve-image.results.runId) }
+        - { name: cliImage, value: $(params.cliImage) }
+      workspaces:
+        - { name: data, workspace: data }
+        - { name: kubeconfigs, workspace: kubeconfigs }
+
+    - name: purge-raw-on-failure
+      when:
+        - { input: $(tasks.status), operator: notin, values: ["Succeeded", "Completed"] }
+      taskRef: { name: mg-purge-raw }
+      params: *common
+      workspaces:
+        - { name: data, workspace: data }
+
+    - name: retention
+      taskRef: { name: mg-retention }
+      params:
+        - { name: targetCluster, value: $(params.targetCluster) }
+        - { name: runId, value: $(tasks.resolve-image.results.runId) }
+        - { name: keepRuns, value: $(params.keepRuns) }
+        - { name: mgcImage, value: $(params.mgcImage) }
+      workspaces:
+        - { name: data, workspace: data }

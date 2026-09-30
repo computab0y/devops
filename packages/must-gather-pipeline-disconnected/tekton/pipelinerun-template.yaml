@@ -1,0 +1,35 @@
+# Used by scripts/start-run.sh, which fills in the UPPERCASE placeholders.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: sanitised-must-gather-
+  namespace: must-gather-pipelines
+spec:
+  pipelineRef:
+    name: sanitised-must-gather
+  taskRunTemplate:
+    serviceAccountName: must-gather-tasks   # no SCC grants -> restricted-v2
+  timeouts:
+    pipeline: 2h
+  params:
+    - { name: targetCluster, value: TARGET_CLUSTER }
+    - { name: gatherType, value: GATHER_TYPE }
+    - { name: includeDefault, value: "INCLUDE_DEFAULT" }
+    - { name: imageTag, value: IMAGE_TAG }
+    - { name: upload, value: "UPLOAD" }
+  workspaces:
+    - name: data
+      persistentVolumeClaim:
+        claimName: must-gather-data
+    - name: kubeconfigs
+      secret:
+        secretName: mg-target-clusters
+    - name: sanitise-config
+      secret:
+        secretName: mg-sanitise-config
+    - name: settings
+      configMap:
+        name: mg-settings
+    - name: artifactory-auth
+      secret:
+        secretName: artifactory-auth

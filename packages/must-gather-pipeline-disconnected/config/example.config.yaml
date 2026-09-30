@@ -1,0 +1,47 @@
+# Sanitiser config for ONE target cluster. Copy to config/<cluster>.config.yaml
+# (gitignored) and replace the example values with that cluster's: `oc get dns cluster -o jsonpath='{.spec.baseDomain}'`,
+# `oc get infrastructure cluster -o jsonpath='{.status.infrastructureName}'`, node names.
+config:
+  obfuscate:
+    # built-ins first, custom keywords last (see must-gather-clean README "Chaining")
+    - type: IP
+      replacementType: Consistent
+      target: All
+    - type: MAC
+      replacementType: Consistent
+      target: All
+    - type: Domain
+      replacementType: Consistent
+      target: All
+      domainNames:
+        - "apps.mycluster.example.com"
+        - "mycluster.example.com"
+        - "example.com"
+        - "node1.provider.example.net"
+        - "provider.example.net"
+    - type: Keywords
+      target: All
+      replacement:
+        mycluster-abc12: "infra-id-redacted"   # infrastructureName
+        node1: "node-redacted"                 # VPS / node short hostname
+        myusername: "user-redacted"
+  omit:
+    - type: Kubernetes
+      kubernetesResource:
+        kind: "Secret"
+    - type: Kubernetes
+      kubernetesResource:
+        kind: "ConfigMap"
+    - type: Kubernetes
+      kubernetesResource:
+        kind: CertificateSigningRequest
+        apiVersion: certificates.k8s.io/v1
+    - type: Kubernetes
+      kubernetesResource:
+        kind: CertificateSigningRequestList
+        apiVersion: certificates.k8s.io/v1
+    - type: Kubernetes
+      kubernetesResource:
+        kind: MachineConfig
+        apiVersion: machineconfiguration.openshift.io/v1
+    - type: SymbolicLink

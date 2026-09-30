@@ -1,0 +1,9 @@
+local/
+config/*.kubeconfig
+config/*.config.yaml
+config/*.canaries.txt
+!config/example.config.yaml
+!config/example.canaries.txt
+image/must-gather-clean
+*.tar.gz
+*.sha256

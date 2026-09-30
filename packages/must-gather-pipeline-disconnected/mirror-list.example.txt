@@ -1,0 +1,18 @@
+# Images to mirror into Artifactory's Docker repo, one per line:
+#   <source image>                                  <path:tag inside DOCKER_REPO>
+# Keep the path ending the same as the CATALOG names in mg-settings and keep the version
+# in the tag (vX.Y or X.Y) - that is what the pipeline searches for. Add one line per
+# version you run (e.g. one per OCP minor across your clusters). Check what tags exist
+# with:  skopeo list-tags docker://registry.redhat.io/rhacm2/acm-must-gather-rhel9
+#
+# Pipeline tooling
+registry.access.redhat.com/ubi9/ubi:latest                          ubi9/ubi:latest
+registry.redhat.io/openshift4/ose-cli-rhel9:v4.18                   openshift4/ose-cli-rhel9:v4.18
+# must-gather images (examples - match the versions installed on your clusters)
+registry.redhat.io/openshift4/ose-must-gather-rhel9:v4.18           openshift4/ose-must-gather-rhel9:v4.18
+registry.redhat.io/rhacm2/acm-must-gather-rhel9:v2.13               rhacm2/acm-must-gather-rhel9:v2.13
+registry.redhat.io/multicluster-engine/must-gather-rhel9:v2.8       multicluster-engine/must-gather-rhel9:v2.8
+registry.redhat.io/odf4/odf-must-gather-rhel9:v4.18                 odf4/odf-must-gather-rhel9:v4.18
+registry.redhat.io/oadp/oadp-mustgather-rhel9:v1.4                  oadp/oadp-mustgather-rhel9:v1.4
+registry.redhat.io/openshift-gitops-1/must-gather-rhel9:v1.16       openshift-gitops-1/must-gather-rhel9:v1.16
+registry.redhat.io/openshift-logging/cluster-logging-rhel9-operator:v6.2  openshift-logging/cluster-logging-rhel9-operator:v6.2

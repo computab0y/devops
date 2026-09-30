@@ -1,0 +1,52 @@
+# Environment settings for the disconnected must-gather pipeline.
+# Copy to local/03-settings.yaml, fill in, and apply (deploy.sh does this).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mg-settings
+  namespace: must-gather-pipelines
+data:
+  # Artifactory base URL as reachable FROM THE PIPELINE PODS (API + uploads).
+  ARTIFACTORY_URL: "https://artifactory.example.com/artifactory"
+
+  # Docker repository the must-gather images are mirrored into (a local, remote or
+  # virtual Docker repo). The pipeline searches it with the Docker v2 API:
+  #   <ARTIFACTORY_URL>/api/docker/<DOCKER_REPO>/v2/_catalog  and  .../tags/list
+  DOCKER_REPO: "docker-local"
+
+  # How TARGET CLUSTER NODES address images in DOCKER_REPO - what goes in front of the
+  # image path in a pull spec. Depends on Artifactory's Docker access method:
+  #   repository path:  artifactory.example.com/docker-local
+  #   subdomain:        docker-local.artifactory.example.com
+  #   port:             artifactory.example.com:5001
+  REGISTRY_PREFIX: "artifactory.example.com/docker-local"
+
+  # Where sanitised archives are uploaded: <ARTIFACTORY_URL>/<UPLOAD_PATH>/<cluster>/
+  UPLOAD_PATH: "generic-local/must-gather"
+
+  # Image catalogue. One line per gather type:
+  #   <gatherType>  <image name to search for>  <version to match>
+  # - image name: matched against the END of repository paths in DOCKER_REPO, so it
+  #   works whatever prefix the mirror used (openshift4/ose-must-gather-rhel9,
+  #   mirror/registry.redhat.io/openshift4/ose-must-gather-rhel9, ...).
+  #   Several names can be given as name1|name2 (first found wins).
+  # - version to match:
+  #     cluster             -> the target cluster's version (X.Y)
+  #     operator:<csv name> -> the version (X.Y) of that operator on the target cluster
+  #   The highest tag matching vX.Y / X.Y (optionally .Z) is used and pinned by digest.
+  #   Override per run with the imageTag parameter.
+  # 'default' is also the image used for includeDefault=true.
+  # Image names are Red Hat's published must-gather repositories - check them against
+  # what you actually mirror. ACS has no must-gather image (its diagnostics come from
+  # `roxctl central debug download-diagnostics`); add a line only if you have one.
+  # A type not listed here fails the run with "not in the image catalogue".
+  CATALOG: |
+    default  openshift4/ose-must-gather-rhel9|okd/must-gather           cluster
+    acm      rhacm2/acm-must-gather-rhel9                               operator:advanced-cluster-management
+    mce      multicluster-engine/must-gather-rhel9                      operator:multicluster-engine
+    logging  openshift-logging/cluster-logging-rhel9-operator           operator:cluster-logging
+    odf      odf4/odf-must-gather-rhel9                                 operator:odf-operator
+    oadp     oadp/oadp-mustgather-rhel9                                 operator:oadp-operator
+    gitops   openshift-gitops-1/must-gather-rhel9                       operator:openshift-gitops-operator
+    cnv      container-native-virtualization/cnv-must-gather-rhel9      operator:kubevirt-hyperconverged
+    servicemesh  openshift-service-mesh/istio-must-gather-rhel9         operator:servicemeshoperator
