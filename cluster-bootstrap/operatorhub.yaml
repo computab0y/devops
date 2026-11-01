@@ -1,0 +1,12 @@
+# Disable every marketplace-managed default catalog. redhat-operators, certified-operators
+# (catalogsources.yaml) and community-operators (community-operators.yaml) are all
+# managed here instead, so their poll intervals can be controlled.
+apiVersion: config.openshift.io/v1
+kind: OperatorHub
+metadata:
+  name: cluster
+spec:
+  disableAllDefaultSources: true
+  sources:
+  - name: community-operators
+    disabled: true

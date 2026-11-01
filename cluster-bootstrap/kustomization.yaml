@@ -1,3 +1,5 @@
 resources:
+- operatorhub.yaml
 - catalogsources.yaml
+- community-operators.yaml
 - machineconfig-crio-no-watchdog.yaml
