@@ -1,0 +1,11 @@
+# In-cluster Ceph RGW bucket. Rook creates a Secret and ConfigMap named "filegateway"
+# (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, BUCKET_HOST/BUCKET_PORT/BUCKET_NAME).
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: filegateway
+spec:
+  bucketName: filegateway
+  storageClassName: ceph-bucket
+  additionalConfig:
+    maxSize: 20G

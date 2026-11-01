@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: filegw-gateway
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"filegw-gateway:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"gateway\")].image"}]'
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: filegw-gateway
+  template:
+    metadata:
+      labels:
+        app: filegw-gateway
+    spec:
+      serviceAccountName: filegw-gateway
+      automountServiceAccountToken: false
+      containers:
+      - name: gateway
+        image: image-registry.openshift-image-registry.svc:5000/filegateway/filegw-gateway:latest
+        command: ["/bin/sh", "/config/entrypoint.sh"]
+        env:
+        - name: SFTP_USER
+          value: ray
+        envFrom:
+        - configMapRef:
+            name: filegateway
+        - secretRef:
+            name: filegateway
+        ports:
+        - name: ssh
+          containerPort: 22
+        securityContext:
+          privileged: true
+        readinessProbe:
+          tcpSocket:
+            port: ssh
+          periodSeconds: 5
+        livenessProbe:
+          exec:
+            command: ["sh", "-c", "mountpoint -q /home/ray/submission && mountpoint -q /home/ray/notification"]
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: "1"
+            memory: 512Mi
+        volumeMounts:
+        - name: config
+          mountPath: /config
+        - name: hostkeys
+          mountPath: /hostkeys
+        - name: cache
+          mountPath: /cache
+      volumes:
+      - name: config
+        configMap:
+          name: filegw-gateway-config
+      - name: hostkeys
+        secret:
+          secretName: filegw-hostkeys
+          optional: true
+      - name: cache
+        emptyDir:
+          sizeLimit: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: filegw-sftp
+spec:
+  type: NodePort
+  selector:
+    app: filegw-gateway
+  ports:
+  - name: ssh
+    port: 22
+    targetPort: ssh
+    nodePort: 30022

@@ -1,0 +1,21 @@
+Port 22
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_rsa_key
+
+# Internet-facing: key auth only, single non-root user
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+AllowUsers ray
+MaxAuthTries 3
+LoginGraceTime 20
+
+AllowTcpForwarding no
+AllowAgentForwarding no
+X11Forwarding no
+PermitTunnel no
+ClientAliveInterval 60
+
+Subsystem sftp internal-sftp

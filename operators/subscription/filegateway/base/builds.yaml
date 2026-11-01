@@ -1,0 +1,52 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: filegw-gateway
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: filegw-gateway
+spec:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: filegw-gateway:latest
+  source:
+    dockerfile: |
+      FROM docker.io/library/debian:12-slim
+      RUN apt-get update \
+       && apt-get install -y --no-install-recommends openssh-server rclone fuse3 ca-certificates \
+       && rm -rf /var/lib/apt/lists/* \
+       && echo user_allow_other >> /etc/fuse.conf \
+       && useradd -m -u 1000 -s /bin/bash ray \
+       && usermod -p '*' ray \
+       && mkdir -p /run/sshd
+      EXPOSE 22
+  strategy:
+    dockerStrategy: {}
+  triggers:
+  - type: ConfigChange
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: filegw-processor
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: filegw-processor
+spec:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: filegw-processor:latest
+  source:
+    dockerfile: |
+      FROM docker.io/library/python:3.12-slim
+      RUN pip install --no-cache-dir boto3==1.35.36
+  strategy:
+    dockerStrategy: {}
+  triggers:
+  - type: ConfigChange

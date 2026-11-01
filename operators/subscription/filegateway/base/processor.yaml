@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: filegw-processor
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"filegw-processor:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"processor\")].image"}]'
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: filegw-processor
+  template:
+    metadata:
+      labels:
+        app: filegw-processor
+    spec:
+      serviceAccountName: filegw-processor
+      automountServiceAccountToken: false
+      containers:
+      - name: processor
+        image: image-registry.openshift-image-registry.svc:5000/filegateway/filegw-processor:latest
+        command: ["python", "-u", "/app/processor.py"]
+        env:
+        - name: POLL_SECONDS
+          value: "10"
+        - name: SETTLE_SECONDS
+          value: "5"
+        - name: MAX_BYTES
+          value: "104857600"
+        - name: ALLOWED_EXTENSIONS
+          value: ".csv,.txt,.json,.xml,.pdf"
+        envFrom:
+        - configMapRef:
+            name: filegateway
+        - secretRef:
+            name: filegateway
+        resources:
+          requests:
+            cpu: 20m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 384Mi
+        volumeMounts:
+        - name: code
+          mountPath: /app
+      volumes:
+      - name: code
+        configMap:
+          name: filegw-processor-code

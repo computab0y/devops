@@ -1,0 +1,24 @@
+namespace: filegateway
+
+resources:
+- namespace.yaml
+- bucket.yaml
+- rbac.yaml
+- builds.yaml
+- gateway.yaml
+- processor.yaml
+
+configMapGenerator:
+- name: filegw-gateway-config
+  files:
+  - files/entrypoint.sh
+  - files/sshd_config
+  - files/authorized_keys
+- name: filegw-processor-code
+  files:
+  - files/processor.py
+
+# Host keys are NOT in git - create once so clients don't see a changed host key on every restart:
+#   ssh-keygen -t ed25519 -N '' -f ssh_host_ed25519_key && ssh-keygen -t rsa -b 4096 -N '' -f ssh_host_rsa_key
+#   oc create secret generic filegw-hostkeys -n filegateway --from-file=ssh_host_ed25519_key \
+#     --from-file=ssh_host_ed25519_key.pub --from-file=ssh_host_rsa_key --from-file=ssh_host_rsa_key.pub
