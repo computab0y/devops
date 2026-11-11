@@ -1,5 +1,9 @@
 # terraform/contabo-okd
 
+> **Full rebuild from scratch** (wipe + reinstall OKD): see `terraform/contabo-okd-rebuild`,
+> `ansible/contabo-okd-install/README.md` and `scripts/rebuild-contabo-okd.sh`. This module
+> only manages the running instance and never reinstalls it.
+
 Infrastructure-as-code for the Contabo-hosted OKD single-node cluster at
 `*.apps.okd.funky-bash.com`. This manages two things:
 

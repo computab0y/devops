@@ -1,0 +1,294 @@
+---
+# From-scratch OKD single-node install onto the Contabo VPS.
+#
+# Precondition: terraform/contabo-okd-rebuild has reinstalled the VPS as Debian with
+# root SSH access via ssh_private_key_path, and written inventory.ini.
+#
+# Flow:
+#   1. facts     - read IP/prefix/gateway/MAC/DNS/root disk from the Debian host
+#   2. prepare   - (this Mac) fetch + verify openshift-install, render install-config,
+#                  add a MachineConfig for the static uplink, build the
+#                  bootstrap-in-place ignition, look up the SCOS PXE artifacts
+#   3. install   - (Debian) download PXE artifacts, embed ignition + network with
+#                  coreos-installer, kexec into the SCOS live system (runs from RAM),
+#                  which installs OKD to the disk and reboots into it
+#   4. wait      - (this Mac) openshift-install wait-for bootstrap/install-complete
+#   5. access    - back up auth/, create the break-glass HTPasswd admin
+#
+# Then run ansible/contabo-okd (day-2) - scripts/rebuild-contabo-okd.sh chains it all.
+
+- name: "facts: read network and disk layout from the Debian host"
+  hosts: installer_host
+  gather_facts: true
+  tags: [facts, prepare, install]
+  vars_files: [vars.yml]
+  tasks:
+    - name: "facts: find the disk holding the root filesystem"
+      shell: lsblk -no PKNAME "$(findmnt -no SOURCE /)" | head -1
+      register: root_disk
+      changed_when: false
+
+    - name: "facts: record node network/disk facts"
+      set_fact:
+        node:
+          ip: "{{ ansible_default_ipv4.address }}"
+          prefix: "{{ ansible_default_ipv4.prefix }}"
+          network: "{{ ansible_default_ipv4.network }}"
+          gateway: "{{ ansible_default_ipv4.gateway }}"
+          mac: "{{ ansible_default_ipv4.macaddress }}"
+          disk: "/dev/{{ root_disk.stdout | trim }}"
+          dns: "{{ (ansible_dns.nameservers | default([]) | reject('match', '^(127\\.|::1)') | list) or fallback_dns }}"
+
+    - name: "facts: show what will be used"
+      debug:
+        msg: "IP {{ node.ip }}/{{ node.prefix }} gw {{ node.gateway }} mac {{ node.mac }} dns {{ node.dns | join(',') }} -> install to {{ node.disk }}"
+
+- name: "prepare: build the bootstrap-in-place ignition on this machine"
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tags: [prepare, install]
+  vars_files: [vars.yml]
+  vars:
+    node: "{{ hostvars['okd-node'].node }}"
+    idir: "{{ install_dir | expanduser }}"
+    key: "{{ ssh_private_key_path | expanduser }}"
+    installer_os: >-
+      {{ ('mac' if ansible_system == 'Darwin' else 'linux')
+         ~ ('-arm64' if ansible_architecture in ['arm64', 'aarch64'] else '') }}
+    installer_tgz: "openshift-install-{{ installer_os }}-{{ okd_version }}.tar.gz"
+    release_url: "https://github.com/okd-project/okd/releases/download/{{ okd_version }}"
+  tasks:
+    - name: "prepare: refuse to overwrite a previous install's credentials"
+      stat:
+        path: "{{ idir }}/auth/kubeconfig"
+      register: old_auth
+
+    - name: "prepare: stop if {{ idir }} already has an install in it"
+      fail:
+        msg: "{{ idir }}/auth already exists. Move it somewhere safe (it is the only admin access to that cluster), then re-run."
+      when: old_auth.stat.exists
+
+    - name: "prepare: create work dirs"
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0700"
+      loop: ["{{ idir }}", "{{ idir }}/bin", "{{ idir }}/cluster"]
+
+    - name: "prepare: create the node SSH key if it does not exist"
+      command: ssh-keygen -t ed25519 -N "" -C "okd-{{ cluster_name }}" -f "{{ key }}"
+      args:
+        creates: "{{ key }}"
+
+    - name: "prepare: fetch release checksums"
+      get_url:
+        url: "{{ release_url }}/sha256sum.txt"
+        dest: "{{ idir }}/bin/sha256sum.txt"
+        mode: "0644"
+
+    - name: "prepare: download openshift-install (verified against sha256sum.txt)"
+      get_url:
+        url: "{{ release_url }}/{{ installer_tgz }}"
+        dest: "{{ idir }}/bin/{{ installer_tgz }}"
+        checksum: "sha256:{{ lookup('file', idir ~ '/bin/sha256sum.txt').splitlines() | select('search', ' ' ~ installer_tgz ~ '$') | first | split | first }}"
+        mode: "0644"
+
+    - name: "prepare: unpack openshift-install"
+      unarchive:
+        src: "{{ idir }}/bin/{{ installer_tgz }}"
+        dest: "{{ idir }}/bin"
+        include: [openshift-install]
+        creates: "{{ idir }}/bin/openshift-install"
+
+    - name: "prepare: render install-config.yaml"
+      template:
+        src: install-config.yaml.j2
+        dest: "{{ idir }}/cluster/install-config.yaml"
+        mode: "0600"
+      vars:
+        pull_secret: "{{ lookup('file', pull_secret_path | expanduser) | from_json }}"
+        ssh_public_key: "{{ lookup('file', key ~ '.pub') | trim }}"
+
+    - name: "prepare: keep a copy (openshift-install consumes the original)"
+      copy:
+        src: "{{ idir }}/cluster/install-config.yaml"
+        dest: "{{ idir }}/install-config.yaml.bak"
+        mode: "0600"
+
+    - name: "prepare: generate manifests"
+      command: "{{ idir }}/bin/openshift-install create manifests --dir {{ idir }}/cluster"
+      args:
+        creates: "{{ idir }}/cluster/manifests"
+
+    - name: "prepare: render the static uplink keyfile"
+      set_fact:
+        nm_keyfile: "{{ lookup('template', 'okd-uplink.nmconnection.j2') }}"
+
+    - name: "prepare: save keyfile for the live installer"
+      copy:
+        content: "{{ nm_keyfile }}"
+        dest: "{{ idir }}/okd-uplink.nmconnection"
+        mode: "0600"
+
+    - name: "prepare: add MachineConfig so the installed node keeps the static uplink"
+      template:
+        src: 99-master-okd-uplink.yaml.j2
+        dest: "{{ idir }}/cluster/openshift/99-master-okd-uplink.yaml"
+        mode: "0600"
+
+    - name: "prepare: build bootstrap-in-place ignition"
+      command: "{{ idir }}/bin/openshift-install create single-node-ignition-config --dir {{ idir }}/cluster"
+      args:
+        creates: "{{ idir }}/cluster/bootstrap-in-place-for-live-iso.ign"
+
+    - name: "prepare: look up the SCOS PXE artifacts this release was built with"
+      command: "{{ idir }}/bin/openshift-install coreos print-stream-json"
+      register: stream
+      changed_when: false
+
+    - name: "prepare: record PXE artifact URLs + checksums"
+      set_fact:
+        pxe: "{{ (stream.stdout | from_json).architectures.x86_64.artifacts.metal.formats.pxe }}"
+
+- name: "install: kexec the Debian host into the SCOS live installer"
+  hosts: installer_host
+  gather_facts: false
+  tags: [install]
+  vars_files: [vars.yml]
+  vars:
+    pxe: "{{ hostvars['localhost'].pxe }}"
+    idir: "{{ install_dir | expanduser }}"
+    work: /root/okd
+  tasks:
+    - name: "install: packages"
+      apt:
+        name: [podman, kexec-tools, curl]
+        update_cache: true
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+    - name: "install: work dir"
+      file:
+        path: "{{ work }}"
+        state: directory
+        mode: "0700"
+
+    - name: "install: download SCOS PXE artifacts (checksum-verified)"
+      get_url:
+        url: "{{ pxe[item].location }}"
+        dest: "{{ work }}/{{ item }}"
+        checksum: "sha256:{{ pxe[item].sha256 }}"
+        mode: "0600"
+      loop: [kernel, initramfs, rootfs]
+
+    - name: "install: copy ignition + network keyfile"
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ work }}/{{ item.dest }}"
+        mode: "0600"
+      loop:
+        - { src: "{{ idir }}/cluster/bootstrap-in-place-for-live-iso.ign", dest: bip.ign }
+        - { src: "{{ idir }}/okd-uplink.nmconnection", dest: okd-uplink.nmconnection }
+
+    - name: "install: embed ignition + network into the initramfs"
+      command: >-
+        podman run --rm --privileged -v {{ work }}:/data:z -w /data
+        quay.io/coreos/coreos-installer:release
+        pxe customize --live-ignition bip.ign --network-keyfile okd-uplink.nmconnection
+        -o initramfs-custom.img initramfs
+
+    - name: "install: append rootfs so the live system runs entirely from RAM"
+      shell: cat initramfs-custom.img rootfs > initrd-full.img
+      args:
+        chdir: "{{ work }}"
+
+    - name: "install: load the SCOS live kernel"
+      command: >-
+        kexec -l {{ work }}/kernel --initrd={{ work }}/initrd-full.img
+        --append="ignition.firstboot ignition.platform.id=metal console=tty0 console=ttyS0,115200n8"
+
+    - name: "install: kexec now (connection drops - expected)"
+      shell: sleep 3 && systemctl kexec
+      async: 30
+      poll: 0
+
+- name: "wait: bootstrap-in-place install"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [install, wait]
+  vars_files: [vars.yml]
+  vars:
+    idir: "{{ install_dir | expanduser }}"
+  tasks:
+    - name: "wait: bootstrap complete (live system installs to disk and reboots)"
+      command: "{{ idir }}/bin/openshift-install wait-for bootstrap-complete --dir {{ idir }}/cluster --log-level info"
+      register: bs
+      retries: "{{ (bootstrap_timeout_min | int / 20) | round(0, 'ceil') | int }}"
+      delay: 10
+      until: bs.rc == 0
+
+    - name: "wait: install complete"
+      command: "{{ idir }}/bin/openshift-install wait-for install-complete --dir {{ idir }}/cluster --log-level info"
+      register: ic
+      retries: 3
+      delay: 10
+      until: ic.rc == 0
+
+- name: "access: back up credentials and add a break-glass admin"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [access]
+  vars_files: [vars.yml]
+  vars:
+    idir: "{{ install_dir | expanduser }}"
+  environment:
+    KUBECONFIG: "{{ idir }}/cluster/auth/kubeconfig"
+  tasks:
+    - name: "access: keep auth/ at the top of install_dir too"
+      copy:
+        src: "{{ idir }}/cluster/auth/"
+        dest: "{{ idir }}/auth/"
+        mode: "0600"
+        directory_mode: "0700"
+
+    - name: "access: generate break-glass password (stored in {{ idir }}/auth/breakglass-password)"
+      set_fact:
+        bg_pass: "{{ lookup('password', idir ~ '/auth/breakglass-password chars=ascii_letters,digits length=24') }}"
+      no_log: true
+
+    - name: "access: bcrypt it"
+      command: htpasswd -nbB "{{ breakglass_user }}" "{{ bg_pass }}"
+      register: bg_htpasswd
+      changed_when: false
+      no_log: true
+
+    - name: "access: create openshift-config/htpass-secret (read by the 'developer' IdP)"
+      shell: |
+        oc create secret generic htpass-secret -n openshift-config \
+          --from-file=htpasswd=/dev/stdin --dry-run=client -o yaml | oc apply -f - >/dev/null
+      args:
+        stdin: "{{ bg_htpasswd.stdout }}"
+      no_log: true
+
+    - name: "access: make sure the 'developer' HTPasswd IdP exists before day-2 adds keycloak"
+      command: >-
+        oc patch oauth cluster --type merge -p
+        '{"spec":{"identityProviders":[{"name":"developer","mappingMethod":"claim","type":"HTPasswd","htpasswd":{"fileData":{"name":"htpass-secret"}}}]}}'
+
+    - name: "access: cluster-admin for the break-glass user"
+      shell: |
+        oc create clusterrolebinding breakglass-cluster-admin --clusterrole=cluster-admin \
+          --user={{ breakglass_user }} --dry-run=client -o yaml | oc apply -f -
+
+    - name: "access: done"
+      debug:
+        msg:
+          - "Admin kubeconfig: {{ idir }}/auth/kubeconfig  (certificate-based; works even if OAuth/Keycloak is down)"
+          - "kubeadmin password: {{ idir }}/auth/kubeadmin-password"
+          - "Break-glass login: user '{{ breakglass_user }}' via the 'developer' provider, password in {{ idir }}/auth/breakglass-password"
+          - "SSH: ssh -i {{ ssh_private_key_path }} core@{{ hostvars['okd-node'].ansible_host }}"
+          - "BACK UP {{ idir }}/auth AND {{ ssh_private_key_path }} OFF THIS MACHINE (password manager / encrypted drive)."
+          - "Next: cd ../contabo-okd && ansible-playbook playbook.yml"
