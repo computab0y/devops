@@ -1,0 +1,86 @@
+---
+# Rook-Ceph: the cluster's only storage backend (ceph-block = default, ceph-filesystem RWX,
+# ceph-bucket S3). Single OSD on the 'rookdata0' partition that the install playbook
+# carves out of the boot disk (ansible/contabo-okd-install, create_rook_partition).
+#
+# Upstream operator manifests are applied straight from the pinned Rook release; this
+# repo only holds our CephCluster / pools / StorageClasses (platform/rook-ceph).
+
+- name: "rook-ceph: check the OSD partition exists on the node"
+  stat:
+    path: "/dev/disk/by-partlabel/{{ rook_partition_label }}"
+  register: rook_part
+  tags: [storage]
+
+- name: "rook-ceph: stop if there is nothing for the OSD to use"
+  fail:
+    msg: >-
+      /dev/disk/by-partlabel/{{ rook_partition_label }} is missing. The node was installed
+      without the rookdata partition (create_rook_partition in the install playbook).
+      Ceph has nothing to put an OSD on - add a disk/partition with that label first.
+  when: not rook_part.stat.exists
+  tags: [storage]
+
+- name: "rook-ceph: apply operator manifests (Rook {{ rook_version }})"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc apply --server-side --force-conflicts
+    -f https://raw.githubusercontent.com/rook/rook/{{ rook_version }}/deploy/examples/{{ item }}
+  loop: [crds.yaml, common.yaml, csi-operator.yaml, operator-openshift.yaml]
+  register: rook_apply
+  retries: 3
+  delay: 10
+  until: rook_apply.rc == 0
+  changed_when: "'serverside-applied' in rook_apply.stdout"
+  tags: [storage]
+
+- name: "rook-ceph: wait for the operator"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc rollout status deploy/rook-ceph-operator -n rook-ceph --timeout=60s
+  register: rook_op
+  until: rook_op.rc == 0
+  retries: 15
+  delay: 20
+  changed_when: false
+  tags: [storage]
+
+- name: "rook-ceph: apply CephCluster, pools, filesystem, object store, StorageClasses"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc apply -k {{ repo_url }}//platform/rook-ceph?ref={{ repo_ref }}
+  register: ceph_apply
+  changed_when: "'unchanged' not in ceph_apply.stdout"
+  tags: [storage]
+
+- name: "rook-ceph: toolbox (ceph CLI: oc rsh -n rook-ceph deploy/rook-ceph-tools ceph status)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc apply -f https://raw.githubusercontent.com/rook/rook/{{ rook_version }}/deploy/examples/toolbox.yaml
+  register: tools_apply
+  changed_when: "'unchanged' not in tools_apply.stdout"
+  tags: [storage]
+
+- name: "rook-ceph: wait for the CephCluster to be Ready (first OSD prepare takes a while)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc get cephcluster rook-ceph -n rook-ceph -o jsonpath={.status.phase}
+  register: ceph_phase
+  until: ceph_phase.stdout == "Ready"
+  retries: 60
+  delay: 20
+  changed_when: false
+  tags: [storage]
+
+- name: "rook-ceph: wait for the RBD and CephFS pools (StorageClasses are usable after this)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc get {{ item }} -n rook-ceph -o jsonpath={.status.phase}
+  loop: [cephblockpool/replicapool, cephfilesystem/cephfs]
+  register: pool_phase
+  until: pool_phase.stdout == "Ready"
+  retries: 30
+  delay: 20
+  changed_when: false
+  tags: [storage]

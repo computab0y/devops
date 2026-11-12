@@ -1,7 +1,10 @@
 # From-scratch OKD SNO install onto the Contabo VPS, after terraform/contabo-okd-rebuild
 # has reinstalled it as plain Debian. Override via -e or a gitignored vars.local.yml.
 
-okd_version: "4.22.0-okd-scos.10"
+# OKD 5 GA was 2026-09-17. Installing straight onto 5.x avoids the 4.22.0-okd-scos.4-.6
+# CRI-O 1.36.1 shutdown-hang releases (okd-project/okd#2340) and the 4.22 -> 5.0 hop.
+# The day-2 playbook sets the matching update channel (cluster_update_channel).
+okd_version: "5.0.0-okd-scos.5"
 cluster_name: "okd"
 base_domain: "funky-bash.com"
 
@@ -27,3 +30,12 @@ fallback_dns: ["213.136.95.10", "213.136.95.11"]
 
 # Minutes to wait for bootstrap / full install to complete.
 bootstrap_timeout_min: 60
+
+# Ceph OSD partition carved out of the boot disk at install time (see
+# templates/98-master-rookdata-partition.yaml.j2). Root gets everything before
+# rook_partition_start_mib (~250 GiB on the 500G Contabo disk); rookdata0 gets the rest.
+# Set create_rook_partition: false to give the whole disk to root (then Ceph needs
+# a second disk, or use another StorageClass).
+create_rook_partition: true
+rook_partition_label: "rookdata0"
+rook_partition_start_mib: 256000

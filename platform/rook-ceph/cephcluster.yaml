@@ -1,0 +1,76 @@
+# Single-node Ceph: 1 mon, 1 mgr, 1 OSD on the GPT partition labelled 'rookdata0'.
+# That partition is created at install time by
+# ansible/contabo-okd-install/templates/98-master-rookdata-partition.yaml.j2 (root capped,
+# rest of the disk -> rookdata0). Live cluster: /dev/sda5, 250G.
+# Pools use size: 1 (no redundancy) - HEALTH_WARN POOL_NO_REDUNDANCY is expected.
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: rook-ceph
+  namespace: rook-ceph
+spec:
+  cephVersion:
+    image: quay.io/ceph/ceph:v19.2.6
+  csi:
+    readAffinity:
+      enabled: false
+  dashboard:
+    enabled: true
+  dataDirHostPath: /var/lib/rook
+  disruptionManagement:
+    managePodBudgets: true
+  logCollector:
+    enabled: true
+    maxLogSize: 500M
+    periodicity: daily
+  mgr:
+    allowMultiplePerNode: true
+    count: 1
+    modules:
+    - enabled: true
+      name: rook
+  mon:
+    allowMultiplePerNode: true
+    count: 1
+  resources:
+    crashcollector:
+      limits:
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 60Mi
+    mds:
+      limits:
+        memory: 2Gi
+      requests:
+        cpu: 250m
+        memory: 1Gi
+    mgr:
+      limits:
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+    mon:
+      limits:
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+    osd:
+      limits:
+        memory: 4Gi
+      requests:
+        cpu: 500m
+        memory: 2Gi
+    rgw:
+      limits:
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+  storage:
+    useAllNodes: true
+    useAllDevices: false
+    devices:
+    - name: /dev/disk/by-partlabel/rookdata0

@@ -1,0 +1,17 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    haproxy.router.openshift.io/timeout: 30m
+  name: artifactory-api
+spec:
+  host: artifactory-artifactory.apps.okd.funky-bash.com
+  path: /artifactory
+  port:
+    targetPort: 8082
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+  to:
+    kind: Service
+    name: artifactory

@@ -1,0 +1,59 @@
+---
+# OpenShift Lightspeed (in-console AI assistant) backed by Claude.
+#
+# The Anthropic API key is read from lightspeed_api_key_file on THIS machine and never
+# enters the repo. Create that file once (mode 600). In a terminal, not in a chat/agent session:
+#   read -rs KEY; printf %s "$KEY" > ~/.okd-breakglass/anthropic-api-key; unset KEY; chmod 600 ~/.okd-breakglass/anthropic-api-key
+# The Anthropic account needs credits (platform.claude.com -> Billing) or Lightspeed's
+# health check fails with "Your credit balance is too low".
+#
+# Questions, and any cluster data Lightspeed pulls in to answer them, go to Anthropic's API.
+
+- name: "lightspeed: operator"
+  include_tasks: deploy_operator.yml
+  vars:
+    item: { name: lightspeed, ns: openshift-lightspeed, manual_approval: false, path: base }
+
+- name: "lightspeed: is the API key file present?"
+  stat:
+    path: "{{ lightspeed_api_key_file | expanduser }}"
+  register: ls_key
+  delegate_to: localhost
+  become: false
+
+- name: "lightspeed: skip (no API key file)"
+  debug:
+    msg: "No {{ lightspeed_api_key_file }} - operator installed, OLSConfig not created. See this file's header."
+  when: not ls_key.stat.exists
+
+- name: "lightspeed: create Secret anthropic-api-key (key: apitoken)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: |
+    oc create secret generic anthropic-api-key -n openshift-lightspeed \
+      --from-literal=apitoken={{ lookup('file', lightspeed_api_key_file | expanduser) | trim | quote }} \
+      --dry-run=client -o yaml | oc apply -f - >/dev/null
+  when: ls_key.stat.exists
+  changed_when: true
+  no_log: true
+
+- name: "lightspeed: OLSConfig"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc apply -k {{ repo_url }}//operators/subscription/lightspeed/olsconfig?ref={{ repo_ref }}
+  when: ls_key.stat.exists
+  register: ols_apply
+  changed_when: "'unchanged' not in ols_apply.stdout"
+
+- name: "lightspeed: wait for ApiReady (app server starts slowly, ~2 min, may restart a few times)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc get olsconfig cluster -o jsonpath={.status.conditions[?(@.type=="ApiReady")].status}
+  register: ols_ready
+  until: ols_ready.stdout == "True"
+  retries: 60
+  delay: 30
+  changed_when: false
+  ignore_errors: true   # rhokp pulls a very large image on first start (can take >1h)
+  when: ls_key.stat.exists

@@ -1,0 +1,14 @@
+apiVersion: v1
+data:
+  config.yaml: "server_url: https://headscale.apps.okd.funky-bash.com\nlisten_addr: 0.0.0.0:8080\nmetrics_listen_addr:\
+    \ 127.0.0.1:9090\ngrpc_listen_addr: 127.0.0.1:50443\ngrpc_allow_insecure: false\nunix_socket: /var/run/headscale/headscale.sock\n\
+    unix_socket_permission: \"0770\"\n\nnoise:\n  private_key_path: /var/lib/headscale/noise_private.key\n\nprefixes:\n\
+    \  v4: 100.64.0.0/10\n  v6: fd7a:115c:a1e0::/48\n  allocation: sequential\n\nderp:\n  server:\n    enabled:\
+    \ false\n  urls:\n    - https://controlplane.tailscale.com/derpmap/default\n  auto_update_enabled: true\n  update_frequency:\
+    \ 24h\n\ndisable_check_updates: false\nephemeral_node_inactivity_timeout: 30m\n\ndatabase:\n  type: sqlite\n\
+    \  sqlite:\n    path: /var/lib/headscale/db.sqlite\n\nlog:\n  level: info\n\ndns:\n  magic_dns: true\n  base_domain:\
+    \ internal.funky-bash.com\n  nameservers:\n    global:\n      - 1.1.1.1\n      - 8.8.8.8\n\nunix_socket_dir:\
+    \ /var/run/headscale\n"
+kind: ConfigMap
+metadata:
+  name: headscale-config

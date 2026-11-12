@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    openshift.io/host.generated: 'true'
+  name: pgadmin
+spec:
+  host: pgadmin-pgd-homelab.apps.okd.funky-bash.com
+  port:
+    targetPort: 80
+  tls:
+    termination: edge
+  to:
+    kind: Service
+    name: pgadmin

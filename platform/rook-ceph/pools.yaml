@@ -1,0 +1,63 @@
+apiVersion: ceph.rook.io/v1
+kind: CephBlockPool
+metadata:
+  name: replicapool
+  namespace: rook-ceph
+spec:
+  failureDomain: osd
+  replicated:
+    size: 1
+---
+apiVersion: ceph.rook.io/v1
+kind: CephFilesystem
+metadata:
+  name: cephfs
+  namespace: rook-ceph
+spec:
+  dataPools:
+  - failureDomain: osd
+    name: data0
+    replicated:
+      size: 1
+  metadataPool:
+    failureDomain: osd
+    replicated:
+      size: 1
+  metadataServer:
+    activeCount: 1
+    resources:
+      limits:
+        memory: 2Gi
+      requests:
+        cpu: 250m
+        memory: 1Gi
+  preserveFilesystemOnDelete: true
+---
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStore
+metadata:
+  name: objectstore
+  namespace: rook-ceph
+spec:
+  dataPool:
+    failureDomain: osd
+    replicated:
+      requireSafeReplicaSize: false
+      size: 1
+  gateway:
+    instances: 1
+    port: 8080
+    resources:
+      limits:
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+  metadataPool:
+    failureDomain: osd
+    replicated:
+      requireSafeReplicaSize: false
+      size: 1
+  preservePoolsOnDelete: false
+  sharedPools:
+    preserveRadosNamespaceDataOnDelete: false

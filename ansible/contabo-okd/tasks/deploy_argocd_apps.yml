@@ -1,0 +1,21 @@
+---
+# Argo CD Applications that pull in workloads from other repos (needs the gitops operator).
+
+- name: "argocd: wait for the openshift-gitops Argo CD instance"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc get argocd openshift-gitops -n openshift-gitops -o jsonpath={.status.phase}
+  register: argo_phase
+  until: argo_phase.stdout == "Available"
+  retries: 30
+  delay: 20
+  changed_when: false
+
+- name: "argocd: apply Applications (beacon-root)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc apply -k {{ repo_url }}//apps/argocd?ref={{ repo_ref }}
+  register: argo_apply
+  changed_when: "'unchanged' not in argo_apply.stdout"
+  # beacon expects the EDB PGD database (apps/pgd, optional) - without it beacon syncs
+  # but its pods will not become ready.

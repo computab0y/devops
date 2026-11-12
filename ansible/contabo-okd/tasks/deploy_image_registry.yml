@@ -1,0 +1,30 @@
+---
+# Internal image registry on CephFS (RWX claim image-registry-storage-ceph).
+# A fresh SNO install on platform: none leaves the registry Removed with no storage.
+
+- name: "registry: create the CephFS claim"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc apply -k {{ repo_url }}//platform/image-registry?ref={{ repo_ref }}
+  register: reg_pvc
+  changed_when: "'unchanged' not in reg_pvc.stdout"
+
+- name: "registry: point the operator at it and set Managed"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc patch configs.imageregistry.operator.openshift.io cluster --type merge
+    -p '{"spec":{"managementState":"Managed","replicas":1,"rolloutStrategy":"Recreate",
+    "storage":{"pvc":{"claim":"image-registry-storage-ceph"}}}}'
+  register: reg_patch
+  changed_when: "'no change' not in reg_patch.stdout"
+
+- name: "registry: wait for the registry deployment"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc rollout status deploy/image-registry -n openshift-image-registry --timeout=60s
+  register: reg_roll
+  until: reg_roll.rc == 0
+  retries: 15
+  delay: 20
+  changed_when: false

@@ -4,7 +4,11 @@
 #   1. terraform/contabo-okd-rebuild  - reinstall the VPS as Debian (WIPES THE DISK)
 #   2. ansible/contabo-okd-install    - install OKD SNO onto it, save credentials,
 #                                       create the break-glass admin
-#   3. ansible/contabo-okd            - day-2: catalogs, operators, Vault, Keycloak, Tekton
+#   3. ansible/contabo-okd            - day-2: catalogs, operators, Rook-Ceph, registry,
+#                                       certs, Lightspeed, Keycloak, Tekton, CNPG,
+#                                       Artifactory, headscale, Argo CD apps
+#
+# Full runbook (backups first, inputs, gaps): docs/okd-rebuild-runbook.md
 #
 # Usage: scripts/rebuild-contabo-okd.sh            (asks you to type the instance ID)
 #        SKIP_TERRAFORM=1 scripts/rebuild-contabo-okd.sh   (VPS already reinstalled as Debian)
@@ -12,7 +16,7 @@ set -euo pipefail
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 tf="$repo/terraform/contabo-okd-rebuild"
 
-for bin in terraform ansible-playbook htpasswd oc; do
+for bin in terraform ansible-playbook htpasswd oc helm; do
   command -v "$bin" >/dev/null || { echo "missing: $bin" >&2; exit 1; }
 done
 
@@ -35,4 +39,6 @@ if [ -z "${SKIP_TERRAFORM:-}" ]; then
 fi
 
 (cd "$repo/ansible/contabo-okd-install" && ansible-playbook playbook.yml)
-(cd "$repo/ansible/contabo-okd" && ansible-playbook playbook.yml)
+day2_extra=()
+[ -f "$repo/ansible/contabo-okd/vars.local.yml" ] && day2_extra=(-e @vars.local.yml)
+(cd "$repo/ansible/contabo-okd" && ansible-playbook playbook.yml ${day2_extra[@]+"${day2_extra[@]}"})

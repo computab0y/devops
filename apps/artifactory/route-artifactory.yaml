@@ -1,0 +1,24 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    haproxy.router.openshift.io/timeout: 10m
+    openshift.io/host.generated: 'true'
+  labels:
+    app: artifactory
+    app.kubernetes.io/managed-by: Helm
+    chart: artifactory-107.146.29
+    component: artifactory
+    heritage: Helm
+    release: artifactory
+  name: artifactory
+spec:
+  host: artifactory-artifactory.apps.okd.funky-bash.com
+  port:
+    targetPort: http
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+  to:
+    kind: Service
+    name: oauth2-proxy

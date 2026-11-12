@@ -13,14 +13,34 @@
 # Usage:
 #   ansible-playbook playbook.yml --tags bootstrap
 #   ansible-playbook playbook.yml --tags operators
+#   ansible-playbook playbook.yml --tags storage     # Rook-Ceph + image registry
 #   ansible-playbook playbook.yml --tags operands
+#   ansible-playbook playbook.yml --tags lightspeed
 #   ansible-playbook playbook.yml            # everything, in order
+#
+# Order matters: storage (Rook-Ceph, default StorageClass) before anything with a PVC;
+# sso (Keycloak) before artifactory (its login proxy trusts Keycloak's CA).
 
 - name: Configure OKD cluster (bootstrap, operators, operands)
   hosts: okd_node
   become: true
   vars_files:
     - vars.yml
+
+  pre_tasks:
+    - name: "local secrets dir (generated passwords/keys live here, never in git)"
+      set_fact:
+        secrets_dir: "{{ secrets_dir | expanduser }}"
+      tags: [always]
+
+    - name: "local secrets dir: create (mode 700)"
+      file:
+        path: "{{ secrets_dir }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      tags: [always]
 
   tasks:
     # ---------------------------------------------------------------- bootstrap ---
@@ -114,6 +134,22 @@
       # single-node cluster the one node has to carry that label too, or their pods sit
       # Pending with a FailedScheduling node-affinity error.
 
+    - name: "cluster: update channel + console Managed"
+      include_tasks: tasks/cluster_settings.yml
+      tags: [bootstrap, cluster]
+
+    # ------------------------------------------------------------------ storage ---
+    - name: "storage: Rook-Ceph (ceph-block default, ceph-filesystem, ceph-bucket)"
+      include_tasks:
+        file: tasks/deploy_rook_ceph.yml
+        apply:
+          tags: [storage]
+      tags: [storage]
+
+    - name: "storage: internal image registry on CephFS"
+      include_tasks: tasks/deploy_image_registry.yml
+      tags: [storage, registry]
+
     # ---------------------------------------------------------------- operators ---
     - name: "operators: deploy each operator subscription (2-pass apply, see tasks/deploy_operator.yml)"
       include_tasks: tasks/deploy_operator.yml
@@ -121,6 +157,15 @@
       loop_control:
         label: "{{ item.name }}"
       tags: [operators]
+
+    - name: "operators: Let's Encrypt *.apps wildcard as the default ingress cert"
+      include_tasks: tasks/deploy_certificates.yml
+      tags: [operators, certs]
+      # Before operand-sso: Keycloak's CA-bundle step fetches the route's served chain.
+
+    - name: "operators: OpenShift Lightspeed (Claude via Anthropic API)"
+      include_tasks: tasks/deploy_lightspeed.yml
+      tags: [operators, lightspeed]
 
     # ----------------------------------------------------------------- operands ---
     - name: "operands: deploy vault (dev-mode)"
@@ -144,8 +189,28 @@
 
     - name: "operands: deploy Guacamole (RDP/VNC/SSH gateway into the home network via Tailscale)"
       include_tasks: tasks/deploy_guacamole.yml
+      when: deploy_guacamole | default(false) | bool
       tags: [operands, operand-guacamole]
+      # Off by default: not running on the live cluster (2026-11) and needs
+      # -e tailscale_authkey=... Enable with -e deploy_guacamole=true.
       # Requires -e tailscale_authkey=tskey-... on first run (see
       # tasks/deploy_guacamole.yml header for how to generate one). Independent of the
       # other operands - can run standalone via:
       #   ansible-playbook playbook.yml --tags operand-guacamole -e tailscale_authkey=tskey-...
+
+    - name: "operands: CloudNativePG operator + homelab-pg, homelab-app, pgAdmin"
+      include_tasks: tasks/deploy_cnpg.yml
+      tags: [operands, operand-cnpg]
+
+    - name: "operands: Artifactory JCR (Helm) + Keycloak login proxy"
+      include_tasks: tasks/deploy_artifactory.yml
+      tags: [operands, operand-artifactory]
+      # After operand-sso: the proxy trusts openshift-config/keycloak-ca-bundle.
+
+    - name: "operands: headscale (Tailscale control server)"
+      include_tasks: tasks/deploy_headscale.yml
+      tags: [operands, operand-headscale]
+
+    - name: "operands: Argo CD Applications (beacon)"
+      include_tasks: tasks/deploy_argocd_apps.yml
+      tags: [operands, operand-argocd]

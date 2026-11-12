@@ -13,7 +13,8 @@
 #                  coreos-installer, kexec into the SCOS live system (runs from RAM),
 #                  which installs OKD to the disk and reboots into it
 #   4. wait      - (this Mac) openshift-install wait-for bootstrap/install-complete
-#   5. access    - back up auth/, create the break-glass HTPasswd admin
+#   5. access    - back up auth/, create the break-glass HTPasswd admin and a
+#                  non-expiring break-glass ServiceAccount kubeconfig
 #
 # Then run ansible/contabo-okd (day-2) - scripts/rebuild-contabo-okd.sh chains it all.
 
@@ -136,6 +137,13 @@
         src: 99-master-okd-uplink.yaml.j2
         dest: "{{ idir }}/cluster/openshift/99-master-okd-uplink.yaml"
         mode: "0600"
+
+    - name: "prepare: add MachineConfig that carves the Ceph OSD partition (rookdata0)"
+      template:
+        src: 98-master-rookdata-partition.yaml.j2
+        dest: "{{ idir }}/cluster/openshift/98-master-rookdata-partition.yaml"
+        mode: "0600"
+      when: create_rook_partition | bool
 
     - name: "prepare: build bootstrap-in-place ignition"
       command: "{{ idir }}/bin/openshift-install create single-node-ignition-config --dir {{ idir }}/cluster"
@@ -283,12 +291,53 @@
         oc create clusterrolebinding breakglass-cluster-admin --clusterrole=cluster-admin \
           --user={{ breakglass_user }} --dry-run=client -o yaml | oc apply -f -
 
+    - name: "access: break-glass ServiceAccount (token kubeconfig that does not depend on OAuth/Keycloak)"
+      shell: |
+        oc create namespace breakglass --dry-run=client -o yaml | oc apply -f - >/dev/null
+        oc create serviceaccount breakglass-admin -n breakglass --dry-run=client -o yaml | oc apply -f - >/dev/null
+        oc create clusterrolebinding breakglass-admin-sa --clusterrole=cluster-admin \
+          --serviceaccount=breakglass:breakglass-admin --dry-run=client -o yaml | oc apply -f - >/dev/null
+        cat <<YAML | oc apply -f - >/dev/null
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: breakglass-admin-token
+          namespace: breakglass
+          annotations:
+            kubernetes.io/service-account.name: breakglass-admin
+        type: kubernetes.io/service-account-token
+        YAML
+      changed_when: true
+
+    - name: "access: wait for the SA token to be populated"
+      command: oc get secret breakglass-admin-token -n breakglass -o jsonpath={.data.token}
+      register: bg_sa_token
+      until: bg_sa_token.stdout | length > 0
+      retries: 12
+      delay: 5
+      changed_when: false
+      no_log: true
+
+    - name: "access: write {{ idir }}/auth/kubeconfig-breakglass (copy it to ~/.okd-breakglass/)"
+      shell: |
+        set -e
+        out="{{ idir }}/auth/kubeconfig-breakglass"
+        server=$(oc whoami --show-server)
+        KUBECONFIG="$out" oc config set-cluster okd --server="$server" >/dev/null
+        KUBECONFIG="$out" oc config set-credentials breakglass-admin --token="$(oc get secret breakglass-admin-token -n breakglass -o jsonpath={.data.token} | base64 -d)" >/dev/null
+        KUBECONFIG="$out" oc config set-context okd --cluster=okd --user=breakglass-admin >/dev/null
+        KUBECONFIG="$out" oc config use-context okd >/dev/null
+        chmod 600 "$out"
+      changed_when: true
+      no_log: true
+
     - name: "access: done"
       debug:
         msg:
           - "Admin kubeconfig: {{ idir }}/auth/kubeconfig  (certificate-based; works even if OAuth/Keycloak is down)"
           - "kubeadmin password: {{ idir }}/auth/kubeadmin-password"
           - "Break-glass login: user '{{ breakglass_user }}' via the 'developer' provider, password in {{ idir }}/auth/breakglass-password"
+          - "Break-glass token kubeconfig: {{ idir }}/auth/kubeconfig-breakglass (cluster-admin SA, no expiry) - copy to ~/.okd-breakglass/"
           - "SSH: ssh -i {{ ssh_private_key_path }} core@{{ hostvars['okd-node'].ansible_host }}"
           - "BACK UP {{ idir }}/auth AND {{ ssh_private_key_path }} OFF THIS MACHINE (password manager / encrypted drive)."
           - "Next: cd ../contabo-okd && ansible-playbook playbook.yml"

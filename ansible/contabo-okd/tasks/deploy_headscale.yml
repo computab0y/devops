@@ -1,0 +1,30 @@
+---
+# Headscale (self-hosted Tailscale control server) + headscale-admin UI.
+#
+# A rebuild starts with an empty headscale-data volume: a NEW noise key and no nodes.
+# Every client has to re-register (tailscale up --login-server https://headscale.{{ cluster_apps_domain }}).
+# To keep the existing tailnet, restore db.sqlite and noise_private.key from a backup of
+# the old headscale-data volume into the new one before starting the pod.
+
+- name: "headscale: apply"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc apply -k {{ repo_url }}//apps/headscale?ref={{ repo_ref }}
+  register: hs_apply
+  changed_when: "'unchanged' not in hs_apply.stdout"
+
+- name: "headscale: headscale-admin needs the (v1) restricted SCC"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc adm policy add-scc-to-user restricted -z default -n headscale
+  changed_when: true
+
+- name: "headscale: wait for rollout"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc rollout status deploy/headscale -n headscale --timeout=60s
+  register: hs_roll
+  until: hs_roll.rc == 0
+  retries: 10
+  delay: 15
+  changed_when: false
