@@ -1,0 +1,24 @@
+---
+# Cluster-wide settings that live outside any operator directory.
+
+- name: "cluster: set the update channel ({{ cluster_update_channel }})"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc patch clusterversion version --type merge
+    -p '{"spec":{"channel":"{{ cluster_update_channel }}"}}'
+  register: channel_patch
+  changed_when: "'no change' not in channel_patch.stdout"
+  # Only sets the channel - never starts an upgrade. Upgrades on this single node need the
+  # pre-reboot scale-down in docs/okd-rebuild-runbook.md ("Before any reboot or upgrade").
+
+- name: "cluster: keep the console operator Managed"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc patch consoles.operator.openshift.io cluster --type merge
+    -p '{"spec":{"managementState":"Managed"}}'
+  register: console_patch
+  changed_when: "'no change' not in console_patch.stdout"
+  # Someone set it Unmanaged on 2026-09-17 to relax probes. That left ClusterVersion
+  # Failing for 53 days and blocked upgrades. If the console flaps, look at node load first.

@@ -1,0 +1,35 @@
+# CloudNativePG cluster (operator: platform/cnpg). Moved from NFS to ceph-block on 2026-11-10.
+# CNPG generates Secret homelab-pg-app (user/password) - the demo app reads it from there.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: homelab-pg
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.2
+  bootstrap:
+    initdb:
+      database: app
+      encoding: UTF8
+      localeCType: C
+      localeCollate: C
+      owner: app
+  enableSuperuserAccess: false
+  primaryUpdateStrategy: unsupervised
+  storage:
+    resizeInUseVolumes: true
+    size: 20Gi
+    storageClass: ceph-block
+  resources:
+    requests:
+      cpu: '0'
+      memory: 256Mi
+  enablePDB: true
+  postgresql:
+    parameters:
+      max_connections: '100'
+      shared_buffers: 256MB
+      wal_keep_size: 512MB
+      wal_level: logical
+  affinity:
+    podAntiAffinityType: preferred
