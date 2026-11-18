@@ -1,0 +1,76 @@
+---
+# Publicly trusted *.apps wildcard certificate (Let's Encrypt, DNS-01 through Cloudflare)
+# set as the default ingress certificate. Needs the cert-manager operator (operators list).
+#
+# Inputs (both on THIS machine, never committed - the repo is public):
+#   acme_email               - in vars.local.yml
+#   cloudflare_api_token_file - file holding a Cloudflare token with Zone:DNS:Edit on the
+#                               zone (the same token terraform/ uses is fine)
+
+- name: "certs: wait for the cert-manager webhook"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc rollout status deploy/cert-manager-webhook -n cert-manager --timeout=60s
+  register: cm_roll
+  until: cm_roll.rc == 0
+  retries: 20
+  delay: 15
+  changed_when: false
+
+- name: "certs: self-signed ClusterIssuer (private CAs)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc apply -f {{ repo_raw_url }}/{{ repo_ref }}/platform/cert-manager/clusterissuer-selfsigned.yaml
+  register: ss_apply
+  changed_when: "'unchanged' not in ss_apply.stdout"
+
+- name: "certs: are the Let's Encrypt inputs available?"
+  stat:
+    path: "{{ cloudflare_api_token_file | expanduser }}"
+  register: cf_token
+  delegate_to: localhost
+  become: false
+
+- name: "certs: skip Let's Encrypt (routes keep the self-signed ingress cert)"
+  debug:
+    msg: "Set acme_email in vars.local.yml and create {{ cloudflare_api_token_file }} to get the *.apps wildcard."
+  when: not cf_token.stat.exists or (acme_email | default('')) | length == 0
+
+- name: "certs: Cloudflare token secret, letsencrypt-prod ClusterIssuer, wildcard Certificate"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: |
+    set -e
+    oc create secret generic cloudflare-api-token-secret -n cert-manager \
+      --from-literal=api-token={{ lookup('file', cloudflare_api_token_file | expanduser) | trim | quote }} \
+      --dry-run=client -o yaml | oc apply -f - >/dev/null
+    cat <<'YAML' | oc apply -f - >/dev/null
+    {{ lookup('template', 'clusterissuer-letsencrypt.yaml.j2') }}
+    YAML
+    oc apply -f {{ repo_raw_url }}/{{ repo_ref }}/platform/cert-manager/certificate-apps-wildcard.yaml >/dev/null
+  when: cf_token.stat.exists and (acme_email | default('')) | length > 0
+  changed_when: true
+  no_log: true
+
+- name: "certs: wait for the wildcard certificate (DNS-01 propagation takes a few minutes)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc get certificate apps-wildcard-tls -n openshift-ingress
+    -o jsonpath={.status.conditions[?(@.type=="Ready")].status}
+  register: wc_ready
+  until: wc_ready.stdout == "True"
+  retries: 40
+  delay: 15
+  changed_when: false
+  when: cf_token.stat.exists and (acme_email | default('')) | length > 0
+
+- name: "certs: make it the default ingress certificate"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    oc patch ingresscontroller default -n openshift-ingress-operator --type merge
+    -p '{"spec":{"defaultCertificate":{"name":"apps-wildcard-tls"}}}'
+  register: ic_patch
+  changed_when: "'no change' not in ic_patch.stdout"
+  when: cf_token.stat.exists and (acme_email | default('')) | length > 0

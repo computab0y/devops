@@ -1,0 +1,43 @@
+# OpenShift Lightspeed backed by Claude via Anthropic's OpenAI-compatible endpoint.
+#
+# - lightspeed-operator v1.1.3 has no native `anthropic` provider type yet (added upstream
+#   in OLS-4422, unreleased as of 2026-11), so type: openai + api.anthropic.com/v1 is used.
+# - Model is claude-opus-4-6, not Opus/Sonnet 5.5: Lightspeed always sends `temperature`,
+#   which the 5.x models reject ("`temperature` is deprecated for this model"). Move to
+#   claude-opus-5-5 once Lightspeed stops sending it or ships the native provider.
+# - Requires Secret openshift-lightspeed/anthropic-api-key with key `apitoken`. The day-2
+#   playbook creates it from a local file (lightspeed_api_key_file); never commit the key.
+# - Resource requests are trimmed because the single node is CPU-request bound; rhokp's
+#   default request is 2 CPUs + 75Gi ephemeral. rhokp cannot be disabled (the API server
+#   waits on its Solr index), replicas: 0 is ignored by the operator.
+# - Feedback/transcript collection to Red Hat is disabled.
+apiVersion: ols.openshift.io/v1alpha1
+kind: OLSConfig
+metadata:
+  name: cluster
+spec:
+  llm:
+    providers:
+    - name: anthropic
+      type: openai
+      url: https://api.anthropic.com/v1
+      credentialsSecretRef:
+        name: anthropic-api-key
+      models:
+      - name: claude-opus-4-6
+  ols:
+    defaultProvider: anthropic
+    defaultModel: claude-opus-4-6
+    userDataCollection:
+      feedbackDisabled: true
+      transcriptsDisabled: true
+    deployment:
+      api:
+        resources:
+          requests: {cpu: 100m, memory: 512Mi}
+          limits: {cpu: "1", memory: 2Gi}
+      rhokp:
+        replicas: 1
+        resources:
+          requests: {cpu: 20m, memory: 1Gi}
+          limits: {cpu: "2", memory: 3Gi}

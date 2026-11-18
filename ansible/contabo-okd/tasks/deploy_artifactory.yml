@@ -1,0 +1,101 @@
+---
+# Artifactory JCR via Helm (chart jfrog/artifactory-jcr), fronted by oauth2-proxy -> Keycloak.
+#
+# Helm runs on the control machine (this Mac) against local_kubeconfig, not on the node.
+# Needs `helm` locally. Secrets are generated once into secrets_dir and reused on re-runs.
+#
+# PREREQUISITE for the login proxy: a confidential OIDC client `artifactory` in the
+# Keycloak `openshift` realm with redirect URI
+# https://artifactory-artifactory.{{ cluster_apps_domain }}/oauth2/callback. Put its secret in
+# {{ secrets_dir }}/artifactory-oidc-client-secret. Without that file the proxy is skipped and
+# Artifactory is only reachable in-cluster (artifactory.artifactory.svc:8082).
+
+- name: "artifactory: generate secrets once (kept in {{ secrets_dir }})"
+  set_fact:
+    art_pg_password: "{{ lookup('password', secrets_dir ~ '/artifactory-pg-password chars=ascii_letters,digits length=32') }}"
+    art_pg_admin_password: "{{ lookup('password', secrets_dir ~ '/artifactory-pg-admin-password chars=ascii_letters,digits length=32') }}"
+    art_master_key: "{{ lookup('password', secrets_dir ~ '/artifactory-master-key chars=hexdigits length=64') | lower }}"
+    art_join_key: "{{ lookup('password', secrets_dir ~ '/artifactory-join-key chars=hexdigits length=32') | lower }}"
+    art_cookie_secret: "{{ lookup('password', secrets_dir ~ '/artifactory-cookie-secret chars=ascii_letters,digits length=32') }}"
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: "artifactory: namespace, master/join key secrets, Keycloak CA for the proxy"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: |
+    set -e
+    oc create namespace artifactory --dry-run=client -o yaml | oc apply -f - >/dev/null
+    oc create secret generic artifactory-masterkey-secret -n artifactory \
+      --from-literal=master-key={{ art_master_key }} --dry-run=client -o yaml | oc apply -f - >/dev/null
+    oc create secret generic artifactory-joinkey-secret -n artifactory \
+      --from-literal=join-key={{ art_join_key }} --dry-run=client -o yaml | oc apply -f - >/dev/null
+    if oc get configmap keycloak-ca-bundle -n openshift-config >/dev/null 2>&1; then
+      oc get configmap keycloak-ca-bundle -n openshift-config -o jsonpath='{.data.ca\.crt}' > /tmp/kc-ca.crt
+      oc create configmap keycloak-ca -n artifactory --from-file=ca.crt=/tmp/kc-ca.crt \
+        --dry-run=client -o yaml | oc apply -f - >/dev/null
+      rm -f /tmp/kc-ca.crt
+    fi
+  changed_when: true
+  no_log: true
+
+- name: "artifactory: values file from the repo"
+  get_url:
+    url: "{{ repo_raw_url }}/{{ repo_ref }}/apps/artifactory/values.yaml"
+    dest: "{{ secrets_dir }}/artifactory-values.yaml"
+    mode: "0600"
+    force: true
+  delegate_to: localhost
+  become: false
+
+- name: "artifactory: helm upgrade --install"
+  environment:
+    KUBECONFIG: "{{ local_kubeconfig | expanduser }}"
+  shell: |
+    set -e
+    helm repo add jfrog https://charts.jfrog.io >/dev/null 2>&1 || true
+    helm repo update jfrog >/dev/null
+    helm upgrade --install artifactory jfrog/artifactory-jcr \
+      --namespace artifactory --version {{ artifactory_chart_version }} \
+      -f {{ secrets_dir }}/artifactory-values.yaml \
+      --set-string global.postgresql.auth.password={{ art_pg_password | quote }} \
+      --set-string global.postgresql.auth.postgresPassword={{ art_pg_admin_password | quote }} \
+      --wait --timeout 20m
+  delegate_to: localhost
+  become: false
+  changed_when: true
+  no_log: true   # the --set-string values are secrets
+
+- name: "artifactory: is the Keycloak client secret available?"
+  stat:
+    path: "{{ secrets_dir }}/artifactory-oidc-client-secret"
+  register: art_oidc
+  delegate_to: localhost
+  become: false
+
+- name: "artifactory: oauth2-proxy secret"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: |
+    oc create secret generic oauth2-proxy -n artifactory \
+      --from-literal=client-id=artifactory \
+      --from-literal=client-secret={{ lookup('file', secrets_dir ~ '/artifactory-oidc-client-secret') | trim | quote }} \
+      --from-literal=cookie-secret={{ art_cookie_secret | quote }} \
+      --dry-run=client -o yaml | oc apply -f - >/dev/null
+  when: art_oidc.stat.exists
+  changed_when: true
+  no_log: true
+
+- name: "artifactory: oauth2-proxy + routes"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc apply -k {{ repo_url }}//apps/artifactory?ref={{ repo_ref }}
+  when: art_oidc.stat.exists
+  register: art_proxy
+  changed_when: "'unchanged' not in art_proxy.stdout"
+
+- name: "artifactory: proxy skipped"
+  debug:
+    msg: "No {{ secrets_dir }}/artifactory-oidc-client-secret - Artifactory installed but not exposed. See this task file's header."
+  when: not art_oidc.stat.exists

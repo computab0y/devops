@@ -1,0 +1,4 @@
+# CloudNativePG operator 1.25.0 (namespace cnpg-system), straight from the upstream release.
+# Clusters using it: apps/homelab (homelab-pg).
+resources:
+- https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.25/releases/cnpg-1.25.0.yaml

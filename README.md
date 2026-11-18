@@ -251,3 +251,31 @@ Apply with an environment overlay:
 ```bash
 oc apply -k operators/subscription/tekton/overlay/env
 ```
+
+---
+
+## Contabo OKD cluster: rebuild from scratch
+
+The single-node OKD 5 cluster (`api.okd.funky-bash.com`) can be rebuilt end to end from
+this repo. Start with **[docs/okd-rebuild-runbook.md](docs/okd-rebuild-runbook.md)**: back
+up data first, gather the inputs you keep off git, then run `scripts/rebuild-contabo-okd.sh`.
+
+```
+terraform/contabo-okd/            # day-to-day: adopt the running VPS + DNS (never reinstalls)
+terraform/contabo-okd-rebuild/    # DESTRUCTIVE: reinstall the VPS as Debian (keeps the IP)
+ansible/contabo-okd-install/      # OKD 5 SNO install via kexec + bootstrap-in-place, Ceph partition, break-glass access
+ansible/contabo-okd/              # day-2: catalogs, operators, storage, certs, Lightspeed, apps
+platform/
+├── rook-ceph/                    # CephCluster, pools, StorageClasses (operator from upstream Rook v1.20.7)
+├── cnpg/                         # CloudNativePG 1.25.0 operator
+├── cert-manager/                 # self-signed ClusterIssuer + Let's Encrypt *.apps wildcard
+└── image-registry/               # registry PVC on CephFS
+apps/
+├── homelab/                      # CNPG cluster homelab-pg + demo API + pgAdmin
+├── artifactory/                  # Helm values (jfrog/artifactory-jcr) + Keycloak oauth2-proxy
+├── headscale/                    # Tailscale control server + admin UI
+├── pgd/                          # EDB PGD group for beacon (manual: needs an EDB token)
+└── argocd/                       # Argo CD app-of-apps for beacon
+operators/subscription/lightspeed # OpenShift Lightspeed backed by Claude (key kept off git)
+operators/subscription/cert-manager
+```

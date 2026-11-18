@@ -1,0 +1,15 @@
+# Let's Encrypt wildcard for *.apps, issued by ClusterIssuer letsencrypt-prod (DNS-01 via
+# Cloudflare). The day-2 playbook sets it as the default ingress certificate, so every
+# route without its own cert is publicly trusted.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: apps-wildcard-tls
+  namespace: openshift-ingress
+spec:
+  secretName: apps-wildcard-tls
+  dnsNames:
+  - "*.apps.okd.funky-bash.com"
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod

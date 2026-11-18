@@ -1,0 +1,117 @@
+# Helm values for jfrog/artifactory-jcr 107.146.29 (Artifactory 7.146.29), release `artifactory`
+# in namespace `artifactory`. Exported from the live release 2026-11-11.
+#
+# - CPU requests cut to 50m per container (2026-11-10): the chart defaults reserved 2.4 CPU
+#   on a node that is CPU-request bound while Artifactory actually uses ~50m.
+# - Storage on ceph-block (moved off NFS 2026-11-10).
+# - Postgres passwords are NOT here: the day-2 playbook passes
+#   global.postgresql.auth.{password,postgresPassword} with --set from generated files.
+#   master/join keys come from the two Secrets the playbook creates beforehand.
+artifactory:
+  access:
+    resources:
+      limits:
+        cpu: 4
+        memory: 3Gi
+      requests:
+        cpu: 50m
+        memory: 1Gi
+  artifactory:
+    joinKeySecretName: artifactory-joinkey-secret
+    masterKeySecretName: artifactory-masterkey-secret
+    name: artifactory
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClassName: ceph-block
+    podSecurityContext:
+      enabled: false
+    resources:
+      limits:
+        cpu: '2'
+        memory: 4Gi
+      requests:
+        cpu: 50m
+        memory: 1Gi
+  event:
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  frontend:
+    resources:
+      limits:
+        cpu: 500m
+        memory: 768Mi
+      requests:
+        cpu: 50m
+        memory: 256Mi
+  ingress:
+    enabled: false
+  jfconfig:
+    resources:
+      limits:
+        cpu: '1'
+        memory: 4Gi
+      requests:
+        cpu: 50m
+        memory: 1Gi
+  metadata:
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  nginx:
+    containerSecurityContext:
+      enabled: false
+    enabled: false
+    podSecurityContext:
+      enabled: false
+  observability:
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  postgresql:
+    containerSecurityContext:
+      enabled: false
+    enabled: true
+    primary:
+      containerSecurityContext:
+        enabled: false
+      persistence:
+        size: 10Gi
+        storageClass: ceph-block
+      podSecurityContext:
+        enabled: false
+      securityContext:
+        enabled: false
+    securityContext:
+      enabled: false
+  router:
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  topology:
+    resources:
+      limits:
+        cpu: '1'
+        memory: 1536Mi
+      requests:
+        cpu: 50m
+        memory: 512Mi
+containerSecurityContext:
+  enabled: false

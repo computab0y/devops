@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: headscale
+  name: headscale
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: headscale
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: headscale
+    spec:
+      containers:
+      - args:
+        - serve
+        command:
+        - headscale
+        image: docker.io/headscale/headscale:0.29.3
+        livenessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          successThreshold: 1
+          tcpSocket:
+            port: 8080
+          timeoutSeconds: 1
+        name: headscale
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 50443
+          name: grpc
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: 8080
+          timeoutSeconds: 1
+        volumeMounts:
+        - mountPath: /etc/headscale
+          name: config
+          readOnly: true
+        - mountPath: /var/lib/headscale
+          name: data
+        - mountPath: /var/run/headscale
+          name: run
+      volumes:
+      - configMap:
+          defaultMode: 420
+          name: headscale-config
+        name: config
+      - name: data
+        persistentVolumeClaim:
+          claimName: headscale-data
+      - emptyDir: {}
+        name: run

@@ -1,0 +1,3 @@
+resources:
+- clusterissuer-selfsigned.yaml
+- certificate-apps-wildcard.yaml

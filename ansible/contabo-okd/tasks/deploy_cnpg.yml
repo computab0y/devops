@@ -1,0 +1,75 @@
+---
+# CloudNativePG operator + the homelab-pg cluster, its demo API (homelab-app) and pgAdmin.
+#
+# Data is NOT restored by this - a rebuild gives an empty `app` database. Restore from the
+# latest pg_dumpall (e.g. ~/.okd-breakglass/pg-dumps/) with:
+#   gunzip -c homelab-pg-<date>.sql.gz | oc exec -i -n pgd-homelab homelab-pg-1 -- psql -U postgres
+# (enableSuperuserAccess is false; use `oc exec ... -- psql` which connects as postgres
+# over the local socket.)
+
+- name: "cnpg: install the operator"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc apply --server-side --force-conflicts -k {{ repo_url }}//platform/cnpg?ref={{ repo_ref }}
+  register: cnpg_apply
+  retries: 3
+  delay: 10
+  until: cnpg_apply.rc == 0
+  changed_when: "'serverside-applied' in cnpg_apply.stdout"
+
+- name: "cnpg: let the operator run as its fixed UID 10001 (nonroot-v2 is enough)"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc adm policy add-scc-to-user nonroot-v2 -z cnpg-manager -n cnpg-system
+  changed_when: true
+
+- name: "cnpg: wait for the operator and its webhook"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc rollout status deploy/cnpg-controller-manager -n cnpg-system --timeout=60s
+  register: cnpg_roll
+  until: cnpg_roll.rc == 0
+  retries: 10
+  delay: 15
+  changed_when: false
+
+- name: "cnpg: pgAdmin login (generated once, kept in {{ secrets_dir }}/pgadmin-password)"
+  set_fact:
+    pgadmin_password: "{{ lookup('password', secrets_dir ~ '/pgadmin-password chars=ascii_letters,digits length=24') }}"
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: "cnpg: namespace + pgAdmin secret"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  shell: |
+    oc create namespace pgd-homelab --dry-run=client -o yaml | oc apply -f - >/dev/null
+    # homelab-app (python:3.12-slim, pip installs as root) and pgAdmin (uid 5050) need anyuid
+    oc adm policy add-scc-to-user anyuid -z default -n pgd-homelab >/dev/null
+    oc create secret generic pgadmin -n pgd-homelab \
+      --from-literal=email={{ pgadmin_email | quote }} \
+      --from-literal=password={{ pgadmin_password | quote }} \
+      --dry-run=client -o yaml | oc apply -f - >/dev/null
+  changed_when: true
+  no_log: true
+
+- name: "cnpg: homelab-pg cluster, homelab-app, pgAdmin"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc apply -k {{ repo_url }}//apps/homelab?ref={{ repo_ref }}
+  register: homelab_apply
+  retries: 5
+  delay: 15
+  until: homelab_apply.rc == 0   # the CNPG webhook can lag the deployment rollout
+  changed_when: "'unchanged' not in homelab_apply.stdout"
+
+- name: "cnpg: wait for homelab-pg to be healthy"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: oc get clusters.postgresql.cnpg.io homelab-pg -n pgd-homelab -o jsonpath={.status.phase}
+  register: pg_phase
+  until: pg_phase.stdout == "Cluster in healthy state"
+  retries: 40
+  delay: 15
+  changed_when: false

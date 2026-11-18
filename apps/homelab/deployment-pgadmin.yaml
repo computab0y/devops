@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgadmin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgadmin
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: pgadmin
+    spec:
+      containers:
+      - env:
+        - name: PGADMIN_DEFAULT_EMAIL
+          valueFrom:
+            secretKeyRef:
+              key: email
+              name: pgadmin
+        - name: PGADMIN_DEFAULT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: pgadmin
+        image: dpage/pgadmin4:latest
+        name: pgadmin
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        volumeMounts:
+        - mountPath: /var/lib/pgadmin
+          name: pgadmin-data
+      volumes:
+      - name: pgadmin-data
+        persistentVolumeClaim:
+          claimName: pgadmin-data

@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homelab-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: homelab-app
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: homelab-app
+    spec:
+      containers:
+      - command:
+        - /bin/sh
+        - -c
+        - "pip install flask psycopg2-binary --quiet && python3 - <<'PYEOF'\nfrom flask import Flask, jsonify\n\
+          import psycopg2, os, datetime\n\napp = Flask(__name__)\n\ndef get_conn():\n    return psycopg2.connect(\n\
+          \        host=\"homelab-pg-rw\",\n        dbname=\"app\",\n        user=\"app\",\n        password=os.environ[\"\
+          PGPASSWORD\"]\n    )\n\n@app.route(\"/\")\ndef index():\n    return jsonify({\"status\": \"ok\", \"app\"\
+          : \"homelab-pg demo\", \"time\": str(datetime.datetime.now())})\n\n@app.route(\"/customers\")\ndef customers():\n\
+          \    conn = get_conn(); cur = conn.cursor()\n    cur.execute(\"SELECT id, name, email, country FROM customers\
+          \ ORDER BY id\")\n    rows = [{\"id\":r[0],\"name\":r[1],\"email\":r[2],\"country\":r[3]} for r in cur.fetchall()]\n\
+          \    conn.close(); return jsonify(rows)\n\n@app.route(\"/products\")\ndef products():\n    conn = get_conn();\
+          \ cur = conn.cursor()\n    cur.execute(\"SELECT id, sku, name, category, price, stock FROM products ORDER\
+          \ BY id\")\n    rows = [{\"id\":r[0],\"sku\":r[1],\"name\":r[2],\"category\":r[3],\"price\":str(r[4]),\"\
+          stock\":r[5]} for r in cur.fetchall()]\n    conn.close(); return jsonify(rows)\n\n@app.route(\"/orders\"\
+          )\ndef orders():\n    conn = get_conn(); cur = conn.cursor()\n    cur.execute(\"\"\"\n        SELECT o.id,\
+          \ c.name, o.status, o.total, o.created_at\n        FROM orders o JOIN customers c ON o.customer_id = c.id\n\
+          \        ORDER BY o.created_at DESC\n    \"\"\")\n    rows = [{\"id\":r[0],\"customer\":r[1],\"status\"\
+          :r[2],\"total\":str(r[3]),\"created_at\":str(r[4])} for r in cur.fetchall()]\n    conn.close(); return\
+          \ jsonify(rows)\n\n@app.route(\"/summary\")\ndef summary():\n    conn = get_conn(); cur = conn.cursor()\n\
+          \    cur.execute(\"SELECT COUNT(*) FROM customers\")\n    customers = cur.fetchone()[0]\n    cur.execute(\"\
+          SELECT COUNT(*) FROM products\")\n    products = cur.fetchone()[0]\n    cur.execute(\"SELECT COUNT(*),\
+          \ SUM(total) FROM orders WHERE status != 'cancelled'\")\n    r = cur.fetchone()\n    cur.execute(\"SELECT\
+          \ status, COUNT(*) FROM orders GROUP BY status\")\n    statuses = {r[0]: r[1] for r in cur.fetchall()}\n\
+          \    conn.close()\n    return jsonify({\n        \"customers\": customers,\n        \"products\": products,\n\
+          \        \"orders\": r[0],\n        \"revenue\": str(r[1]),\n        \"order_statuses\": statuses\n  \
+          \  })\n\n@app.route(\"/audit\")\ndef audit():\n    conn = get_conn(); cur = conn.cursor()\n    cur.execute(\"\
+          SELECT id, event, detail, logged_at FROM audit_log ORDER BY logged_at DESC LIMIT 20\")\n    rows = [{\"\
+          id\":r[0],\"event\":r[1],\"detail\":r[2],\"logged_at\":str(r[3])} for r in cur.fetchall()]\n    conn.close();\
+          \ return jsonify(rows)\n\nif __name__ == \"__main__\":\n    app.run(host=\"0.0.0.0\", port=8080)\nPYEOF\n"
+        image: python:3.12-slim
+        name: app
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: homelab-pg-app
+              key: password

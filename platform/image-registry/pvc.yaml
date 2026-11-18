@@ -1,0 +1,14 @@
+# Internal image registry storage on CephFS (RWX). Moved off NFS on 2026-11-10.
+# The day-2 playbook points configs.imageregistry/cluster at this claim and sets it Managed.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: image-registry-storage-ceph
+  namespace: openshift-image-registry
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: ceph-filesystem
+  resources:
+    requests:
+      storage: 100Gi

@@ -1,0 +1,120 @@
+# EDB Postgres Distributed group used by beacon (role `beacon`, password from Secret
+# beacon-db-password). 2 data nodes + 1 witness on ceph-block. TLS from cert-manager
+# (issuer-ca.yaml). Needs the EDB operators - see README.md.
+apiVersion: pgd.k8s.enterprisedb.io/v1beta1
+kind: PGDGroup
+metadata:
+  name: homelab-pgd
+spec:
+  cnp:
+    affinity:
+      additionalPodAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: k8s.pgd.enterprisedb.io/group
+                operator: In
+                values:
+                - homelab-pgd
+            topologyKey: kubernetes.io/hostname
+          weight: 100
+    clusterMaxStartDelay: 300
+    enableSuperuserAccess: true
+    joinMethod: physical
+    logLevel: info
+    managed:
+      roles:
+      - connectionLimit: 20
+        ensure: present
+        inRoles:
+        - bdr_application
+        inherit: true
+        login: true
+        name: beacon
+        passwordSecret:
+          name: beacon-db-password
+    postgresGID: 26
+    postgresUID: 26
+    postgresql:
+      syncReplicaElectionConstraint:
+        enabled: false
+    smartShutdownTimeout: 15
+    startDelay: 3600
+    stopDelay: 180
+    storage:
+      pvcTemplate:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+        storageClassName: ceph-block
+      resizeInUseVolumes: true
+  connectivity:
+    tls:
+      clientCert:
+        caCertSecret: homelab-pgd-ca-cert
+        certManager:
+          spec:
+            issuerRef:
+              kind: Issuer
+              name: homelab-pgd-ca-issuer
+      mode: require
+      serverCert:
+        caCertSecret: homelab-pgd-ca-cert
+        certManager:
+          spec:
+            issuerRef:
+              kind: Issuer
+              name: homelab-pgd-ca-issuer
+  failingFinalizerTimeLimitSeconds: 300
+  imageName: docker.enterprisedb.com/k8s/postgresql-pgd:18.4-pgd640-expanded-ubi9
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets:
+  - name: pgd-operator-pull-secret
+  instances: 2
+  pgd:
+    databaseName: app
+    discoveryJob:
+      delay: 10
+      retries: 30
+      timeout: 300
+    globalRouting: false
+    groupJoinMethod: logical
+    ownerName: app
+    parentGroup:
+      create: true
+      name: homelab-pgd-group
+  proxyInstances: 0
+  witness:
+    affinity:
+      additionalPodAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: k8s.pgd.enterprisedb.io/group
+                operator: In
+                values:
+                - homelab-pgd
+            topologyKey: kubernetes.io/hostname
+          weight: 100
+    clusterMaxStartDelay: 300
+    logLevel: info
+    postgresql:
+      syncReplicaElectionConstraint:
+        enabled: false
+    smartShutdownTimeout: 15
+    startDelay: 3600
+    stopDelay: 180
+    storage:
+      pvcTemplate:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+        storageClassName: ceph-block
+      resizeInUseVolumes: true
+  witnessInstances: 1

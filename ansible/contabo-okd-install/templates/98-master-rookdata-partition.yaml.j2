@@ -1,0 +1,28 @@
+# Carves a data partition for the Ceph OSD out of the boot disk at install time.
+#
+# The live cluster's layout (before any rebuild): sda4 root 249.5G, sda5 'rookdata0' 250G
+# (ceph_bluestore). The new partition starts at {{ rook_partition_start_mib }} MiB and
+# takes the rest of the disk. The CoreOS root partition then grows only up to it, the
+# same pattern as OpenShift's documented "separate /var partition" MachineConfig.
+#
+# This only works at install time (it is rendered into <install_dir>/cluster/openshift/
+# before the ignition is built). The MCO refuses storage.disks changes on a running node.
+# platform/rook-ceph/cephcluster.yaml consumes /dev/disk/by-partlabel/{{ rook_partition_label }}.
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  name: 98-master-rookdata-partition
+  labels:
+    machineconfiguration.openshift.io/role: master
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    storage:
+      disks:
+        - device: /dev/disk/by-id/coreos-boot-disk
+          wipeTable: false
+          partitions:
+            - label: {{ rook_partition_label }}
+              startMiB: {{ rook_partition_start_mib }}
+              sizeMiB: 0

@@ -1,0 +1,21 @@
+# App-of-apps for beacon (github.com/computab0y/beacon). It creates Application `beacon`
+# (deploy/overlays/okd). beacon's database is the EDB PGD group in apps/pgd - optional,
+# needs an EDB subscription token.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: beacon-root
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: openshift-gitops
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    path: argocd/apps
+    repoURL: https://github.com/computab0y/beacon.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

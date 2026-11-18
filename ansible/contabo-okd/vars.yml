@@ -17,34 +17,68 @@ cluster_apps_domain: "apps.okd.funky-bash.com"
 # redhat-operators / certified-operators catalogs to pull successfully.
 pull_secret_path: "~/Downloads/pull-secret.txt"
 
-# hostPath directory backing Keycloak's Postgres PVC. This cluster has no
-# StorageClass/CSI provisioner at all (bare SNO install) so a static PV is used instead.
+# hostPath directory backing Keycloak's Postgres PVC (static PV, predates Rook-Ceph -
+# the live cluster still uses it).
 postgres_hostpath_dir: "/var/lib/local-pvs/postgres-keycloak"
 
-# The 17 real operators from operators/subscription/* that are actually deployed (excludes
-# `pipelines`, `test-app` - unused/legacy dirs never part of this deployment - and `vault`,
-# which has no OLM subscription at all and is applied separately as a plain operand).
-# `sso` and `tekton` are handled by their own dedicated task files further down the
-# playbook (they need extra steps interleaved - storage/secret wiring for sso, a
-# TektonConfig feature-flag patch for tekton) so they are NOT in this generic list.
-# acs (rhacs-operator), amq-streams, istio, jaeger, and kiali were removed on 2026-07-09
-# during a resource-exhaustion outage on the single 8 vCPU/24GB node (see
-# PROJECT_STATUS.md), then re-added on 2026-07-09 after upsizing the VPS to restore
-# room for them.
+# OLM operators deployed by tasks/deploy_operator.yml, in order. Matches the live cluster as
+# of 2026-11-11 (OKD 5.0.0-okd-scos.5). `sso` (Keycloak), `tekton`/pipelines and
+# `lightspeed` are deployed by their own task files and are NOT listed here.
 operators:
-  - { name: acs,                        ns: rhacs-operator,                       manual_approval: false, path: overlay/env }
-  - { name: amq-streams,                ns: amq-streams,                          manual_approval: true,  path: overlay/env }
-  - { name: devworkspaces,              ns: openshift-operators,                  manual_approval: true,  path: overlay/env }
-  - { name: edb-postgresql,             ns: openshift-operators,                  manual_approval: true,  path: overlay/env }
-  - { name: elasticsearch-eck-operator, ns: openshift-operators,                  manual_approval: true,  path: overlay/env }
-  - { name: elasticsearch,              ns: openshift-operators-redhat,           manual_approval: true,  path: overlay/env }
-  - { name: external-secrets,           ns: openshift-external-secrets-operator,  manual_approval: false, path: base }
-  - { name: gitops,                     ns: openshift-gitops-operator,            manual_approval: false, path: base }
-  - { name: grafana,                    ns: grafana-operator,                     manual_approval: false, path: overlay/env }
-  - { name: istio,                      ns: openshift-operators,                  manual_approval: true,  path: overlay/env }
-  - { name: jaeger,                     ns: openshift-operators,                  manual_approval: true,  path: overlay/env }
-  - { name: kiali,                      ns: openshift-operators,                  manual_approval: true,  path: overlay/env }
-  - { name: loki,                       ns: openshift-operators-redhat,           manual_approval: false, path: overlay/env }
-  - { name: oadp,                       ns: openshift-adp,                        manual_approval: true,  path: overlay/env }
-  - { name: openshift-logging,          ns: openshift-logging,                    manual_approval: true,  path: overlay/env }
-  - { name: otel,                       ns: open-telemetry,                       manual_approval: false, path: overlay/env }
+  - { name: cert-manager,     ns: cert-manager-operator,               manual_approval: false, path: base }
+  - { name: gitops,           ns: openshift-gitops-operator,           manual_approval: false, path: base }
+  - { name: external-secrets, ns: openshift-external-secrets-operator, manual_approval: false, path: base }
+  - { name: oadp,             ns: openshift-adp,                       manual_approval: true,  path: overlay/env }
+  - { name: amq-streams,      ns: amq-streams,                         manual_approval: true,  path: overlay/env }
+  - { name: devworkspaces,    ns: openshift-operators,                 manual_approval: true,  path: overlay/env }
+  - { name: istio,            ns: openshift-operators,                 manual_approval: true,  path: overlay/env }
+  - { name: kiali,            ns: openshift-operators,                 manual_approval: true,  path: overlay/env }
+
+# Not deployed by default. Add to `operators` (e.g. in vars.local.yml) to include them.
+#  - loki / openshift-logging / elasticsearch: their Subscriptions exist on the live cluster
+#    but have been ResolutionFailed since the move to OKD 5 (the pinned channels are not in
+#    the OKD 5 catalog) - fix the channels before enabling.
+#  - acs, edb-postgresql, elasticsearch-eck-operator, grafana, jaeger, otel: in the repo
+#    but not installed on the live cluster (removed for CPU/memory headroom).
+optional_operators:
+  - { name: loki,                       ns: openshift-operators-redhat, manual_approval: false, path: overlay/env }
+  - { name: openshift-logging,          ns: openshift-logging,          manual_approval: true,  path: overlay/env }
+  - { name: elasticsearch,              ns: openshift-operators-redhat, manual_approval: true,  path: overlay/env }
+  - { name: acs,                        ns: rhacs-operator,             manual_approval: false, path: overlay/env }
+  - { name: edb-postgresql,             ns: openshift-operators,        manual_approval: true,  path: overlay/env }
+  - { name: elasticsearch-eck-operator, ns: openshift-operators,        manual_approval: true,  path: overlay/env }
+  - { name: grafana,                    ns: grafana-operator,           manual_approval: false, path: overlay/env }
+  - { name: jaeger,                     ns: openshift-operators,        manual_approval: true,  path: overlay/env }
+  - { name: otel,                       ns: open-telemetry,             manual_approval: false, path: overlay/env }
+
+# ------------------------------------------------------------------ OKD 5 additions ---
+cluster_update_channel: "stable-scos-5"
+
+# Raw-file base for things fetched straight from this repo (Helm values).
+repo_raw_url: "https://raw.githubusercontent.com/computab0y/devops"
+
+# Admin kubeconfig on THIS machine, for the steps that run locally (Helm). Written by
+# ansible/contabo-okd-install (certificate-based, does not depend on OAuth).
+local_kubeconfig: "~/okd-install-contabo/auth/kubeconfig"
+
+# Where generated per-cluster secrets are kept on this machine (created mode 700).
+# Back it up with the install auth/ dir. Never commit it.
+secrets_dir: "~/okd-install-contabo/secrets"
+
+# Rook-Ceph: operator release, and the partition label the installer creates.
+rook_version: "v1.20.7"
+rook_partition_label: "rookdata0"
+
+# Artifactory JCR Helm chart (release `artifactory`, namespace `artifactory`).
+artifactory_chart_version: "107.146.29"
+
+# pgAdmin login e-mail (password generated into secrets_dir/pgadmin-password).
+pgadmin_email: "admin@funky-bash.com"
+
+# OpenShift Lightspeed: file on THIS machine holding the Anthropic API key (mode 600).
+lightspeed_api_key_file: "~/.okd-breakglass/anthropic-api-key"
+
+# Let's Encrypt (tasks/deploy_certificates.yml). Set acme_email in vars.local.yml - this
+# repo is public. The token file holds a Cloudflare API token with Zone:DNS:Edit.
+acme_email: ""
+cloudflare_api_token_file: "~/.okd-breakglass/cloudflare-api-token"

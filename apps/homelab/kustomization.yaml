@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: pgd-homelab
+resources:
+- namespace.yaml
+- cluster-homelab-pg.yaml
+- deployment-homelab-app.yaml
+- deployment-pgadmin.yaml
+- route-homelab-app.yaml
+- route-pgadmin.yaml
+- service-homelab-app.yaml
+- service-pgadmin.yaml
+- persistentvolumeclaim-pgadmin-data.yaml

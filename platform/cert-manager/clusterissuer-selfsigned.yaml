@@ -1,0 +1,7 @@
+# Self-signed root used to mint private CAs (e.g. the EDB PGD group's TLS CA in apps/pgd).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: homelab-pgd-selfsigned-issuer
+spec:
+  selfSigned: {}
