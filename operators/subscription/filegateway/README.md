@@ -88,23 +88,6 @@ cd operators\subscription\filegateway\connect
    *Advanced -> SSH -> Authentication* private key `contabo_okd.ppk`.
 4. On first connect, check the fingerprint shown matches the host key above before accepting.
 
-## Password users
-
-Each user in the `filegw-users` secret logs in over SFTP with a password and sees only their own
-folders, which map to `s3://filegateway/<user>/submission/` and `s3://filegateway/<user>/notification/`
-(read-only). The processor handles them the same way as `ray`'s, under the `<user>/` prefix.
-
-```bash
-scripts/provision-users.sh 30                                  # user01..user30; keeps existing passwords
-oc apply -k base                                               # first time only
-oc rollout restart deployment/filegw-gateway -n filegateway    # load user changes
-connect/test-logins.sh                                         # log in as each user and list directories
-connect/test-logins.sh -q /path/to/users.csv                   # PASS/FAIL only, other credentials file
-```
-
-Plaintext passwords are only in `~/.filegw/users.csv` (mode 600, `username,password` lines). The
-cluster stores SHA-512 crypt hashes. Allow about 60Mi of gateway memory per user.
-
 ## Using the bucket directly (S3 API)
 
 The bucket is only reachable inside the cluster, and the SFTP login deliberately has no S3
@@ -155,8 +138,8 @@ command to recreate it). If you rebuild the cluster and generate new ones, updat
 
 ## Security notes
 
-- Internet-facing on NodePort 30022: `ray` is key-only; password users are SFTP-only and chrooted
-  to their own home. No TCP/agent/X11 forwarding, `MaxAuthTries 3`.
+- Internet-facing on NodePort 30022: key-only auth, single non-root user, no TCP/agent/X11
+  forwarding, `MaxAuthTries 3`.
 - The gateway pod is privileged (required for FUSE) and isolated in its own namespace with no
   service-account token mounted. S3 credentials are only in root's environment inside the pod,
   not the SSH user's session.

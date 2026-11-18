@@ -1,7 +1,6 @@
-"""Poll each user's submission/ folder, validate each file, and write the outcome to notification/.
+"""Poll s3://<bucket>/submission/, validate each file, and write the outcome to notification/.
 
-The original user's folders are at the bucket root; every other user's are under <username>/.
-All paths below are relative to that root. For each submitted file <name>:
+For each submitted file <name>:
   notification/<name>.ack.json                      written as soon as the file is picked up
   notification/<name>.accepted.json | .rejected.json  written after validation
 The file is then moved to processed/<timestamp>/<name> or rejected/<timestamp>/<name>.
@@ -26,7 +25,6 @@ ALLOWED = {e.strip().lower() for e in os.environ.get("ALLOWED_EXTENSIONS", ".csv
 IGNORED_SUFFIXES = (".filepart", ".part", ".tmp", "~")  # in-progress uploads from WinSCP and friends
 
 SUBMISSION, NOTIFICATION = "submission/", "notification/"
-RESERVED_PREFIXES = {SUBMISSION, NOTIFICATION, "processed/", "rejected/"}
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("filegw-processor")
@@ -45,8 +43,8 @@ def now():
     return datetime.datetime.now(datetime.timezone.utc)
 
 
-def notify(root, name, kind, body):
-    key = f"{root}{NOTIFICATION}{name}.{kind}.json"
+def notify(name, kind, body):
+    key = f"{NOTIFICATION}{name}.{kind}.json"
     s3.put_object(Bucket=BUCKET, Key=key, Body=json.dumps(body, indent=2).encode(), ContentType="application/json")
     log.info("wrote %s", key)
 
@@ -80,12 +78,12 @@ def validate(name, data):
     return None
 
 
-def process(obj, root):
+def process(obj):
     key = obj["Key"]
-    name = key[len(root + SUBMISSION):]
+    name = key[len(SUBMISSION):]
     size = obj["Size"]
     received = now().isoformat()
-    notify(root, name, "ack", {"file": name, "status": "RECEIVED", "size": size, "received_at": received})
+    notify(name, "ack", {"file": name, "status": "RECEIVED", "size": size, "received_at": received})
 
     # Oversized files are rejected on size alone, without downloading them
     if size > MAX_BYTES:
@@ -95,7 +93,7 @@ def process(obj, root):
         reason = validate(name, data)
 
     stamp = now().strftime("%Y%m%dT%H%M%SZ")
-    dest = f"{root}{'rejected' if reason else 'processed'}/{stamp}/{name}"
+    dest = f"{'rejected' if reason else 'processed'}/{stamp}/{name}"
     s3.copy_object(Bucket=BUCKET, Key=dest, CopySource={"Bucket": BUCKET, "Key": key})
     s3.delete_object(Bucket=BUCKET, Key=key)
 
@@ -112,24 +110,15 @@ def process(obj, root):
         result["sha256"] = hashlib.sha256(data).hexdigest()
     if reason:
         result["reason"] = reason
-    notify(root, name, "rejected" if reason else "accepted", result)
-    log.info("%s %s%s%s", result["status"], root, name, f" ({reason})" if reason else "")
+    notify(name, "rejected" if reason else "accepted", result)
+    log.info("%s %s%s", result["status"], name, f" ({reason})" if reason else "")
 
 
-def roots():
-    """Return the bucket root plus one '<username>/' prefix per user folder."""
-    found = [""]
-    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET, Delimiter="/"):
-        found += [p["Prefix"] for p in page.get("CommonPrefixes", []) if p["Prefix"] not in RESERVED_PREFIXES]
-    return found
-
-
-def pending(root):
+def pending():
     cutoff = now() - datetime.timedelta(seconds=SETTLE_SECONDS)
-    prefix = root + SUBMISSION
-    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET, Prefix=prefix):
+    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET, Prefix=SUBMISSION):
         for obj in page.get("Contents", []):
-            name = obj["Key"][len(prefix):]
+            name = obj["Key"][len(SUBMISSION):]
             base = os.path.basename(name)
             if not name or name.endswith("/") or base.startswith(".") or base.endswith(IGNORED_SUFFIXES):
                 continue
@@ -139,15 +128,14 @@ def pending(root):
 
 
 def main():
-    log.info("watching s3://%s/[<user>/]%s every %ss", BUCKET, SUBMISSION, POLL_SECONDS)
+    log.info("watching s3://%s/%s every %ss", BUCKET, SUBMISSION, POLL_SECONDS)
     while True:
         try:
-            for root in roots():
-                for obj in pending(root):
-                    try:
-                        process(obj, root)
-                    except Exception:
-                        log.exception("failed to process %s", obj["Key"])
+            for obj in pending():
+                try:
+                    process(obj)
+                except Exception:
+                    log.exception("failed to process %s", obj["Key"])
         except Exception:
             log.exception("poll failed")
         time.sleep(POLL_SECONDS)
