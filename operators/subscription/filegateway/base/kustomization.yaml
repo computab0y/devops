@@ -12,6 +12,7 @@ configMapGenerator:
 - name: filegw-gateway-config
   files:
   - files/entrypoint.sh
+  - files/healthcheck.sh
   - files/sshd_config
   - files/authorized_keys
 - name: filegw-processor-code

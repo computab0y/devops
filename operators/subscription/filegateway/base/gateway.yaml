@@ -35,25 +35,35 @@ spec:
           containerPort: 22
         securityContext:
           privileged: true
+        # sshd starts only after every user's S3 folders are mounted
+        startupProbe:
+          tcpSocket:
+            port: ssh
+          periodSeconds: 5
+          failureThreshold: 60
         readinessProbe:
           tcpSocket:
             port: ssh
           periodSeconds: 5
         livenessProbe:
           exec:
-            command: ["sh", "-c", "mountpoint -q /home/ray/submission && mountpoint -q /home/ray/notification"]
-          initialDelaySeconds: 30
+            command: ["/bin/sh", "/config/healthcheck.sh"]
           periodSeconds: 30
+          timeoutSeconds: 10
+        # About 30Mi per rclone mount, two mounts per user
         resources:
           requests:
-            cpu: 50m
-            memory: 128Mi
+            cpu: 100m
+            memory: 2Gi
           limits:
-            cpu: "1"
-            memory: 512Mi
+            cpu: "2"
+            memory: 4Gi
         volumeMounts:
         - name: config
           mountPath: /config
+        - name: users
+          mountPath: /users
+          readOnly: true
         - name: hostkeys
           mountPath: /hostkeys
         - name: cache
@@ -62,6 +72,12 @@ spec:
       - name: config
         configMap:
           name: filegw-gateway-config
+      # Created by scripts/provision-users.sh; holds password hashes and is not in git
+      - name: users
+        secret:
+          secretName: filegw-users
+          defaultMode: 0400
+          optional: true
       - name: hostkeys
         secret:
           secretName: filegw-hostkeys
