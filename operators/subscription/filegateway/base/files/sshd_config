@@ -2,13 +2,13 @@ Port 22
 HostKey /etc/ssh/ssh_host_ed25519_key
 HostKey /etc/ssh/ssh_host_rsa_key
 
-# Internet-facing: key auth only, single non-root user
+# Internet-facing: key auth by default; passwords only for the chrooted SFTP group at the end of this file
 PermitRootLogin no
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PubkeyAuthentication yes
 AuthorizedKeysFile .ssh/authorized_keys
-AllowUsers ray
+AllowGroups ray filegw-users
 MaxAuthTries 3
 LoginGraceTime 20
 
@@ -19,3 +19,11 @@ PermitTunnel no
 ClientAliveInterval 60
 
 Subsystem sftp internal-sftp
+
+# The pod is privileged, so password users get SFTP inside their own home and never a shell
+Match Group filegw-users
+  PasswordAuthentication yes
+  PubkeyAuthentication no
+  ChrootDirectory /home/%u
+  ForceCommand internal-sftp
+  PermitTTY no
