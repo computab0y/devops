@@ -98,9 +98,31 @@ folders, which map to `s3://filegateway/<user>/submission/` and `s3://filegatewa
 scripts/provision-users.sh 30                                  # user01..user30; keeps existing passwords
 oc apply -k base                                               # first time only
 oc rollout restart deployment/filegw-gateway -n filegateway    # load user changes
-connect/test-logins.sh                                         # log in as each user and list directories
-connect/test-logins.sh -q /path/to/users.csv                   # PASS/FAIL only, other credentials file
+connect/test-logins.sh                                         # show usage and ask for the gateway and credentials file
+connect/test-logins.sh -H 62.84.179.61 -p 30022 ~/.filegw/users.csv      # log in as each user and list directories
+connect/test-logins.sh -q -H 62.84.179.61 -p 30022 ~/.filegw/users.csv   # PASS/FAIL only
+connect/test-logins.sh --help                                  # show all options
 ```
+
+To test a different gateway, save and verify its host key, then pass that file with `-k`:
+
+```bash
+ssh-keyscan -p 2222 gateway.example.com > gateway_known_hosts
+ssh-keygen -lf gateway_known_hosts      # compare with the fingerprint from the gateway's administrator
+connect/test-logins.sh -H gateway.example.com -p 2222 -k gateway_known_hosts /path/to/users.csv
+```
+
+To test several gateways in one run, copy `connect/gateways.example.csv`, list each gateway's
+address, port, credentials file and host key file, then pass your copy with `-g`:
+
+```bash
+connect/test-logins.sh -g /path/to/gateways.csv
+```
+
+The run ends with a PASS, FAIL or ERROR line for each gateway and saves everything to one log. A
+gateway that can't be tested is reported as ERROR and the remaining gateways are still tested.
+
+Each test run saves its results to `~/.filegw/logs/test-logins-<timestamp>.log` unless `-o` is given.
 
 Plaintext passwords are only in `~/.filegw/users.csv` (mode 600, `username,password` lines). The
 cluster stores SHA-512 crypt hashes. Allow about 60Mi of gateway memory per user.

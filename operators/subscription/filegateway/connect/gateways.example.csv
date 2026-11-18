@@ -1,0 +1,12 @@
+# Gateways for: ./test-logins.sh -g gateways.csv
+#
+# Copy this file, then replace the example values with your gateways.
+# Keep your copy and the credentials files out of git.
+#
+# port defaults to 22 if blank. known_hosts_file is optional and defaults to the known_hosts
+# file next to test-logins.sh. Relative paths are relative to this file.
+name,host,port,credentials_file,known_hosts_file
+gateway1,gateway1.example.com,22,/path/to/gateway1-users.csv,/path/to/gateway1_known_hosts
+gateway2,gateway2.example.com,22,/path/to/gateway2-users.csv,/path/to/gateway2_known_hosts
+gateway3,gateway3.example.com,2222,/path/to/gateway3-users.csv,/path/to/gateway3_known_hosts
+gateway4,gateway4.example.com,2222,/path/to/gateway4-users.csv,/path/to/gateway4_known_hosts
