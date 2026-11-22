@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Move a PGD leader</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#2a2f3a; --ink:#e6e8ee; --dim:#9aa3b2;
+          --ok:#3fb950; --warn:#d29922; --bad:#f85149; --acc:#58a6ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; }
+  header a { color:var(--acc); }
+  main { max-width:1000px; margin:0 auto; padding:16px 20px; display:grid; gap:14px; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  h2 { font-size:14px; margin:0 0 8px; }
+  .hint { color:var(--dim); font-size:12.5px; margin:4px 0 10px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:5px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--dim); font-weight:500; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); } .dim { color:var(--dim); }
+  .leader { color:var(--acc); font-weight:600; }
+  .verdict { font-size:22px; font-weight:700; margin:4px 0; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  button, select { background:#222733; color:var(--ink); border:1px solid var(--line); border-radius:6px;
+                   padding:7px 14px; font:inherit; cursor:pointer; }
+  button:hover:not(:disabled) { border-color:var(--acc); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  button.go { border-color:#2f6f3a; }
+  button.danger { border-color:#7a2f2f; }
+  #log div { font:12.5px/1.5 ui-monospace, Consolas, monospace; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Move a PGD leader</h1>
+  <span class="dim">group <b id="grp">?</b></span>
+  <span class="dim">write leader <b id="wl" class="leader">?</b></span>
+  <span class="dim">Raft leader <b id="rl" class="leader">?</b></span>
+  <a href="./">&larr; back to the lab</a>
+</header>
+<main>
+
+<section>
+  <h2>1. What to move, and where</h2>
+  <div class="row">
+    <select id="kind" onchange="setKind(this.value)">
+      <option value="write">Write leader</option>
+      <option value="raft-data">Raft leader: data group</option>
+      <option value="raft-parent">Raft leader: parent group</option>
+    </select>
+    <b id="from" class="leader">?</b> &rarr; <select id="target" onchange="setTarget(this.value)"></select>
+    <button onclick="check()">Re-run safety checks</button>
+  </div>
+</section>
+
+<section>
+  <h2>2. Safety checks</h2>
+  <div id="verdict" class="verdict dim">running checks...</div>
+  <p id="advice" class="hint"></p>
+  <table id="checks"></table>
+</section>
+
+<section>
+  <h2>3. Switch over</h2>
+  <p class="hint" id="howto"></p>
+  <div class="row">
+    <button id="strict" class="go" disabled onclick="go('strict')">Strict switchover</button>
+    <button id="fast" disabled onclick="go('fast')">Fast switchover</button>
+    <button id="raftgo" class="go" disabled hidden onclick="go('raft')">Transfer Raft leadership</button>
+  </div>
+  <div id="log" style="margin-top:10px"></div>
+</section>
+
+</main>
+<script>
+const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const $ = id => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+let state = null, lastCheck = null, busy = false;
+let kind = ['write', 'raft-data', 'raft-parent'].includes(qs.get('kind')) ? qs.get('kind') : 'write';
+let target = qs.get('target') || '';
+
+const isRaft = () => kind !== 'write';
+const scope = () => kind === 'raft-parent' ? 'parent' : 'data';
+function raftGroup() {
+  const gs = Object.keys(state.raft_leaders || {});
+  return scope() === 'data' ? state.group : (gs.find(g => g !== state.group) || null);
+}
+const currentLeader = () => isRaft() ? (state.raft_leaders || {})[raftGroup()] : state.leader;
+function candidates() {
+  if (!isRaft()) return (state.data_nodes || []).filter(n => n !== state.leader);
+  const g = raftGroup();
+  return [...new Set((state.raft_details || []).filter(r => r.node_group_name === g).map(r => r.node_name))]
+    .filter(n => n !== currentLeader()).sort();
+}
+
+function say(msg, cls = '') {
+  $('log').insertAdjacentHTML('afterbegin', `<div class="${cls}">${new Date().toLocaleTimeString()}  ${msg}</div>`);
+}
+function syncUrl() {
+  history.replaceState(null, '', `?kind=${encodeURIComponent(kind)}&target=${encodeURIComponent(target)}`);
+}
+
+async function loadState() {
+  state = await (await fetch('api/state')).json();
+  $('grp').textContent = state.group || '?';
+  $('wl').textContent = state.leader || '?';
+  $('rl').textContent = (state.raft_leaders || {})[state.group] || '?';
+  $('kind').value = kind;
+  $('from').textContent = currentLeader() || '?';
+  const opts = candidates();
+  if (!opts.includes(target)) target = opts[0] || '';
+  $('target').innerHTML = opts.map(n => `<option ${n === target ? 'selected' : ''}>${esc(n)}</option>`).join('');
+  $('strict').hidden = $('fast').hidden = isRaft();
+  $('raftgo').hidden = !isRaft();
+  $('howto').innerHTML = isRaft()
+    ? `Moves the <b>Raft leadership</b> of <code>${esc(raftGroup())}</code> with <code>bdr.raft_leadership_transfer()</code>. ` +
+      'The write leader does not move. Enabled only when every check passes.'
+    : 'Only the switchovers the checks allow are enabled. <b>Strict</b> waits until the target\'s lag is under ' +
+      '<code>route_writer_max_lag</code> before moving; <b>fast</b> moves at once.';
+  syncUrl();
+}
+
+async function setKind(k) { kind = k; target = ''; await loadState(); check(); }
+function setTarget(t) { target = t; syncUrl(); check(); }
+
+async function check() {
+  $('strict').disabled = $('fast').disabled = $('raftgo').disabled = true;
+  $('verdict').className = 'verdict dim'; $('verdict').textContent = 'running checks...';
+  if (!target) { $('verdict').textContent = 'No other node to move to.'; $('checks').innerHTML = ''; $('advice').textContent = ''; return; }
+  const url = isRaft() ? `api/raft_check/${scope()}/${encodeURIComponent(target)}` : 'api/check/' + encodeURIComponent(target);
+  const r = lastCheck = await (await fetch(url)).json();
+  const v = r.verdict;
+  const what = isRaft() ? `Raft leader of ${r.raft_group}` : 'write leader';
+  $('verdict').textContent = `${v}: move ${what} ${r.leader} → ${r.target}`;
+  $('verdict').className = 'verdict ' + (v === 'SAFE' ? 'ok' : v.startsWith('WAIT') ? 'warn' : 'bad');
+  $('advice').textContent = v === 'SAFE' ? 'All checks pass.'
+    : v.startsWith('WAIT') ? 'Only replication lag is outstanding. Use a strict switchover: it waits for the target to catch up.'
+    : 'Blocked. Fix the failing checks below and re-run the checks.';
+  $('checks').innerHTML = '<tr><th></th><th>check</th><th>detail</th></tr>' + r.checks.map(c =>
+    `<tr><td>${c.ok ? (c.severity === 'info' ? '<span class="dim">INFO</span>' : '<span class="ok">PASS</span>')
+                    : (c.severity === 'warn' ? '<span class="warn">WAIT</span>' : '<span class="bad">FAIL</span>')}</td>
+     <td>${esc(c.check)}</td><td class="dim">${esc(c.detail)}</td></tr>`).join('');
+  $('strict').disabled = busy || v === 'UNSAFE';
+  $('fast').disabled = busy || v !== 'SAFE';
+  $('raftgo').disabled = busy || v !== 'SAFE';
+}
+
+async function go(method) {
+  if (!lastCheck) return;
+  const what = isRaft() ? `Raft leadership of ${lastCheck.raft_group}` : `write leader (${method} switchover)`;
+  if (!confirm(`Move the ${what}: ${lastCheck.leader} → ${target}?`)) return;
+  busy = true; $('strict').disabled = $('fast').disabled = $('raftgo').disabled = true;
+  say(`requesting: move ${esc(what)} ${esc(lastCheck.leader)} → ${esc(target)} ...`);
+  const [url, body] = isRaft() ? ['api/raft_switch', {target, scope: scope()}] : ['api/switch', {target, method}];
+  let j;
+  try {
+    const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    j = await r.json();
+  } catch (e) { say('request failed: ' + esc(e), 'bad'); busy = false; return check(); }
+  if (j.refused) {
+    say(`REFUSED by the server-side safety check: ${esc(j.refused)}`, 'bad');
+    (j.failed_checks || []).forEach(c => say('&nbsp;&nbsp;- ' + esc(c), 'bad'));
+    busy = false; return check();
+  }
+  if (j.error) say('failed: ' + esc(JSON.stringify(j.error)), 'bad');
+  else say(j.ok ? 'accepted, waiting for the new leader...' : 'reported a problem: ' + esc(JSON.stringify(j)), j.ok ? '' : 'warn');
+  const want = lastCheck.target;
+  for (let i = 0; i < 20; i++) {           // watch for up to ~40s
+    await new Promise(res => setTimeout(res, 2000));
+    try { await loadState(); } catch (e) { continue; }
+    if (currentLeader() === want) {
+      say(`done: ${esc(isRaft() ? 'Raft leader of ' + raftGroup() : 'write leader')} is now <span class="leader">${esc(want)}</span>`, 'ok');
+      break;
+    }
+    if (i === 19) say(`leader is still ${esc(currentLeader())} - check the lab's event log`, 'warn');
+  }
+  busy = false; target = ''; await loadState(); check();
+}
+
+loadState().then(check).catch(e => { $('verdict').textContent = 'could not load state: ' + e; });
+</script>
+</body>
+</html>

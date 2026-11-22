@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgd-demo
+  labels:
+    app: pgd-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgd-demo
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: pgd-demo
+    spec:
+      serviceAccountName: pgd-demo
+      containers:
+      - name: app
+        image: python:3.12-slim
+        command:
+        - /bin/sh
+        - -c
+        - pip install --no-cache-dir --quiet --target /tmp/py 'flask==3.1.*' 'psycopg2-binary==2.9.*' && cd /code && PYTHONPATH=/tmp/py exec python -u app.py
+        envFrom:
+        - configMapRef:
+            name: pgd-demo-env
+        env:
+        - name: HOME
+          value: /tmp
+        # The EDB PGD operator creates <pgdgroup>-app; the overlay sets the name.
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: pgd-app
+              key: username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: pgd-app
+              key: password
+        ports:
+        - name: http
+          containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 384Mi
+        volumeMounts:
+        - name: code
+          mountPath: /code
+      # OKD / OpenShift login in front of the app (the Route points here). Only users who
+      # may update the PGDGroup in this namespace get in; their username reaches the app
+      # as X-Forwarded-User and is recorded in the event log. Prometheus still scrapes
+      # :8080/metrics directly. One-time prerequisite (cookie secret, not stored in git):
+      #   oc create secret generic pgd-demo-oauth-proxy -n <ns> \
+      #     --from-literal=session_secret="$(openssl rand -base64 24)"
+      - name: oauth-proxy
+        # openshift/oauth-proxy imagestream, present on every OKD / OpenShift cluster
+        image: image-registry.openshift-image-registry.svc:5000/openshift/oauth-proxy:v4.4
+        args:
+        - --provider=openshift
+        - --https-address=:8443
+        - --http-address=
+        - --upstream=http://localhost:8080
+        - --openshift-service-account=pgd-demo
+        - '--openshift-sar={"namespace":"$(POD_NAMESPACE)","group":"pgd.k8s.enterprisedb.io","resource":"pgdgroups","verb":"update"}'
+        - --tls-cert=/etc/tls/private/tls.crt
+        - --tls-key=/etc/tls/private/tls.key
+        - --cookie-secret-file=/etc/proxy/secrets/session_secret
+        - --skip-provider-button
+        - --pass-basic-auth=false
+        - --pass-user-headers=true
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        ports:
+        - name: oauth-proxy
+          containerPort: 8443
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+        volumeMounts:
+        - name: proxy-tls
+          mountPath: /etc/tls/private
+          readOnly: true
+        - name: proxy-cookie
+          mountPath: /etc/proxy/secrets
+          readOnly: true
+      volumes:
+      - name: code
+        configMap:
+          name: pgd-demo-code
+      - name: proxy-tls
+        secret:
+          secretName: pgd-demo-proxy-tls
+      - name: proxy-cookie
+        secret:
+          secretName: pgd-demo-oauth-proxy

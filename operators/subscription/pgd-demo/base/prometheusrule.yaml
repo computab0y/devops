@@ -1,0 +1,96 @@
+# Alerts for the failure that took homelab-pgd-1 down (Nov 2026): a replication slot for a
+# node that no longer exists kept every WAL file until the volume filled and Postgres
+# refused to start, after which the surviving nodes kept WAL for the dead node in turn.
+#
+# Evaluated by OKD user-workload monitoring (Thanos Ruler), which limits queries to this
+# namespace, so kubelet_volume_stats_* only sees this namespace's PVCs. PGD node PVCs are
+# named <node>-<n>; the "and/group_left on pgd_demo_node_info" keeps only those.
+# Firing alerts show in the OKD console (Observe > Alerting) and on the Grafana dashboard.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pgd-demo
+  labels:
+    app: pgd-demo
+spec:
+  groups:
+  - name: pgd-storage
+    rules:
+    - record: pgd:volume_used_ratio
+      expr: |
+        max by (namespace, node) (label_replace(
+          kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes,
+          "node", "$1", "persistentvolumeclaim", "(.+)-[0-9]+"))
+        * on (namespace, node) group_left (cluster, group)
+          group by (namespace, node, cluster, group) (pgd_demo_node_info)
+    - record: pgd:volume_used_bytes_predicted_24h
+      expr: |
+        max by (namespace, node) (label_replace(
+          predict_linear(kubelet_volume_stats_used_bytes[6h], 86400) - kubelet_volume_stats_capacity_bytes,
+          "node", "$1", "persistentvolumeclaim", "(.+)-[0-9]+"))
+        * on (namespace, node) group_left (cluster, group)
+          group by (namespace, node, cluster, group) (pgd_demo_node_info)
+
+    - alert: PGDOrphanedReplicationSlot
+      expr: max by (namespace, cluster, group, node, slot) (pgd_demo_node_slot_retained_bytes{kind="orphan"}) >= 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Orphaned replication slot {{ $labels.slot }} on {{ $labels.node }}"
+        description: >-
+          {{ $labels.node }} has a PGD replication slot that belongs to no PGD node. It keeps every
+          WAL file from its restart point ({{ $value | humanize1024 }}B so far) and will fill the
+          volume. Check bdr.node_slots / pg_replication_slots on {{ $labels.node }} and, once sure
+          the node it was for is gone, drop it with pg_drop_replication_slot().
+
+    - alert: PGDInactiveSlotRetainingWAL
+      expr: |
+        max by (namespace, cluster, group, node, slot, kind, target) (
+          pgd_demo_node_slot_retained_bytes{active="false"}) > 2 * 1024^3
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "{{ $labels.node }} is keeping {{ $value | humanize1024 }}B of WAL for an inactive slot"
+        description: >-
+          Slot {{ $labels.slot }} ({{ $labels.kind }}, target {{ $labels.target }}) on
+          {{ $labels.node }} is not being consumed. Usually the target node is down: until it comes
+          back or is removed from the PGD group, WAL keeps growing on {{ $labels.node }}.
+
+    - alert: PGDNodeUnreachable
+      expr: max by (namespace, cluster, group, node) (pgd_demo_node_reachable) == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "PGD node {{ $labels.node }} is unreachable"
+        description: "The pgd-demo app cannot connect to {{ $labels.node }}-rw. Check the pod and its logs."
+
+    - alert: PGDVolumeFillingUp
+      expr: pgd:volume_used_ratio > 0.80
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "PGD node {{ $labels.node }} volume is {{ $value | humanizePercentage }} full"
+        description: >-
+          Look at the 'Disk space and WAL retention' row of the PGD dashboard: if pg_wal is growing,
+          a replication slot is usually holding it (orphaned, or its target node is down).
+    - alert: PGDVolumeFillingUp
+      expr: pgd:volume_used_ratio > 0.90
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "PGD node {{ $labels.node }} volume is {{ $value | humanizePercentage }} full"
+        description: "Postgres stops (and will not restart) when WAL can no longer be written."
+
+    - alert: PGDVolumeFullWithin24h
+      expr: pgd:volume_used_bytes_predicted_24h > 0 and on (namespace, node) pgd:volume_used_ratio > 0.40
+      for: 30m
+      labels:
+        severity: warning
+      annotations:
+        summary: "PGD node {{ $labels.node }} volume will be full within 24 hours at its current rate"
+        description: "Based on the last 6 hours of growth. See the 'Disk space and WAL retention' row of the PGD dashboard."

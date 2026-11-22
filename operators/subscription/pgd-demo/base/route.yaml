@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: pgd-demo
+  labels:
+    app: pgd-demo
+spec:
+  to:
+    kind: Service
+    name: pgd-demo
+  port:
+    targetPort: oauth-proxy
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect

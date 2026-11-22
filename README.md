@@ -47,6 +47,7 @@ devops/
 │       │       │   ├── pipeline-config.yaml        # ConfigMap + Secret
 │       │       │   └── cronjob.yaml                # Weekly auto re-sync trigger
 │       │       └── health-check/     # Cluster health check pipeline
+│       ├── pgd-demo/                 # PGD write-leader lab app + Grafana dashboard (per-cluster overlays)
 │       ├── test-app/                 # Mock trading API, Swagger UI, mock FTP server
 │       ├── artifactory-pullthrough-test/  # Proof that images pull through Artifactory's docker-remote
 │       └── vault/                    # HashiCorp Vault deployment

@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# PGD write-leader lab app. Cluster-specific values (namespace, PGD group, cluster
+# name, app URL, credentials secret) are set in overlay/<cluster>/app.
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: pgd-demo
+    includeSelectors: false
+
+resources:
+  - rbac.yaml
+  - deployment.yaml
+  - service.yaml
+  - servicemonitor.yaml
+  - route.yaml
+  - prometheusrule.yaml
+
+configMapGenerator:
+  # Code: a content hash in the name means edits to app.py/index.html roll the pod.
+  - name: pgd-demo-code
+    files:
+      - app/app.py
+      - app/index.html
+      - app/switch.html
+  # Settings: the overlay merges its own values over these defaults.
+  - name: pgd-demo-env
+    literals:
+      - CLUSTER_NAME=default
+      - APP_URL=
+      - PGADMIN_URL=
+      - PGD_GROUP=pgd
+      - ROUTER_HOST=pgd-proxy
+      - ROUTER_PORT=5432
+      - NODE_HOST_FMT={node}-rw
+      - PGDATABASE=app
+      - PGSSLMODE=require
+      - WRITE_INTERVAL=0.5
