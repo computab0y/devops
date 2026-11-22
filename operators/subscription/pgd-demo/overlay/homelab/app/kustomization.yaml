@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Namespace of the PGDGroup.
+namespace: pgd-group-homelab
+
+resources:
+  - ../../../base
+
+configMapGenerator:
+  - name: pgd-demo-env
+    behavior: merge
+    literals:
+      - CLUSTER_NAME=homelab                     # shown in the dashboard's Cluster dropdown
+      - PGD_GROUP=homelab-pgd                    # PGDGroup name (= PGD data group)
+      - ROUTER_HOST=homelab-pgd-proxy            # <pgdgroup>-proxy: Connection Manager / PGD Proxy
+      - APP_URL=https://pgd-demo-pgd-group-homelab.apps.okd.funky-bash.com
+      - PGADMIN_URL=https://pgadmin-pgd-homelab.apps.okd.funky-bash.com   # optional dashboard link
+
+patches:
+  # <pgdgroup>-app: credentials secret created by the EDB PGD operator
+  - target:
+      kind: Deployment
+      name: pgd-demo
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/1/valueFrom/secretKeyRef/name
+        value: homelab-pgd-app
+      - op: replace
+        path: /spec/template/spec/containers/0/env/2/valueFrom/secretKeyRef/name
+        value: homelab-pgd-app

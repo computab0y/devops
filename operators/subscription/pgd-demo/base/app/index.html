@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PGD write-leader lab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#2a2f3a; --ink:#e6e8ee; --dim:#9aa3b2;
+          --ok:#3fb950; --warn:#d29922; --bad:#f85149; --acc:#58a6ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; }
+  .pill { padding:3px 10px; border-radius:999px; border:1px solid var(--line); color:var(--dim); font-size:12px; }
+  .pill b { color:var(--ink); }
+  main { display:grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap:14px; padding:14px 20px; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  section h2 { font-size:14px; margin:0 0 8px; }
+  section p.hint { color:var(--dim); font-size:12px; margin:4px 0 8px; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td { text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--dim); font-weight:500; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); } .dim { color:var(--dim); }
+  .leader { color:var(--acc); font-weight:600; }
+  button, select { background:#222733; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:5px 10px; font:inherit; cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  button.danger { border-color:#5a2a2a; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:6px 0; }
+  .log { max-height:320px; overflow:auto; font:12px/1.4 ui-monospace, Consolas, monospace; }
+  .log div { padding:2px 0; border-bottom:1px dashed #20242d; }
+  .verdict { font-size:16px; font-weight:700; margin:6px 0; }
+  code { background:#0b0d11; padding:1px 4px; border-radius:4px; }
+  .wide { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PGD write-leader lab</h1>
+  <span class="pill">group <b id="grp">homelab-pgd</b></span>
+  <span class="pill">write leader <b id="leader">?</b></span>
+  <span class="pill">writer connected to <b id="wnode">?</b></span>
+  <span class="pill">Raft <b id="raft">?</b></span>
+  <span class="pill">Raft leader <b id="raftLeader">?</b></span>
+  <span class="pill" id="writerState">writer running</span>
+  <button onclick="pause()" id="pauseBtn">Pause writer</button>
+</header>
+<main>
+
+<section>
+  <h2>1. Writer (through the router, like a real app)</h2>
+  <p class="hint">Inserts one row into each table every 0.5s via the read-write router service. Watch the error columns when the leader moves.</p>
+  <table id="stats"></table>
+  <h2 style="margin-top:12px">Leader changes seen by the app</h2>
+  <table id="changes"></table>
+</section>
+
+<section>
+  <h2>2. Nodes and replication lag from the write leader</h2>
+  <p class="hint"><code>bdr.node_slots</code> on the leader. <b>replay_lag_bytes = 0</b> means that node has applied everything the leader committed.</p>
+  <table id="nodes"></table>
+</section>
+
+<section>
+  <h2>3. Sequences (kind + per-node state)</h2>
+  <p class="hint"><code>bdr.sequences</code> for the kind; <code>pg_sequences.last_value</code> and <code>max(id)</code> read on each node directly. A LOCAL sequence whose last_value is below max(id) will re-issue existing ids if that node becomes leader.</p>
+  <table id="seqs"></table>
+  <div id="chunks" class="dim" style="font-size:12px;margin-top:8px"></div>
+</section>
+
+<section>
+  <h2>4. Is it safe to move the write leader?</h2>
+  <div class="row">
+    Target <select id="target"></select>
+    <button onclick="check()">Run safety check</button>
+  </div>
+  <div id="verdict" class="verdict"></div>
+  <table id="checks"></table>
+</section>
+
+<section>
+  <h2>5. Actions</h2>
+  <div class="row">
+    Switch leader to <select id="target2"></select>
+    <button onclick="sw('strict')">Strict switchover</button>
+    <button onclick="sw('fast')">Fast switchover</button>
+    <button class="danger" onclick="sw('fast', true)">Force fast (skip safety checks)</button>
+    <a href="#" onclick="location.href='switch?target='+encodeURIComponent(document.getElementById('target2').value);return false">step-by-step checked switchover &rarr;</a>
+    <a href="switch?kind=raft-data">move a Raft leader &rarr;</a>
+  </div>
+  <p class="hint">Strict and fast run the safety check first and are refused if it says UNSAFE (fast also while lag is outstanding). Force skips the check, to demonstrate what an unsafe move does.</p>
+  <p class="hint">Strict waits until the target's lag is under <code>route_writer_max_lag</code>; fast ignores lag.</p>
+  <div class="row">
+    Fix <code>demo_local</code>:
+    <button onclick="post('/api/repair',{table:'demo_local'})">Repair (setval past max on every node)</button>
+    <button onclick="post('/api/convert',{table:'demo_local',kind:'galloc'})">Convert to galloc</button>
+  </div>
+  <div class="row">
+    <button class="danger" onclick="post('/api/reset_local',{})">Reset demo_local to LOCAL (re-run the duplicate demo)</button>
+  </div>
+  <div id="actionOut" class="dim" style="font-size:12px"></div>
+</section>
+
+<section>
+  <h2>6. Conflict history</h2>
+  <p class="hint"><code>bdr.conflict_history_summary</code>: conflicts PGD resolved automatically (e.g. a row inserted on two nodes).</p>
+  <table id="conflicts"></table>
+</section>
+
+<section class="wide">
+  <h2>Event log</h2>
+  <div class="log" id="log"></div>
+  <div class="dim" id="errs" style="font-size:12px;margin-top:6px"></div>
+</section>
+</main>
+
+<script>
+let paused = false, lastState = null;
+const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const tbl = (el, head, rows) => document.getElementById(el).innerHTML =
+  '<tr>' + head.map(h => `<th>${h}</th>`).join('') + '</tr>' + rows.map(r => '<tr>' + r.map(c => `<td>${c}</td>`).join('') + '</tr>').join('');
+
+async function refresh() {
+  try {
+    const s = await (await fetch('api/state')).json();
+    lastState = s;
+    document.getElementById('leader').textContent = s.leader || '?';
+    if (s.group) document.getElementById('grp').textContent = s.group;
+    document.getElementById('raftLeader').textContent = (s.raft_leaders || {})[s.group] || '?';
+    document.getElementById('wnode').textContent = s.writer.connected_node || '(disconnected)';
+    const r = (s.raft || [])[0] || {};
+    const raftEl = document.getElementById('raft');
+    raftEl.textContent = r.status || '?'; raftEl.className = (r.status === 'OK') ? 'ok' : 'bad';
+    paused = s.writer.paused;
+    document.getElementById('pauseBtn').textContent = paused ? 'Resume writer' : 'Pause writer';
+    document.getElementById('writerState').innerHTML = s.writer.last_error
+      ? `<span class="bad">writer: ${esc(s.writer.last_error)}</span>` : (paused ? 'writer paused' : '<span class="ok">writer running</span>');
+
+    tbl('stats', ['table', 'what it shows', 'ok', 'duplicate key', 'other errors', 'last id'],
+      Object.entries(s.writer.stats).map(([t, v]) => [t, `<span class="dim">${esc(s.tables[t])}</span>`, v.ok,
+        v.dup_key ? `<span class="bad">${v.dup_key}</span>` : 0, v.other_err ? `<span class="warn">${v.other_err}</span>` : 0, esc(v.last_id)]));
+    tbl('changes', ['time (UTC)', 'from', 'to'], s.writer.leader_changes.map(c => [c.t, esc(c.from), `<span class="leader">${esc(c.to)}</span>`]));
+
+    const lag = Object.fromEntries((s.lag || []).map(l => [l.target_name, l]));
+    tbl('nodes', ['node', 'kind', 'state', 'role', 'replay_lag_bytes', 'replay_lag'],
+      (s.nodes || []).map(n => {
+        const l = lag[n.node_name];
+        const lb = l ? Number(l.replay_lag_bytes) : null;
+        return [esc(n.node_name), esc(n.node_kind || '?'), n.peer_state_name === 'ACTIVE' ? '<span class="ok">ACTIVE</span>' : `<span class="bad">${esc(n.peer_state_name)}</span>`,
+          n.node_name === s.leader ? '<span class="leader">WRITE LEADER</span>' : '',
+          n.node_name === s.leader ? '-' : (lb === null ? '?' : (lb === 0 ? '<span class="ok">0</span>' : `<span class="warn">${lb}</span>`)),
+          l ? esc(l.replay_lag) : '-'];
+      }));
+
+    const kinds = Object.fromEntries((s.sequences || []).map(x => [x.seq, x.seqkind]));
+    const rows = []; let chunks = [];
+    for (const [node, info] of Object.entries(s.per_node || {})) {
+      if (info.error) { rows.push([esc(node), '', '', `<span class="bad">${esc(info.error)}</span>`, '', '']); continue; }
+      for (const [t, v] of Object.entries(info)) {
+        const seq = t + '_id_seq', k = kinds[seq] || '?';
+        const last = v.seq_last_value, mx = v.table_max_id;
+        const risk = (k === 'local' && Number(v.taken_next_1000 || 0) > 0);
+        rows.push([node === s.leader ? `<span class="leader">${esc(node)}</span>` : esc(node), t, k === 'local' ? `<span class="warn">local</span>` : esc(k),
+          esc(last ?? 'unused'), esc(mx), risk ? `<span class="bad">dup key on ${esc(v.taken_next_1000)} of next 1000 inserts</span>` : '<span class="ok">ok</span>']);
+        if (v.chunks) chunks.push(`<b>${esc(node)}</b> ${esc(t)} chunks: ` + v.chunks.map(c => esc(JSON.stringify(c))).join(' '));
+      }
+    }
+    tbl('seqs', ['node', 'table', 'seq kind', 'last_value on node', 'max(id) on node', 'if this node leads'], rows);
+    document.getElementById('chunks').innerHTML = chunks.join('<br>');
+
+    tbl('conflicts', ['time', 'table', 'type', 'resolution', 'origin -> target'],
+      (s.conflicts || []).map(c => [esc(c.local_time), esc(c.relname), esc(c.conflict_type), esc(c.conflict_resolution), esc(c.origin_node_name) + ' -> ' + esc(c.target_node_name)]));
+
+    for (const id of ['target', 'target2']) {
+      const sel = document.getElementById(id), cur = sel.value;
+      const opts = (s.data_nodes || []).filter(n => n !== s.leader);
+      sel.innerHTML = opts.map(n => `<option ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('');
+    }
+    document.getElementById('log').innerHTML = s.writer.events.map(e =>
+      `<div><span class="dim">${e.t}</span> <span class="${e.kind === 'dup' || e.kind === 'error' ? 'bad' : e.kind === 'leader' ? 'leader' : e.kind === 'conn' ? 'warn' : ''}">[${e.kind}]</span> ${esc(e.msg)}</div>`).join('');
+    document.getElementById('errs').textContent = (s.errors || []).join(' | ');
+  } catch (e) { document.getElementById('errs').textContent = 'dashboard refresh failed: ' + e; }
+}
+
+async function check() {
+  const t = document.getElementById('target').value;
+  const r = await (await fetch('api/check/' + encodeURIComponent(t))).json();
+  const v = document.getElementById('verdict');
+  v.textContent = `${r.verdict}: move ${r.leader} -> ${r.target}`;
+  v.className = 'verdict ' + (r.verdict === 'SAFE' ? 'ok' : r.verdict.startsWith('WAIT') ? 'warn' : 'bad');
+  tbl('checks', ['', 'check', 'detail'], r.checks.map(c => [c.ok ? '<span class="ok">PASS</span>' : (c.severity === 'warn' ? '<span class="warn">WAIT</span>' : '<span class="bad">FAIL</span>'), esc(c.check), `<span class="dim">${esc(c.detail)}</span>`]));
+}
+async function post(url, body) {
+  const out = document.getElementById('actionOut');
+  out.textContent = 'working...';
+  const r = await fetch(url.replace(/^\//, ''), {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const j = await r.json();
+  out.innerHTML = j.refused
+    ? `<span class="bad">REFUSED: ${esc(j.refused)}</span>` + (j.failed_checks || []).map(c => `<br>&nbsp;- ${esc(c)}`).join('')
+    : esc(JSON.stringify(j));
+  refresh();
+}
+const sw = (m, force = false) => post('/api/switch', {target: document.getElementById('target2').value, method: m, force});
+const pause = () => post('/api/pause', {paused: !paused});
+refresh(); setInterval(refresh, 2000);
+</script>
+</body>
+</html>

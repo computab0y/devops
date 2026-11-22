@@ -1,0 +1,17 @@
+# Scraped by OpenShift/OKD user-workload monitoring (or any Prometheus Operator;
+# add the label your Prometheus selects ServiceMonitors on in the overlay).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pgd-demo
+  labels:
+    app: pgd-demo
+spec:
+  selector:
+    matchLabels:
+      app: pgd-demo
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 15s
+    scrapeTimeout: 12s

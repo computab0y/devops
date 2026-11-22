@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Grafana Operator v5 dashboard. The overlay sets the namespace of the Grafana
+# instance and its instanceSelector. Regenerate with tools/gen_dashboard.py.
+resources:
+  - grafana-dashboard.yaml

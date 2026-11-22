@@ -1,0 +1,37 @@
+# Lets the app read the PGDGroup status (operator phase / Ready) for the health panel.
+# Optional: without it the app just leaves out the operator metrics.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pgd-demo
+  labels:
+    app: pgd-demo
+  annotations:
+    # lets the oauth-proxy sidecar use this SA as its OAuth client, redirecting to the Route
+    serviceaccounts.openshift.io/oauth-redirectreference.primary: >-
+      {"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"pgd-demo"}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pgd-demo-read-pgdgroup
+  labels:
+    app: pgd-demo
+rules:
+- apiGroups: ["pgd.k8s.enterprisedb.io"]
+  resources: ["pgdgroups"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pgd-demo-read-pgdgroup
+  labels:
+    app: pgd-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pgd-demo-read-pgdgroup
+subjects:
+- kind: ServiceAccount
+  name: pgd-demo
