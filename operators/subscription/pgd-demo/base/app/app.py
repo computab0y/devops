@@ -33,6 +33,8 @@ GROUP = os.environ.get("PGD_GROUP", "homelab-pgd")
 WRITE_INTERVAL = float(os.environ.get("WRITE_INTERVAL", "0.5"))
 # an inactive slot keeping at least this much WAL counts as a WARNING health issue
 SLOT_WARN_GIB = float(os.environ.get("SLOT_WARN_GIB", "2"))
+# Raft move: how many Raft log entries the target may be behind the leader and still count as caught up
+RAFT_MAX_LAG_ENTRIES = int(os.environ.get("RAFT_MAX_LAG_ENTRIES", "50"))
 # Labels every metric so one Grafana dashboard can tell clusters/groups apart.
 CLUSTER = os.environ.get("CLUSTER_NAME", "default")
 APP_URL = os.environ.get("APP_URL", "")
@@ -180,7 +182,7 @@ def cluster_state():
             st["pgd_version"] = "unknown"
         try:
             # one row per (raft group, member): covers the data group and its parent group
-            st["raft_details"] = q(c, """SELECT node_name, node_group_name, state, leader_name, current_term
+            st["raft_details"] = q(c, """SELECT node_name, node_id, node_group_name, state, leader_name, current_term
                                          FROM bdr.group_raft_details
                                          ORDER BY node_group_name, node_name""")
         except Exception as e:
@@ -451,6 +453,31 @@ def safety_check(target, st=None):
 RAFT_SCOPES = ("data", "parent")
 
 
+_cache = {}
+
+
+def cached(key, ttl, fn):
+    """fn() result, reused for ttl seconds (metrics run the Raft checks for every member each scrape)."""
+    hit = _cache.get(key)
+    if hit and time.time() - hit[0] < ttl:
+        return hit[1]
+    val = fn()
+    _cache[key] = (time.time(), val)
+    return val
+
+
+def raft_leader_status(rgroup, leader):
+    """bdr.get_raft_status(group, true) read on the Raft leader: only the leader knows each
+    follower's match_index (how much of the Raft log it has) and last heartbeat response."""
+    def fetch():
+        c = node_conn(leader)
+        try:
+            return q(c, "SELECT bdr.get_raft_status(%s, true) AS s", (rgroup,))[0]["s"]
+        finally:
+            c.close()
+    return cached(("raft_status", rgroup, leader), 5, fetch)
+
+
 def raft_group_for(scope, st):
     """'data' = the PGD data group (PGD_GROUP); 'parent' = the other Raft group (top-level group)."""
     if scope == "data":
@@ -498,7 +525,40 @@ def raft_check(target, scope="data", st=None, reachable=None):
     else:
         ok, detail = bool(reachable.get(target)), "seen by the health collector"
     add("6_reachable", "Target reachable", ok, detail)
-    add("7_write_leader", "Write leader is not moved", True,
+
+    # 7: no node is joining / parting / down and the operator isn't mid-change (e.g. rebuilding a node)
+    unstable = [f"{n['node_name']} is {n['peer_state_name']}" for n in st.get("nodes", [])
+                if n["peer_state_name"] != "ACTIVE"]
+    try:
+        op = cached(("operator",), 10, operator_status)
+    except Exception:
+        op = None
+    if op is None:
+        ok, detail = not unstable, "operator status not readable (RBAC?): checked PGD node states only"
+    else:
+        ok = op["ready"] and not unstable
+        detail = f"PGDGroup phase: {op['phase'] or '?'}" + ("" if op["ready"] else f" (not Ready: {op['message']})")
+    detail += "; " + ("; ".join(unstable) if unstable else "every node ACTIVE")
+    add("7_stable", "Group stable (PGDGroup Ready, no node joining or parting)", ok, detail)
+
+    # 8: the target has the leader's Raft log, and answers the leader's heartbeats
+    try:
+        if not (leader and m):
+            raise ValueError("no Raft leader or target not a member")
+        rs = raft_leader_status(rgroup, leader)
+        f = next((x for x in rs.get("node_list", []) if int(x.get("node_id") or 0) == int(m["node_id"])), None)
+        if f is None or f.get("match_index") is None:
+            raise ValueError(f"the leader {leader} has no replication state for {target}")
+        behind = int(rs["last_log_index"]) - int(f["match_index"])
+        ok = behind <= RAFT_MAX_LAG_ENTRIES
+        detail = (f"{target} has Raft log entry {f['match_index']} of {rs['last_log_index']} "
+                  f"({behind} behind, limit {RAFT_MAX_LAG_ENTRIES}); "
+                  f"last heartbeat reply {f.get('last_heartbeat_response_time') or 'never'}")
+    except Exception as e:
+        ok, detail = False, str(e).splitlines()[0]
+    add("8_caught_up", "Target has caught up with the leader's Raft log", ok, detail)
+
+    add("9_write_leader", "Write leader is not moved", True,
         f"Raft leadership is the consensus role only; the write leader stays on {st.get('leader')}. "
         "Writes keep flowing; Raft-driven work (write-leader elections, galloc chunks, global DDL locks) "
         "is briefly paused while the new leader takes over.", "info")

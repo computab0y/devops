@@ -7,10 +7,12 @@ leader moves. It also exposes its view as Prometheus metrics. A Grafana dashboar
 
 | Dashboard row | Source |
 |---|---|
-| Overview: health, replication, leaders, versions | an overall verdict plus open issues, built from PGD's monitoring functions (`bdr.monitor_group_raft()`, `bdr.monitor_group_versions()`, `bdr.monitor_local_replslots()` on every node), node reachability, the full replication mesh (`bdr.node_slots` and `bdr.subscription_summary` on every node), and the EDB operator's PGDGroup phase. Also shows the write and Raft leaders, and the Postgres / PGD version per node. |
+| Overview: health, replication, leaders, sequences | an overall verdict plus open issues, built from PGD's monitoring functions (`bdr.monitor_group_raft()`, `bdr.monitor_group_versions()`, `bdr.monitor_local_replslots()` on every node), node reachability, the full replication mesh (`bdr.node_slots` and `bdr.subscription_summary` on every node), and the EDB operator's PGDGroup phase. Also shows the write and Raft leaders and the sequences (below). |
 | 2. Nodes and replication lag from the write leader | `bdr.node_summary`, `bdr.node_group_routing_summary` (write leader), `bdr.group_raft_details` (Raft leaders of the data group and its parent), `bdr.node_slots` on the write leader |
-| 3. Sequences | `bdr.sequences`, plus `pg_sequences.last_value`, `max(id)` and `bdr.galloc_chunk_info()` read on every node |
-| 4. Is it safe to move the write leader? | the app's safety check, evaluated for every possible target on each scrape |
+| Sequences (in the overview) | `bdr.sequences`, plus `pg_sequences.last_value`, `max(id)` and `bdr.galloc_chunk_info()` read on every node |
+| Disk space and WAL retention | volume usage from the kubelet, every replication slot on every node, firing PGD alerts |
+| 3. Is it safe to move the write leader or a Raft leader? | the app's safety checks, evaluated for every possible target on each scrape |
+| Versions (bottom) | Postgres / PGD version per node, flagged when a node is behind the newest |
 
 Nothing in the dashboard is tied to one cluster. Nodes, the write leader and Raft
 leaders are discovered on every scrape. Datasource, **Cluster** and **PGD group** are
@@ -19,6 +21,13 @@ Actions stay in the app, which the dashboard links to: switchover, repair, conve
 Moving a leader always goes through a safety check. The checked page `/switch` handles the write leader
 (`?kind=write`) and the Raft leader of the data group or parent group (`?kind=raft-data|raft-parent`).
 The API refuses UNSAFE moves itself, unless the request sets `force`, which the lab uses to demonstrate a bad switchover.
+
+A Raft leader move is SAFE only when all of these pass: the Raft group exists; the target is not already
+the leader, is a Raft member, is ACTIVE and is reachable; Raft has a majority (`bdr.monitor_group_raft`);
+the group is stable (PGDGroup Ready and no node joining, parting or down); and the target has caught up
+with the leader's Raft log (`match_index` from `bdr.get_raft_status(group, true)` on the leader, at most
+`RAFT_MAX_LAG_ENTRIES`, default 50, behind). If the operator status can't be read, the stability check
+falls back to the PGD node states.
 
 The app sits behind an **OKD / OpenShift login** (an oauth-proxy sidecar on the Route). Only users who may
 `update` the PGDGroup in the app's namespace get in. Their username is recorded in the app's event log

@@ -145,7 +145,7 @@ panels = []
 
 # ------------------------------------------------------------------ overview
 y = 0
-panels.append(row("Overview: PGD health, replication, leaders and versions", y))
+panels.append(row("Overview: PGD health, replication, leaders and sequences", y))
 y += 1
 panels += [
     stat("PGD health", 0, y, 6, 5, [tgt(f"max({s('pgd_demo_overall_health')})", instant=True)],
@@ -220,32 +220,59 @@ panels += [
 y += 8
 
 
-VERSION_STATUS = vmap([(0, "newest", "green")]) + [
-    {"type": "range", "options": {"from": -1e15, "to": -0.5, "result": {"text": "behind", "color": "orange", "index": 1}}}]
-
-
-def behind(num_metric):
-    """0 if the node runs the newest version in the cluster, negative if it is behind."""
-    return f"max by (node) ({s(num_metric)}) - on () group_left max({s(num_metric)})"
-
-
+# ------------------------------------------------------------------ sequences (in the overview)
 panels += [
-    table("Versions", 0, y, 24, 6, [
-        tgt(f"max by (node, pg_version, pgd_version) ({s('pgd_demo_node_version_info')})", "A", instant=True),
-        tgt(behind("pgd_demo_node_pg_version_num"), "B", instant=True),
-        tgt(behind("pgd_demo_node_pgd_version_num"), "C", instant=True)],
-        "server_version and bdr.bdr_version(), read on each node directly. Status compares each node with the newest "
-        "version in the cluster: 'behind' means that node hasn't been upgraded yet (e.g. mid rolling upgrade).",
-        overrides=[ov(col, {"mappings": VERSION_STATUS, "custom.cellOptions": {"type": "color-background", "mode": "basic"},
-                            "custom.width": 120})
-                   for col in ("postgres status", "pgd status")],
+    table("Sequence kinds", 0, y, 7, 8, [tgt(f"max by (table, sequence, kind) ({s('pgd_demo_sequence_kind')})", instant=True)],
+          "bdr.sequences: galloc is globally unique (Raft hands each node its own id ranges); local is per node (the dangerous one).",
+          overrides=[ov("kind", {"mappings": KIND_MAP, "custom.cellOptions": {"type": "color-text"}})],
+          transformations=[{"id": "organize", "options": {"excludeByName": {"Time": True, "Value": True},
+                                                          "indexByName": {"table": 0, "sequence": 1, "kind": 2}}}],
+          sort=[{"displayName": "table"}]),
+    table("Per-node sequence state", 7, y, 17, 8, [
+        tgt(f"max by (node, table, kind) ({s('pgd_demo_sequence_last_value')})", "A", instant=True),
+        tgt(f"max by (node, table, kind) ({s('pgd_demo_table_max_id')})", "B", instant=True),
+        tgt(f"max by (node, table, kind) ({s('pgd_demo_table_rows')})", "C", instant=True),
+        tgt(f"max by (node, table, kind) ({s('pgd_demo_sequence_dup_risk')})", "D", instant=True)],
+        "pg_sequences.last_value and max(id) read on each node directly. A LOCAL sequence whose last_value is "
+        "below max(id) will re-issue existing ids if that node becomes leader. n/a = sequence not used yet on that node.",
+        overrides=[
+            ov("kind", {"mappings": KIND_MAP, "custom.cellOptions": {"type": "color-text"}}),
+            ov("last_value on node", {"noValue": "n/a", "decimals": 0}),
+            ov("max(id) on node", {"decimals": 0}),
+            ov("rows", {"decimals": 0}),
+            ov("if this node leads", {"mappings": vmap([(0, "ok", "green")]), "unit": "suffix: of next 1000 ids collide",
+                                      "decimals": 0, "color": {"mode": "thresholds"},
+                                      "thresholds": thresholds((None, "green"), (1, "red")),
+                                      "custom.cellOptions": {"type": "color-background", "mode": "basic"}}),
+        ],
         transformations=merge_organize(
-            ["Time", "Value #A"],
-            {"pg_version": "postgres", "Value #B": "postgres status", "pgd_version": "pgd", "Value #C": "pgd status"},
-            {"node": 0, "pg_version": 1, "Value #B": 2, "pgd_version": 3, "Value #C": 4}),
+            ["Time"],
+            {"Value #A": "last_value on node", "Value #B": "max(id) on node", "Value #C": "rows",
+             "Value #D": "if this node leads"},
+            {"node": 0, "table": 1, "kind": 2, "Value #A": 3, "Value #B": 4, "Value #C": 5, "Value #D": 6}),
         sort=[{"displayName": "node"}]),
 ]
-y += 6
+y += 8
+panels += [
+    timeseries("LOCAL sequence: how far each node's counter is behind max(id)", 0, y, 12, 8,
+               [tgt(f"max by (node) ({LOCAL_MAX}) - on (node) "
+                    f"max by (node) ({LOCAL_LAST})", legend="{{node}}")],
+               "max(id) - last_value for each LOCAL sequence. Above 0, that node would re-issue existing ids "
+               "(duplicate keys) if it became write leader. Repair or convert in the app to fix.",
+               th=thresholds((None, "green"), (1, "red")),
+               no_value="No LOCAL sequences: no node can re-issue existing ids"),
+    table("galloc chunks held per node", 12, y, 12, 8, [
+        tgt(f"max by (node, table, chunk) ({s('pgd_demo_galloc_chunk_start')})", "A", instant=True),
+        tgt(f"max by (node, table, chunk) ({s('pgd_demo_galloc_chunk_end')})", "B", instant=True)],
+        "bdr.galloc_chunk_info(): id ranges Raft has handed each node. Each node spends its own chunk, so ids jump "
+        "after a leader change.",
+        overrides=[ov("chunk_start", {"decimals": 0}), ov("chunk_end", {"decimals": 0})],
+        transformations=merge_organize(["Time"], {"Value #A": "chunk_start", "Value #B": "chunk_end"},
+                                       {"node": 0, "table": 1, "chunk": 2, "Value #A": 3, "Value #B": 4}),
+        sort=[{"displayName": "node"}]),
+]
+y += 8
+
 panels += [
     stat("Operator (PGDGroup)", 0, y, 6, 4,
          [tgt(f"max by (phase) ({s('pgd_demo_operator_ready')})", legend="{{phase}}", instant=True)],
@@ -445,63 +472,8 @@ panels += [
 ]
 y += 8
 
-# ------------------------------------------------------------------ section 3
-panels.append(row("3. Sequences (kind + per-node state)", y))
-y += 1
-panels += [
-    table("Sequence kinds", 0, y, 7, 8, [tgt(f"max by (table, sequence, kind) ({s('pgd_demo_sequence_kind')})", instant=True)],
-          "bdr.sequences: galloc is globally unique (Raft hands each node its own id ranges); local is per node (the dangerous one).",
-          overrides=[ov("kind", {"mappings": KIND_MAP, "custom.cellOptions": {"type": "color-text"}})],
-          transformations=[{"id": "organize", "options": {"excludeByName": {"Time": True, "Value": True},
-                                                          "indexByName": {"table": 0, "sequence": 1, "kind": 2}}}],
-          sort=[{"displayName": "table"}]),
-    table("Per-node sequence state", 7, y, 17, 8, [
-        tgt(f"max by (node, table, kind) ({s('pgd_demo_sequence_last_value')})", "A", instant=True),
-        tgt(f"max by (node, table, kind) ({s('pgd_demo_table_max_id')})", "B", instant=True),
-        tgt(f"max by (node, table, kind) ({s('pgd_demo_table_rows')})", "C", instant=True),
-        tgt(f"max by (node, table, kind) ({s('pgd_demo_sequence_dup_risk')})", "D", instant=True)],
-        "pg_sequences.last_value and max(id) read on each node directly. A LOCAL sequence whose last_value is "
-        "below max(id) will re-issue existing ids if that node becomes leader. n/a = sequence not used yet on that node.",
-        overrides=[
-            ov("kind", {"mappings": KIND_MAP, "custom.cellOptions": {"type": "color-text"}}),
-            ov("last_value on node", {"noValue": "n/a", "decimals": 0}),
-            ov("max(id) on node", {"decimals": 0}),
-            ov("rows", {"decimals": 0}),
-            ov("if this node leads", {"mappings": vmap([(0, "ok", "green")]), "unit": "suffix: of next 1000 ids collide",
-                                      "decimals": 0, "color": {"mode": "thresholds"},
-                                      "thresholds": thresholds((None, "green"), (1, "red")),
-                                      "custom.cellOptions": {"type": "color-background", "mode": "basic"}}),
-        ],
-        transformations=merge_organize(
-            ["Time"],
-            {"Value #A": "last_value on node", "Value #B": "max(id) on node", "Value #C": "rows",
-             "Value #D": "if this node leads"},
-            {"node": 0, "table": 1, "kind": 2, "Value #A": 3, "Value #B": 4, "Value #C": 5, "Value #D": 6}),
-        sort=[{"displayName": "node"}]),
-]
-y += 8
-panels += [
-    timeseries("LOCAL sequence: how far each node's counter is behind max(id)", 0, y, 12, 8,
-               [tgt(f"max by (node) ({LOCAL_MAX}) - on (node) "
-                    f"max by (node) ({LOCAL_LAST})", legend="{{node}}")],
-               "max(id) - last_value for each LOCAL sequence. Above 0, that node would re-issue existing ids "
-               "(duplicate keys) if it became write leader. Repair or convert in the app to fix.",
-               th=thresholds((None, "green"), (1, "red")),
-               no_value="No LOCAL sequences: no node can re-issue existing ids"),
-    table("galloc chunks held per node", 12, y, 12, 8, [
-        tgt(f"max by (node, table, chunk) ({s('pgd_demo_galloc_chunk_start')})", "A", instant=True),
-        tgt(f"max by (node, table, chunk) ({s('pgd_demo_galloc_chunk_end')})", "B", instant=True)],
-        "bdr.galloc_chunk_info(): id ranges Raft has handed each node. Each node spends its own chunk, so ids jump "
-        "after a leader change.",
-        overrides=[ov("chunk_start", {"decimals": 0}), ov("chunk_end", {"decimals": 0})],
-        transformations=merge_organize(["Time"], {"Value #A": "chunk_start", "Value #B": "chunk_end"},
-                                       {"node": 0, "table": 1, "chunk": 2, "Value #A": 3, "Value #B": 4}),
-        sort=[{"displayName": "node"}]),
-]
-y += 8
-
 # ------------------------------------------------------------------ section 4
-panels.append(row("4. Is it safe to move the write leader or a Raft leader?", y))
+panels.append(row("3. Is it safe to move the write leader or a Raft leader?", y))
 y += 1
 panels += [
     stat("Verdict for every node", 0, y, 10, 5,
@@ -557,7 +529,8 @@ panels += [
          [tgt(f"max by (scope, kind, target) ({s('pgd_demo_raft_switch_verdict')})", legend="{{scope}} \u2192 {{target}}",
               instant=True)],
          "Raft safety check for every member of the data group and the parent group: target is a Raft member, "
-         "ACTIVE, reachable, and Raft has a healthy majority. Moving the Raft leader does not move the write leader. "
+         "ACTIVE, reachable, caught up with the leader's Raft log, Raft has a healthy majority and the group is "
+         "stable (PGDGroup Ready, no node joining or parting). Moving the Raft leader does not move the write leader. "
          "Click a tile to open the checked transfer page.",
          {"mappings": RAFT_VERDICT_MAP, "color": {"mode": "thresholds"}, "thresholds": thresholds((None, "text")),
           "links": [{"title": "Run safety checks & move the Raft leader to ${__field.labels.target}",
@@ -565,6 +538,37 @@ panels += [
                      "targetBlank": True}]},
          text_mode="value_and_name"),
 ]
+y += 5
+
+# ------------------------------------------------------------------ versions (bottom)
+panels.append(row("Versions", y))
+y += 1
+VERSION_STATUS = vmap([(0, "newest", "green")]) + [
+    {"type": "range", "options": {"from": -1e15, "to": -0.5, "result": {"text": "behind", "color": "orange", "index": 1}}}]
+
+
+def behind(num_metric):
+    """0 if the node runs the newest version in the cluster, negative if it is behind."""
+    return f"max by (node) ({s(num_metric)}) - on () group_left max({s(num_metric)})"
+
+
+panels += [
+    table("Versions", 0, y, 24, 6, [
+        tgt(f"max by (node, pg_version, pgd_version) ({s('pgd_demo_node_version_info')})", "A", instant=True),
+        tgt(behind("pgd_demo_node_pg_version_num"), "B", instant=True),
+        tgt(behind("pgd_demo_node_pgd_version_num"), "C", instant=True)],
+        "server_version and bdr.bdr_version(), read on each node directly. Status compares each node with the newest "
+        "version in the cluster: 'behind' means that node hasn't been upgraded yet (e.g. mid rolling upgrade).",
+        overrides=[ov(col, {"mappings": VERSION_STATUS, "custom.cellOptions": {"type": "color-background", "mode": "basic"},
+                            "custom.width": 120})
+                   for col in ("postgres status", "pgd status")],
+        transformations=merge_organize(
+            ["Time", "Value #A"],
+            {"pg_version": "postgres", "Value #B": "postgres status", "pgd_version": "pgd", "Value #C": "pgd status"},
+            {"node": 0, "pg_version": 1, "Value #B": 2, "pgd_version": 3, "Value #C": 4}),
+        sort=[{"displayName": "node"}]),
+]
+y += 6
 
 dashboard = {
     "uid": "pgd-write-leader-lab",

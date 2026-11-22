@@ -208,7 +208,7 @@ spec:
         {
           "type": "row",
           "id": 1,
-          "title": "Overview: PGD health, replication, leaders and versions",
+          "title": "Overview: PGD health, replication, leaders and sequences",
           "collapsed": false,
           "gridPos": {
             "x": 0,
@@ -1092,2246 +1092,6 @@ spec:
         {
           "type": "table",
           "id": 8,
-          "title": "Versions",
-          "description": "server_version and bdr.bdr_version(), read on each node directly. Status compares each node with the newest version in the cluster: 'behind' means that node hasn't been upgraded yet (e.g. mid rolling upgrade).",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 14,
-            "w": 24,
-            "h": 6
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (node, pg_version, pgd_version) (pgd_demo_node_version_info{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "__auto",
-              "instant": true,
-              "range": false,
-              "format": "table"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (node) (pgd_demo_node_pg_version_num{cluster=\"$cluster\", group=\"$group\"}) - on () group_left max(pgd_demo_node_pg_version_num{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "B",
-              "legendFormat": "__auto",
-              "instant": true,
-              "range": false,
-              "format": "table"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (node) (pgd_demo_node_pgd_version_num{cluster=\"$cluster\", group=\"$group\"}) - on () group_left max(pgd_demo_node_pgd_version_num{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "C",
-              "legendFormat": "__auto",
-              "instant": true,
-              "range": false,
-              "format": "table"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                }
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "postgres status"
-                },
-                "properties": [
-                  {
-                    "id": "mappings",
-                    "value": [
-                      {
-                        "type": "value",
-                        "options": {
-                          "0": {
-                            "text": "newest",
-                            "color": "green",
-                            "index": 0
-                          }
-                        }
-                      },
-                      {
-                        "type": "range",
-                        "options": {
-                          "from": -1000000000000000.0,
-                          "to": -0.5,
-                          "result": {
-                            "text": "behind",
-                            "color": "orange",
-                            "index": 1
-                          }
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "id": "custom.cellOptions",
-                    "value": {
-                      "type": "color-background",
-                      "mode": "basic"
-                    }
-                  },
-                  {
-                    "id": "custom.width",
-                    "value": 120
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "pgd status"
-                },
-                "properties": [
-                  {
-                    "id": "mappings",
-                    "value": [
-                      {
-                        "type": "value",
-                        "options": {
-                          "0": {
-                            "text": "newest",
-                            "color": "green",
-                            "index": 0
-                          }
-                        }
-                      },
-                      {
-                        "type": "range",
-                        "options": {
-                          "from": -1000000000000000.0,
-                          "to": -0.5,
-                          "result": {
-                            "text": "behind",
-                            "color": "orange",
-                            "index": 1
-                          }
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "id": "custom.cellOptions",
-                    "value": {
-                      "type": "color-background",
-                      "mode": "basic"
-                    }
-                  },
-                  {
-                    "id": "custom.width",
-                    "value": 120
-                  }
-                ]
-              }
-            ]
-          },
-          "options": {
-            "showHeader": true,
-            "cellHeight": "sm",
-            "footer": {
-              "show": false,
-              "reducer": [
-                "sum"
-              ],
-              "fields": ""
-            },
-            "sortBy": [
-              {
-                "displayName": "node"
-              }
-            ]
-          },
-          "transformations": [
-            {
-              "id": "merge",
-              "options": {}
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Time": true,
-                  "Value #A": true
-                },
-                "renameByName": {
-                  "pg_version": "postgres",
-                  "Value #B": "postgres status",
-                  "pgd_version": "pgd",
-                  "Value #C": "pgd status"
-                },
-                "indexByName": {
-                  "node": 0,
-                  "pg_version": 1,
-                  "Value #B": 2,
-                  "pgd_version": 3,
-                  "Value #C": 4
-                }
-              }
-            }
-          ]
-        },
-        {
-          "type": "stat",
-          "id": 9,
-          "title": "Operator (PGDGroup)",
-          "description": "PGDGroup status from the EDB PGD operator: phase, and whether its Ready condition is True.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 20,
-            "w": 6,
-            "h": 4
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (phase) (pgd_demo_operator_ready{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "{{phase}}",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [
-                {
-                  "type": "value",
-                  "options": {
-                    "1": {
-                      "text": "Ready",
-                      "color": "green",
-                      "index": 0
-                    },
-                    "0": {
-                      "text": "Not ready",
-                      "color": "red",
-                      "index": 1
-                    }
-                  }
-                }
-              ],
-              "noValue": "not available",
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "red",
-                    "value": null
-                  },
-                  {
-                    "color": "green",
-                    "value": 1
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "value_and_name",
-            "colorMode": "background",
-            "graphMode": "none",
-            "justifyMode": "center",
-            "orientation": "auto",
-            "wideLayout": true
-          },
-          "transformations": []
-        },
-        {
-          "type": "stat",
-          "id": 10,
-          "title": "Nodes reachable",
-          "description": "Nodes the app could connect to directly (<node>-rw).",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 6,
-            "y": 20,
-            "w": 6,
-            "h": 4
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "sum(pgd_demo_node_reachable{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "reachable",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "count(pgd_demo_node_reachable{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "B",
-              "legendFormat": "total",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "fixed",
-                "fixedColor": "text"
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "value_and_name",
-            "colorMode": "value",
-            "graphMode": "none",
-            "justifyMode": "center",
-            "orientation": "auto",
-            "wideLayout": true
-          },
-          "transformations": []
-        },
-        {
-          "type": "stat",
-          "id": 11,
-          "title": "Replication links",
-          "description": "Node-to-node subscriptions (bdr.subscription_summary on every node) that are enabled and replicating. A full mesh of n data nodes has n x (n-1).",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 12,
-            "y": 20,
-            "w": 6,
-            "h": 4
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "sum(pgd_demo_subscription_replicating{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "replicating",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "count(pgd_demo_subscription_replicating{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "B",
-              "legendFormat": "total",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "fixed",
-                "fixedColor": "text"
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "value_and_name",
-            "colorMode": "value",
-            "graphMode": "none",
-            "justifyMode": "center",
-            "orientation": "auto",
-            "wideLayout": true
-          },
-          "transformations": []
-        },
-        {
-          "type": "stat",
-          "id": 12,
-          "title": "Worst replication lag (any link)",
-          "description": "Highest replay lag over every source -> target slot in the mesh.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 18,
-            "y": 20,
-            "w": 6,
-            "h": 4
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max(pgd_demo_mesh_lag_bytes{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "bytes",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max(pgd_demo_mesh_lag_seconds{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "B",
-              "legendFormat": "time",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "orange",
-                    "value": 1
-                  }
-                ]
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byFrameRefID",
-                  "options": "A"
-                },
-                "properties": [
-                  {
-                    "id": "unit",
-                    "value": "bytes"
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byFrameRefID",
-                  "options": "B"
-                },
-                "properties": [
-                  {
-                    "id": "unit",
-                    "value": "s"
-                  },
-                  {
-                    "id": "decimals",
-                    "value": 3
-                  },
-                  {
-                    "id": "thresholds",
-                    "value": {
-                      "mode": "absolute",
-                      "steps": [
-                        {
-                          "color": "green",
-                          "value": null
-                        },
-                        {
-                          "color": "orange",
-                          "value": 1
-                        },
-                        {
-                          "color": "red",
-                          "value": 10
-                        }
-                      ]
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "value_and_name",
-            "colorMode": "value",
-            "graphMode": "none",
-            "justifyMode": "center",
-            "orientation": "auto",
-            "wideLayout": true
-          },
-          "transformations": []
-        },
-        {
-          "type": "table",
-          "id": 13,
-          "title": "Open issues",
-          "description": "Everything currently making PGD health WARNING or CRITICAL. Empty means healthy.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 24,
-            "w": 12,
-            "h": 7
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (issue) (pgd_demo_health_issue{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "__auto",
-              "instant": true,
-              "range": false,
-              "format": "table"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                }
-              },
-              "noValue": "No open issues: everything is healthy"
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "severity"
-                },
-                "properties": [
-                  {
-                    "id": "mappings",
-                    "value": [
-                      {
-                        "type": "value",
-                        "options": {
-                          "1": {
-                            "text": "WARNING",
-                            "color": "orange",
-                            "index": 0
-                          },
-                          "2": {
-                            "text": "CRITICAL",
-                            "color": "red",
-                            "index": 1
-                          }
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "id": "custom.width",
-                    "value": 100
-                  },
-                  {
-                    "id": "custom.cellOptions",
-                    "value": {
-                      "type": "color-background",
-                      "mode": "basic"
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          "options": {
-            "showHeader": true,
-            "cellHeight": "sm",
-            "footer": {
-              "show": false,
-              "reducer": [
-                "sum"
-              ],
-              "fields": ""
-            },
-            "sortBy": [
-              {
-                "displayName": "severity",
-                "desc": true
-              }
-            ]
-          },
-          "transformations": [
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Time": true
-                },
-                "renameByName": {
-                  "Value": "severity"
-                },
-                "indexByName": {
-                  "Value": 0,
-                  "issue": 1
-                }
-              }
-            }
-          ]
-        },
-        {
-          "type": "table",
-          "id": 14,
-          "title": "PGD health checks",
-          "description": "PGD's own monitoring functions: monitor_group_raft and monitor_group_versions (group-wide), monitor_local_replslots (on each node).",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 12,
-            "y": 24,
-            "w": 12,
-            "h": 7
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (check, node, message) (pgd_demo_health_check{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "__auto",
-              "instant": true,
-              "range": false,
-              "format": "table"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                }
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "status"
-                },
-                "properties": [
-                  {
-                    "id": "mappings",
-                    "value": [
-                      {
-                        "type": "value",
-                        "options": {
-                          "0": {
-                            "text": "OK",
-                            "color": "green",
-                            "index": 0
-                          },
-                          "1": {
-                            "text": "WARNING",
-                            "color": "orange",
-                            "index": 1
-                          },
-                          "2": {
-                            "text": "CRITICAL",
-                            "color": "red",
-                            "index": 2
-                          },
-                          "3": {
-                            "text": "UNKNOWN",
-                            "color": "purple",
-                            "index": 3
-                          }
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "id": "custom.width",
-                    "value": 100
-                  },
-                  {
-                    "id": "custom.cellOptions",
-                    "value": {
-                      "type": "color-background",
-                      "mode": "basic"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "check"
-                },
-                "properties": [
-                  {
-                    "id": "custom.width",
-                    "value": 100
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "node"
-                },
-                "properties": [
-                  {
-                    "id": "custom.width",
-                    "value": 130
-                  }
-                ]
-              }
-            ]
-          },
-          "options": {
-            "showHeader": true,
-            "cellHeight": "sm",
-            "footer": {
-              "show": false,
-              "reducer": [
-                "sum"
-              ],
-              "fields": ""
-            },
-            "sortBy": [
-              {
-                "displayName": "check"
-              }
-            ]
-          },
-          "transformations": [
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Time": true
-                },
-                "renameByName": {
-                  "Value": "status"
-                },
-                "indexByName": {
-                  "Value": 0,
-                  "check": 1,
-                  "node": 2,
-                  "message": 3
-                }
-              }
-            }
-          ]
-        },
-        {
-          "type": "state-timeline",
-          "id": 15,
-          "title": "PGD health history",
-          "description": "Overall PGD health over the time range.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 31,
-            "w": 12,
-            "h": 6
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max(pgd_demo_overall_health{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "PGD health",
-              "instant": false,
-              "range": true
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [
-                {
-                  "type": "value",
-                  "options": {
-                    "0": {
-                      "text": "HEALTHY",
-                      "color": "green",
-                      "index": 0
-                    },
-                    "1": {
-                      "text": "WARNING",
-                      "color": "orange",
-                      "index": 1
-                    },
-                    "2": {
-                      "text": "CRITICAL",
-                      "color": "red",
-                      "index": 2
-                    }
-                  }
-                }
-              ],
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "text",
-                    "value": null
-                  }
-                ]
-              },
-              "custom": {
-                "fillOpacity": 80,
-                "lineWidth": 0
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "showValue": "never",
-            "mergeValues": true,
-            "rowHeight": 0.8,
-            "alignValue": "center",
-            "legend": {
-              "showLegend": true,
-              "displayMode": "list",
-              "placement": "bottom"
-            },
-            "tooltip": {
-              "mode": "single"
-            }
-          },
-          "transformations": []
-        },
-        {
-          "type": "timeseries",
-          "id": 16,
-          "title": "Replication lag, every link (bytes)",
-          "description": "",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 12,
-            "y": 31,
-            "w": 12,
-            "h": 6
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (source, target) (pgd_demo_mesh_lag_bytes{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "{{source}} -> {{target}}",
-              "instant": false,
-              "range": true
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "bytes",
-              "custom": {
-                "drawStyle": "line",
-                "lineWidth": 2,
-                "fillOpacity": 10,
-                "showPoints": "never",
-                "spanNulls": false
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "legend": {
-              "displayMode": "table",
-              "placement": "right",
-              "calcs": [
-                "lastNotNull",
-                "max"
-              ]
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "transformations": []
-        },
-        {
-          "type": "row",
-          "id": 17,
-          "title": "Disk space and WAL retention",
-          "collapsed": false,
-          "gridPos": {
-            "x": 0,
-            "y": 37,
-            "w": 24,
-            "h": 1
-          },
-          "panels": []
-        },
-        {
-          "type": "stat",
-          "id": 18,
-          "title": "Orphaned replication slots",
-          "description": "PGD replication slots that belong to no PGD node (pg_replication_slots with no match in bdr.node_slots). Such a slot keeps every WAL file from its restart point until the volume fills: this is what stopped homelab-pgd-1 in Nov 2026. Anything above 0 needs looking at.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 38,
-            "w": 5,
-            "h": 5
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "sum(pgd_demo_node_orphan_slots{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "orphaned",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 1
-                  }
-                ]
-              },
-              "noValue": "n/a"
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "auto",
-            "colorMode": "background",
-            "graphMode": "none",
-            "justifyMode": "center",
-            "orientation": "auto",
-            "wideLayout": true
-          },
-          "transformations": []
-        },
-        {
-          "type": "bargauge",
-          "id": 19,
-          "title": "Volume used per node",
-          "description": "Data volume (PGDATA incl. pg_wal) of each PGD node, from the kubelet. Alerts: 80% warning, 90% critical.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 5,
-            "y": 38,
-            "w": 10,
-            "h": 5
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (node) (label_replace(kubelet_volume_stats_used_bytes{namespace=\"$namespace\"}, \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\") / label_replace(kubelet_volume_stats_capacity_bytes{namespace=\"$namespace\"}, \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\")) and on (node) group by (node) (pgd_demo_node_info{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "{{node}}",
-              "instant": true,
-              "range": false,
-              "format": "table"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "percentunit",
-              "min": 0,
-              "max": 1,
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "orange",
-                    "value": 0.8
-                  },
-                  {
-                    "color": "red",
-                    "value": 0.9
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "orientation": "horizontal",
-            "displayMode": "gradient",
-            "showUnfilled": true,
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            }
-          },
-          "transformations": []
-        },
-        {
-          "type": "stat",
-          "id": 20,
-          "title": "Time until volume full",
-          "description": "Free space divided by how fast the volume grew over the last 6 hours. Blank: not growing. Note that pg_wal grows ~190 MB/h even when idle while a slot holds it (archive_timeout = 5 min).",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 15,
-            "y": 38,
-            "w": 9,
-            "h": 5
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (node) ((label_replace(kubelet_volume_stats_capacity_bytes{namespace=\"$namespace\"}, \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\") - label_replace(kubelet_volume_stats_used_bytes{namespace=\"$namespace\"}, \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\")) / (label_replace(deriv(kubelet_volume_stats_used_bytes{namespace=\"$namespace\"}[6h]), \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\") > 0)) and on (node) group by (node) (pgd_demo_node_info{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "{{node}}",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "noValue": "not growing",
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "red",
-                    "value": null
-                  },
-                  {
-                    "color": "orange",
-                    "value": 86400
-                  },
-                  {
-                    "color": "green",
-                    "value": 259200
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "value_and_name",
-            "colorMode": "background",
-            "graphMode": "none",
-            "justifyMode": "center",
-            "orientation": "auto",
-            "wideLayout": true
-          },
-          "transformations": []
-        },
-        {
-          "type": "timeseries",
-          "id": 21,
-          "title": "Volume used per node",
-          "description": "Used bytes on each PGD node's volume. A steady climb with no matching data growth is WAL being kept for a replication slot.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 43,
-            "w": 12,
-            "h": 7
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (node) (label_replace(kubelet_volume_stats_used_bytes{namespace=\"$namespace\"}, \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\")) and on (node) group by (node) (pgd_demo_node_info{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "{{node}}",
-              "instant": false,
-              "range": true
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max(label_replace(kubelet_volume_stats_capacity_bytes{namespace=\"$namespace\"}, \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\") and on (node) group by (node) (pgd_demo_node_info{cluster=\"$cluster\", group=\"$group\"}))",
-              "refId": "B",
-              "legendFormat": "capacity",
-              "instant": false,
-              "range": true
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "bytes",
-              "custom": {
-                "drawStyle": "line",
-                "lineWidth": 2,
-                "fillOpacity": 10,
-                "showPoints": "never",
-                "spanNulls": false
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "legend": {
-              "displayMode": "table",
-              "placement": "right",
-              "calcs": [
-                "lastNotNull",
-                "max"
-              ]
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "transformations": []
-        },
-        {
-          "type": "timeseries",
-          "id": 22,
-          "title": "WAL kept per replication slot",
-          "description": "pg_current_wal_lsn() - restart_lsn for every slot on every node: how much WAL each slot forces the node to keep. Healthy peer slots stay near zero; an orphaned slot, or a slot whose target node is down, climbs steadily.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 12,
-            "y": 43,
-            "w": 12,
-            "h": 7
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (node, kind, target) (pgd_demo_node_slot_retained_bytes{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "{{node}}: {{kind}} -> {{target}}",
-              "instant": false,
-              "range": true
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "bytes",
-              "custom": {
-                "drawStyle": "line",
-                "lineWidth": 2,
-                "fillOpacity": 10,
-                "showPoints": "never",
-                "spanNulls": false
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "legend": {
-              "displayMode": "table",
-              "placement": "right",
-              "calcs": [
-                "lastNotNull",
-                "max"
-              ]
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "transformations": []
-        },
-        {
-          "type": "table",
-          "id": 23,
-          "title": "Replication slots on every node",
-          "description": "Every slot in pg_replication_slots on each node. kind: peer = slot for another PGD node, group = PGD's group slot, ORPHAN = bdr slot with no PGD node (should not exist), other = non-PGD slot.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 50,
-            "w": 15,
-            "h": 7
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (node, slot, kind, target, active, wal_status) (pgd_demo_node_slot_retained_bytes{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "__auto",
-              "instant": true,
-              "range": false,
-              "format": "table"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                }
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "kind"
-                },
-                "properties": [
-                  {
-                    "id": "mappings",
-                    "value": [
-                      {
-                        "type": "value",
-                        "options": {
-                          "peer": {
-                            "text": "peer",
-                            "color": "green",
-                            "index": 0
-                          },
-                          "group": {
-                            "text": "group",
-                            "color": "blue",
-                            "index": 1
-                          },
-                          "orphan": {
-                            "text": "ORPHAN",
-                            "color": "red",
-                            "index": 2
-                          },
-                          "other": {
-                            "text": "other",
-                            "color": "purple",
-                            "index": 3
-                          }
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "id": "custom.width",
-                    "value": 90
-                  },
-                  {
-                    "id": "custom.cellOptions",
-                    "value": {
-                      "type": "color-background",
-                      "mode": "basic"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "WAL kept"
-                },
-                "properties": [
-                  {
-                    "id": "unit",
-                    "value": "bytes"
-                  },
-                  {
-                    "id": "custom.width",
-                    "value": 100
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "node"
-                },
-                "properties": [
-                  {
-                    "id": "custom.width",
-                    "value": 130
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "active"
-                },
-                "properties": [
-                  {
-                    "id": "custom.width",
-                    "value": 70
-                  }
-                ]
-              }
-            ]
-          },
-          "options": {
-            "showHeader": true,
-            "cellHeight": "sm",
-            "footer": {
-              "show": false,
-              "reducer": [
-                "sum"
-              ],
-              "fields": ""
-            },
-            "sortBy": [
-              {
-                "displayName": "WAL kept",
-                "desc": true
-              }
-            ]
-          },
-          "transformations": [
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Time": true
-                },
-                "renameByName": {
-                  "Value": "WAL kept"
-                },
-                "indexByName": {
-                  "node": 0,
-                  "kind": 1,
-                  "target": 2,
-                  "active": 3,
-                  "wal_status": 4,
-                  "Value": 5,
-                  "slot": 6
-                }
-              }
-            }
-          ]
-        },
-        {
-          "type": "table",
-          "id": 24,
-          "title": "Firing PGD alerts",
-          "description": "Alerts from the pgd-demo PrometheusRule (orphaned slot, inactive slot keeping WAL, volume filling up, node unreachable). They also show in the OKD console under Observe > Alerting.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 15,
-            "y": 50,
-            "w": 9,
-            "h": 7
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (alertname, severity, node) (ALERTS{alertstate=\"firing\", namespace=\"$namespace\", alertname=~\"PGD.*\"})",
-              "refId": "A",
-              "legendFormat": "__auto",
-              "instant": true,
-              "range": false,
-              "format": "table"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                }
-              },
-              "noValue": "No PGD alerts firing"
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "severity"
-                },
-                "properties": [
-                  {
-                    "id": "mappings",
-                    "value": [
-                      {
-                        "type": "value",
-                        "options": {
-                          "warning": {
-                            "text": "warning",
-                            "color": "orange",
-                            "index": 0
-                          },
-                          "critical": {
-                            "text": "critical",
-                            "color": "red",
-                            "index": 1
-                          }
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "id": "custom.width",
-                    "value": 90
-                  },
-                  {
-                    "id": "custom.cellOptions",
-                    "value": {
-                      "type": "color-background",
-                      "mode": "basic"
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          "options": {
-            "showHeader": true,
-            "cellHeight": "sm",
-            "footer": {
-              "show": false,
-              "reducer": [
-                "sum"
-              ],
-              "fields": ""
-            },
-            "sortBy": [
-              {
-                "displayName": "severity"
-              }
-            ]
-          },
-          "transformations": [
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Time": true,
-                  "Value": true
-                },
-                "indexByName": {
-                  "severity": 0,
-                  "alertname": 1,
-                  "node": 2
-                }
-              }
-            }
-          ]
-        },
-        {
-          "type": "row",
-          "id": 25,
-          "title": "2. Leader history and replication lag from the write leader",
-          "collapsed": false,
-          "gridPos": {
-            "x": 0,
-            "y": 57,
-            "w": 24,
-            "h": 1
-          },
-          "panels": []
-        },
-        {
-          "type": "stat",
-          "id": 26,
-          "title": "Raft elections (time range)",
-          "description": "Raft term changes over the dashboard's time range. Each one is a Raft leader election.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 58,
-            "w": 6,
-            "h": 3
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (scope) (changes(pgd_demo_raft_term{cluster=\"$cluster\", group=\"$group\"}[$__range]))",
-              "refId": "A",
-              "legendFormat": "{{scope}}",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "orange",
-                    "value": 1
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "value_and_name",
-            "colorMode": "background",
-            "graphMode": "none",
-            "justifyMode": "center",
-            "orientation": "auto",
-            "wideLayout": true
-          },
-          "transformations": []
-        },
-        {
-          "type": "stat",
-          "id": 27,
-          "title": "Nodes ACTIVE",
-          "description": "Nodes whose peer_state_name is ACTIVE, out of all nodes in the group.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 6,
-            "y": 58,
-            "w": 5,
-            "h": 3
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "sum(pgd_demo_node_active{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "active",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "count(pgd_demo_node_active{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "B",
-              "legendFormat": "total",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "fixed",
-                "fixedColor": "text"
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "value_and_name",
-            "colorMode": "value",
-            "graphMode": "none",
-            "justifyMode": "center",
-            "orientation": "auto",
-            "wideLayout": true
-          },
-          "transformations": []
-        },
-        {
-          "type": "stat",
-          "id": 28,
-          "title": "Max replay lag from leader (bytes)",
-          "description": "Worst replay_lag_bytes from the leader to any node. 0 = every node has applied everything the leader committed.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 11,
-            "y": 58,
-            "w": 5,
-            "h": 3
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max(pgd_demo_replay_lag_bytes{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "__auto",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "bytes",
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "orange",
-                    "value": 1
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "auto",
-            "colorMode": "background",
-            "graphMode": "none",
-            "justifyMode": "center",
-            "orientation": "auto",
-            "wideLayout": true
-          },
-          "transformations": []
-        },
-        {
-          "type": "stat",
-          "id": 29,
-          "title": "Max replay lag from leader (time)",
-          "description": "Worst replay_lag from the leader to any node.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 16,
-            "y": 58,
-            "w": 4,
-            "h": 3
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max(pgd_demo_replay_lag_seconds{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "__auto",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "decimals": 3,
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "orange",
-                    "value": 1
-                  },
-                  {
-                    "color": "red",
-                    "value": 10
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "auto",
-            "colorMode": "background",
-            "graphMode": "none",
-            "justifyMode": "center",
-            "orientation": "auto",
-            "wideLayout": true
-          },
-          "transformations": []
-        },
-        {
-          "type": "stat",
-          "id": 30,
-          "title": "Collector errors",
-          "description": "Errors the demo app hit while collecting state (router or a node unreachable). Details are in the app's event log.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 20,
-            "y": 58,
-            "w": 4,
-            "h": 3
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max(pgd_demo_state_errors{cluster=\"$cluster\", group=\"$group\"}) + max(pgd_demo_health_collect_errors{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "__auto",
-              "instant": true,
-              "range": false,
-              "format": "time_series"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "noValue": "app down",
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 1
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "auto",
-            "colorMode": "background",
-            "graphMode": "none",
-            "justifyMode": "center",
-            "orientation": "auto",
-            "wideLayout": true
-          },
-          "transformations": []
-        },
-        {
-          "type": "state-timeline",
-          "id": 31,
-          "title": "Write leader over time",
-          "description": "When each node held the write lead. Switchovers and failovers show up as hand-offs.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 61,
-            "w": 12,
-            "h": 6
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (node) (pgd_demo_write_leader{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "{{node}}",
-              "instant": false,
-              "range": true
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [
-                {
-                  "type": "value",
-                  "options": {
-                    "1": {
-                      "text": "WRITE LEADER",
-                      "color": "blue",
-                      "index": 0
-                    },
-                    "0": {
-                      "text": "follower",
-                      "color": "#2a2f3a",
-                      "index": 1
-                    }
-                  }
-                }
-              ],
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "text",
-                    "value": null
-                  }
-                ]
-              },
-              "custom": {
-                "fillOpacity": 80,
-                "lineWidth": 0
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "showValue": "never",
-            "mergeValues": true,
-            "rowHeight": 0.8,
-            "alignValue": "center",
-            "legend": {
-              "showLegend": true,
-              "displayMode": "list",
-              "placement": "bottom"
-            },
-            "tooltip": {
-              "mode": "single"
-            }
-          },
-          "transformations": []
-        },
-        {
-          "type": "state-timeline",
-          "id": 32,
-          "title": "Raft leader over time (data group)",
-          "description": "When each node led the data group's Raft consensus.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 12,
-            "y": 61,
-            "w": 12,
-            "h": 6
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (node) (pgd_demo_raft_leader{cluster=\"$cluster\", group=\"$group\", scope=\"data group\"})",
-              "refId": "A",
-              "legendFormat": "{{node}}",
-              "instant": false,
-              "range": true
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [
-                {
-                  "type": "value",
-                  "options": {
-                    "1": {
-                      "text": "RAFT LEADER",
-                      "color": "purple",
-                      "index": 0
-                    },
-                    "0": {
-                      "text": "follower",
-                      "color": "#2a2f3a",
-                      "index": 1
-                    }
-                  }
-                }
-              ],
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "text",
-                    "value": null
-                  }
-                ]
-              },
-              "custom": {
-                "fillOpacity": 80,
-                "lineWidth": 0
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "showValue": "never",
-            "mergeValues": true,
-            "rowHeight": 0.8,
-            "alignValue": "center",
-            "legend": {
-              "showLegend": true,
-              "displayMode": "list",
-              "placement": "bottom"
-            },
-            "tooltip": {
-              "mode": "single"
-            }
-          },
-          "transformations": []
-        },
-        {
-          "type": "timeseries",
-          "id": 33,
-          "title": "Replay lag from the write leader (bytes)",
-          "description": "",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 67,
-            "w": 12,
-            "h": 8
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (node) (pgd_demo_replay_lag_bytes{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "{{node}}",
-              "instant": false,
-              "range": true
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "bytes",
-              "custom": {
-                "drawStyle": "line",
-                "lineWidth": 2,
-                "fillOpacity": 10,
-                "showPoints": "never",
-                "spanNulls": false
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "legend": {
-              "displayMode": "table",
-              "placement": "right",
-              "calcs": [
-                "lastNotNull",
-                "max"
-              ]
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "transformations": []
-        },
-        {
-          "type": "timeseries",
-          "id": 34,
-          "title": "Replay lag from the write leader (time)",
-          "description": "",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "gridPos": {
-            "x": 12,
-            "y": 67,
-            "w": 12,
-            "h": 8
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "max by (node) (pgd_demo_replay_lag_seconds{cluster=\"$cluster\", group=\"$group\"})",
-              "refId": "A",
-              "legendFormat": "{{node}}",
-              "instant": false,
-              "range": true
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "custom": {
-                "drawStyle": "line",
-                "lineWidth": 2,
-                "fillOpacity": 10,
-                "showPoints": "never",
-                "spanNulls": false
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "legend": {
-              "displayMode": "table",
-              "placement": "right",
-              "calcs": [
-                "lastNotNull",
-                "max"
-              ]
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "transformations": []
-        },
-        {
-          "type": "row",
-          "id": 35,
-          "title": "3. Sequences (kind + per-node state)",
-          "collapsed": false,
-          "gridPos": {
-            "x": 0,
-            "y": 75,
-            "w": 24,
-            "h": 1
-          },
-          "panels": []
-        },
-        {
-          "type": "table",
-          "id": 36,
           "title": "Sequence kinds",
           "description": "bdr.sequences: galloc is globally unique (Raft hands each node its own id ranges); local is per node (the dangerous one).",
           "datasource": {
@@ -3340,7 +1100,7 @@ spec:
           },
           "gridPos": {
             "x": 0,
-            "y": 76,
+            "y": 14,
             "w": 7,
             "h": 8
           },
@@ -3434,7 +1194,7 @@ spec:
         },
         {
           "type": "table",
-          "id": 37,
+          "id": 9,
           "title": "Per-node sequence state",
           "description": "pg_sequences.last_value and max(id) read on each node directly. A LOCAL sequence whose last_value is below max(id) will re-issue existing ids if that node becomes leader. n/a = sequence not used yet on that node.",
           "datasource": {
@@ -3443,7 +1203,7 @@ spec:
           },
           "gridPos": {
             "x": 7,
-            "y": 76,
+            "y": 14,
             "w": 17,
             "h": 8
           },
@@ -3686,7 +1446,7 @@ spec:
         },
         {
           "type": "timeseries",
-          "id": 38,
+          "id": 10,
           "title": "LOCAL sequence: how far each node's counter is behind max(id)",
           "description": "max(id) - last_value for each LOCAL sequence. Above 0, that node would re-issue existing ids (duplicate keys) if it became write leader. Repair or convert in the app to fix.",
           "datasource": {
@@ -3695,7 +1455,7 @@ spec:
           },
           "gridPos": {
             "x": 0,
-            "y": 84,
+            "y": 22,
             "w": 12,
             "h": 8
           },
@@ -3760,7 +1520,7 @@ spec:
         },
         {
           "type": "table",
-          "id": 39,
+          "id": 11,
           "title": "galloc chunks held per node",
           "description": "bdr.galloc_chunk_info(): id ranges Raft has handed each node. Each node spends its own chunk, so ids jump after a leader change.",
           "datasource": {
@@ -3769,7 +1529,7 @@ spec:
           },
           "gridPos": {
             "x": 12,
-            "y": 84,
+            "y": 22,
             "w": 12,
             "h": 8
           },
@@ -3878,13 +1638,770 @@ spec:
           ]
         },
         {
+          "type": "stat",
+          "id": 12,
+          "title": "Operator (PGDGroup)",
+          "description": "PGDGroup status from the EDB PGD operator: phase, and whether its Ready condition is True.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 30,
+            "w": 6,
+            "h": 4
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (phase) (pgd_demo_operator_ready{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "{{phase}}",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "1": {
+                      "text": "Ready",
+                      "color": "green",
+                      "index": 0
+                    },
+                    "0": {
+                      "text": "Not ready",
+                      "color": "red",
+                      "index": 1
+                    }
+                  }
+                }
+              ],
+              "noValue": "not available",
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "value_and_name",
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "wideLayout": true
+          },
+          "transformations": []
+        },
+        {
+          "type": "stat",
+          "id": 13,
+          "title": "Nodes reachable",
+          "description": "Nodes the app could connect to directly (<node>-rw).",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 6,
+            "y": 30,
+            "w": 6,
+            "h": 4
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(pgd_demo_node_reachable{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "reachable",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "count(pgd_demo_node_reachable{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "B",
+              "legendFormat": "total",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "text"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "value_and_name",
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "wideLayout": true
+          },
+          "transformations": []
+        },
+        {
+          "type": "stat",
+          "id": 14,
+          "title": "Replication links",
+          "description": "Node-to-node subscriptions (bdr.subscription_summary on every node) that are enabled and replicating. A full mesh of n data nodes has n x (n-1).",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 30,
+            "w": 6,
+            "h": 4
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(pgd_demo_subscription_replicating{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "replicating",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "count(pgd_demo_subscription_replicating{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "B",
+              "legendFormat": "total",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "text"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "value_and_name",
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "wideLayout": true
+          },
+          "transformations": []
+        },
+        {
+          "type": "stat",
+          "id": 15,
+          "title": "Worst replication lag (any link)",
+          "description": "Highest replay lag over every source -> target slot in the mesh.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 18,
+            "y": 30,
+            "w": 6,
+            "h": 4
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max(pgd_demo_mesh_lag_bytes{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "bytes",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max(pgd_demo_mesh_lag_seconds{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "B",
+              "legendFormat": "time",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byFrameRefID",
+                  "options": "A"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "bytes"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byFrameRefID",
+                  "options": "B"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "s"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 3
+                  },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": null
+                        },
+                        {
+                          "color": "orange",
+                          "value": 1
+                        },
+                        {
+                          "color": "red",
+                          "value": 10
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "value_and_name",
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "wideLayout": true
+          },
+          "transformations": []
+        },
+        {
+          "type": "table",
+          "id": 16,
+          "title": "Open issues",
+          "description": "Everything currently making PGD health WARNING or CRITICAL. Empty means healthy.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 34,
+            "w": 12,
+            "h": 7
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (issue) (pgd_demo_health_issue{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "__auto",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                }
+              },
+              "noValue": "No open issues: everything is healthy"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "severity"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "1": {
+                            "text": "WARNING",
+                            "color": "orange",
+                            "index": 0
+                          },
+                          "2": {
+                            "text": "CRITICAL",
+                            "color": "red",
+                            "index": 1
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 100
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "fields": ""
+            },
+            "sortBy": [
+              {
+                "displayName": "severity",
+                "desc": true
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "renameByName": {
+                  "Value": "severity"
+                },
+                "indexByName": {
+                  "Value": 0,
+                  "issue": 1
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": 17,
+          "title": "PGD health checks",
+          "description": "PGD's own monitoring functions: monitor_group_raft and monitor_group_versions (group-wide), monitor_local_replslots (on each node).",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 34,
+            "w": 12,
+            "h": 7
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (check, node, message) (pgd_demo_health_check{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "__auto",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                }
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "status"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "0": {
+                            "text": "OK",
+                            "color": "green",
+                            "index": 0
+                          },
+                          "1": {
+                            "text": "WARNING",
+                            "color": "orange",
+                            "index": 1
+                          },
+                          "2": {
+                            "text": "CRITICAL",
+                            "color": "red",
+                            "index": 2
+                          },
+                          "3": {
+                            "text": "UNKNOWN",
+                            "color": "purple",
+                            "index": 3
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 100
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "check"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 100
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "node"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 130
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "fields": ""
+            },
+            "sortBy": [
+              {
+                "displayName": "check"
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "renameByName": {
+                  "Value": "status"
+                },
+                "indexByName": {
+                  "Value": 0,
+                  "check": 1,
+                  "node": 2,
+                  "message": 3
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "state-timeline",
+          "id": 18,
+          "title": "PGD health history",
+          "description": "Overall PGD health over the time range.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 41,
+            "w": 12,
+            "h": 6
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max(pgd_demo_overall_health{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "PGD health",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "HEALTHY",
+                      "color": "green",
+                      "index": 0
+                    },
+                    "1": {
+                      "text": "WARNING",
+                      "color": "orange",
+                      "index": 1
+                    },
+                    "2": {
+                      "text": "CRITICAL",
+                      "color": "red",
+                      "index": 2
+                    }
+                  }
+                }
+              ],
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 80,
+                "lineWidth": 0
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showValue": "never",
+            "mergeValues": true,
+            "rowHeight": 0.8,
+            "alignValue": "center",
+            "legend": {
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "single"
+            }
+          },
+          "transformations": []
+        },
+        {
+          "type": "timeseries",
+          "id": 19,
+          "title": "Replication lag, every link (bytes)",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 41,
+            "w": 12,
+            "h": 6
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (source, target) (pgd_demo_mesh_lag_bytes{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "{{source}} -> {{target}}",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "transformations": []
+        },
+        {
           "type": "row",
-          "id": 40,
-          "title": "4. Is it safe to move the write leader or a Raft leader?",
+          "id": 20,
+          "title": "Disk space and WAL retention",
           "collapsed": false,
           "gridPos": {
             "x": 0,
-            "y": 92,
+            "y": 47,
             "w": 24,
             "h": 1
           },
@@ -3892,7 +2409,1275 @@ spec:
         },
         {
           "type": "stat",
-          "id": 41,
+          "id": 21,
+          "title": "Orphaned replication slots",
+          "description": "PGD replication slots that belong to no PGD node (pg_replication_slots with no match in bdr.node_slots). Such a slot keeps every WAL file from its restart point until the volume fills: this is what stopped homelab-pgd-1 in Nov 2026. Anything above 0 needs looking at.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 48,
+            "w": 5,
+            "h": 5
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(pgd_demo_node_orphan_slots{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "orphaned",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              },
+              "noValue": "n/a"
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto",
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "wideLayout": true
+          },
+          "transformations": []
+        },
+        {
+          "type": "bargauge",
+          "id": 22,
+          "title": "Volume used per node",
+          "description": "Data volume (PGDATA incl. pg_wal) of each PGD node, from the kubelet. Alerts: 80% warning, 90% critical.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 5,
+            "y": 48,
+            "w": 10,
+            "h": 5
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (node) (label_replace(kubelet_volume_stats_used_bytes{namespace=\"$namespace\"}, \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\") / label_replace(kubelet_volume_stats_capacity_bytes{namespace=\"$namespace\"}, \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\")) and on (node) group by (node) (pgd_demo_node_info{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "{{node}}",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.9
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "showUnfilled": true,
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          },
+          "transformations": []
+        },
+        {
+          "type": "stat",
+          "id": 23,
+          "title": "Time until volume full",
+          "description": "Free space divided by how fast the volume grew over the last 6 hours. Blank: not growing. Note that pg_wal grows ~190 MB/h even when idle while a slot holds it (archive_timeout = 5 min).",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 15,
+            "y": 48,
+            "w": 9,
+            "h": 5
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (node) ((label_replace(kubelet_volume_stats_capacity_bytes{namespace=\"$namespace\"}, \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\") - label_replace(kubelet_volume_stats_used_bytes{namespace=\"$namespace\"}, \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\")) / (label_replace(deriv(kubelet_volume_stats_used_bytes{namespace=\"$namespace\"}[6h]), \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\") > 0)) and on (node) group by (node) (pgd_demo_node_info{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "{{node}}",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "noValue": "not growing",
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 86400
+                  },
+                  {
+                    "color": "green",
+                    "value": 259200
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "value_and_name",
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "wideLayout": true
+          },
+          "transformations": []
+        },
+        {
+          "type": "timeseries",
+          "id": 24,
+          "title": "Volume used per node",
+          "description": "Used bytes on each PGD node's volume. A steady climb with no matching data growth is WAL being kept for a replication slot.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 53,
+            "w": 12,
+            "h": 7
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (node) (label_replace(kubelet_volume_stats_used_bytes{namespace=\"$namespace\"}, \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\")) and on (node) group by (node) (pgd_demo_node_info{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "{{node}}",
+              "instant": false,
+              "range": true
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max(label_replace(kubelet_volume_stats_capacity_bytes{namespace=\"$namespace\"}, \"node\", \"$1\", \"persistentvolumeclaim\", \"(.+)-[0-9]+\") and on (node) group by (node) (pgd_demo_node_info{cluster=\"$cluster\", group=\"$group\"}))",
+              "refId": "B",
+              "legendFormat": "capacity",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "transformations": []
+        },
+        {
+          "type": "timeseries",
+          "id": 25,
+          "title": "WAL kept per replication slot",
+          "description": "pg_current_wal_lsn() - restart_lsn for every slot on every node: how much WAL each slot forces the node to keep. Healthy peer slots stay near zero; an orphaned slot, or a slot whose target node is down, climbs steadily.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 53,
+            "w": 12,
+            "h": 7
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (node, kind, target) (pgd_demo_node_slot_retained_bytes{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "{{node}}: {{kind}} -> {{target}}",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "transformations": []
+        },
+        {
+          "type": "table",
+          "id": 26,
+          "title": "Replication slots on every node",
+          "description": "Every slot in pg_replication_slots on each node. kind: peer = slot for another PGD node, group = PGD's group slot, ORPHAN = bdr slot with no PGD node (should not exist), other = non-PGD slot.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 60,
+            "w": 15,
+            "h": 7
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (node, slot, kind, target, active, wal_status) (pgd_demo_node_slot_retained_bytes{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "__auto",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                }
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "kind"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "peer": {
+                            "text": "peer",
+                            "color": "green",
+                            "index": 0
+                          },
+                          "group": {
+                            "text": "group",
+                            "color": "blue",
+                            "index": 1
+                          },
+                          "orphan": {
+                            "text": "ORPHAN",
+                            "color": "red",
+                            "index": 2
+                          },
+                          "other": {
+                            "text": "other",
+                            "color": "purple",
+                            "index": 3
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 90
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "WAL kept"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "bytes"
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 100
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "node"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 130
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "active"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 70
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "fields": ""
+            },
+            "sortBy": [
+              {
+                "displayName": "WAL kept",
+                "desc": true
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "renameByName": {
+                  "Value": "WAL kept"
+                },
+                "indexByName": {
+                  "node": 0,
+                  "kind": 1,
+                  "target": 2,
+                  "active": 3,
+                  "wal_status": 4,
+                  "Value": 5,
+                  "slot": 6
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": 27,
+          "title": "Firing PGD alerts",
+          "description": "Alerts from the pgd-demo PrometheusRule (orphaned slot, inactive slot keeping WAL, volume filling up, node unreachable). They also show in the OKD console under Observe > Alerting.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 15,
+            "y": 60,
+            "w": 9,
+            "h": 7
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (alertname, severity, node) (ALERTS{alertstate=\"firing\", namespace=\"$namespace\", alertname=~\"PGD.*\"})",
+              "refId": "A",
+              "legendFormat": "__auto",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                }
+              },
+              "noValue": "No PGD alerts firing"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "severity"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "warning": {
+                            "text": "warning",
+                            "color": "orange",
+                            "index": 0
+                          },
+                          "critical": {
+                            "text": "critical",
+                            "color": "red",
+                            "index": 1
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 90
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "fields": ""
+            },
+            "sortBy": [
+              {
+                "displayName": "severity"
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value": true
+                },
+                "indexByName": {
+                  "severity": 0,
+                  "alertname": 1,
+                  "node": 2
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "row",
+          "id": 28,
+          "title": "2. Leader history and replication lag from the write leader",
+          "collapsed": false,
+          "gridPos": {
+            "x": 0,
+            "y": 67,
+            "w": 24,
+            "h": 1
+          },
+          "panels": []
+        },
+        {
+          "type": "stat",
+          "id": 29,
+          "title": "Raft elections (time range)",
+          "description": "Raft term changes over the dashboard's time range. Each one is a Raft leader election.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 68,
+            "w": 6,
+            "h": 3
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (scope) (changes(pgd_demo_raft_term{cluster=\"$cluster\", group=\"$group\"}[$__range]))",
+              "refId": "A",
+              "legendFormat": "{{scope}}",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "value_and_name",
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "wideLayout": true
+          },
+          "transformations": []
+        },
+        {
+          "type": "stat",
+          "id": 30,
+          "title": "Nodes ACTIVE",
+          "description": "Nodes whose peer_state_name is ACTIVE, out of all nodes in the group.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 6,
+            "y": 68,
+            "w": 5,
+            "h": 3
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(pgd_demo_node_active{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "active",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "count(pgd_demo_node_active{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "B",
+              "legendFormat": "total",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "text"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "value_and_name",
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "wideLayout": true
+          },
+          "transformations": []
+        },
+        {
+          "type": "stat",
+          "id": 31,
+          "title": "Max replay lag from leader (bytes)",
+          "description": "Worst replay_lag_bytes from the leader to any node. 0 = every node has applied everything the leader committed.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 11,
+            "y": 68,
+            "w": 5,
+            "h": 3
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max(pgd_demo_replay_lag_bytes{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "__auto",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto",
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "wideLayout": true
+          },
+          "transformations": []
+        },
+        {
+          "type": "stat",
+          "id": 32,
+          "title": "Max replay lag from leader (time)",
+          "description": "Worst replay_lag from the leader to any node.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 16,
+            "y": 68,
+            "w": 4,
+            "h": 3
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max(pgd_demo_replay_lag_seconds{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "__auto",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3,
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1
+                  },
+                  {
+                    "color": "red",
+                    "value": 10
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto",
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "wideLayout": true
+          },
+          "transformations": []
+        },
+        {
+          "type": "stat",
+          "id": 33,
+          "title": "Collector errors",
+          "description": "Errors the demo app hit while collecting state (router or a node unreachable). Details are in the app's event log.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 20,
+            "y": 68,
+            "w": 4,
+            "h": 3
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max(pgd_demo_state_errors{cluster=\"$cluster\", group=\"$group\"}) + max(pgd_demo_health_collect_errors{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "__auto",
+              "instant": true,
+              "range": false,
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "app down",
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto",
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "wideLayout": true
+          },
+          "transformations": []
+        },
+        {
+          "type": "state-timeline",
+          "id": 34,
+          "title": "Write leader over time",
+          "description": "When each node held the write lead. Switchovers and failovers show up as hand-offs.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 71,
+            "w": 12,
+            "h": 6
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (node) (pgd_demo_write_leader{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "{{node}}",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "1": {
+                      "text": "WRITE LEADER",
+                      "color": "blue",
+                      "index": 0
+                    },
+                    "0": {
+                      "text": "follower",
+                      "color": "#2a2f3a",
+                      "index": 1
+                    }
+                  }
+                }
+              ],
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 80,
+                "lineWidth": 0
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showValue": "never",
+            "mergeValues": true,
+            "rowHeight": 0.8,
+            "alignValue": "center",
+            "legend": {
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "single"
+            }
+          },
+          "transformations": []
+        },
+        {
+          "type": "state-timeline",
+          "id": 35,
+          "title": "Raft leader over time (data group)",
+          "description": "When each node led the data group's Raft consensus.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 71,
+            "w": 12,
+            "h": 6
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (node) (pgd_demo_raft_leader{cluster=\"$cluster\", group=\"$group\", scope=\"data group\"})",
+              "refId": "A",
+              "legendFormat": "{{node}}",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "1": {
+                      "text": "RAFT LEADER",
+                      "color": "purple",
+                      "index": 0
+                    },
+                    "0": {
+                      "text": "follower",
+                      "color": "#2a2f3a",
+                      "index": 1
+                    }
+                  }
+                }
+              ],
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "fillOpacity": 80,
+                "lineWidth": 0
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showValue": "never",
+            "mergeValues": true,
+            "rowHeight": 0.8,
+            "alignValue": "center",
+            "legend": {
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "single"
+            }
+          },
+          "transformations": []
+        },
+        {
+          "type": "timeseries",
+          "id": 36,
+          "title": "Replay lag from the write leader (bytes)",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 77,
+            "w": 12,
+            "h": 8
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (node) (pgd_demo_replay_lag_bytes{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "{{node}}",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "transformations": []
+        },
+        {
+          "type": "timeseries",
+          "id": 37,
+          "title": "Replay lag from the write leader (time)",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 77,
+            "w": 12,
+            "h": 8
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (node) (pgd_demo_replay_lag_seconds{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "{{node}}",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "transformations": []
+        },
+        {
+          "type": "row",
+          "id": 38,
+          "title": "3. Is it safe to move the write leader or a Raft leader?",
+          "collapsed": false,
+          "gridPos": {
+            "x": 0,
+            "y": 85,
+            "w": 24,
+            "h": 1
+          },
+          "panels": []
+        },
+        {
+          "type": "stat",
+          "id": 39,
           "title": "Verdict for every node",
           "description": "The app's safety check, evaluated for every possible target on each scrape. Click a node to open the checked switchover page for it.",
           "datasource": {
@@ -3901,7 +3686,7 @@ spec:
           },
           "gridPos": {
             "x": 0,
-            "y": 93,
+            "y": 86,
             "w": 10,
             "h": 5
           },
@@ -3989,7 +3774,7 @@ spec:
         },
         {
           "type": "stat",
-          "id": 42,
+          "id": 40,
           "title": "Move leader to $target",
           "description": "Verdict for the node picked in the 'Move leader to' dropdown. WAIT means only lag is outstanding: a STRICT switchover will wait for it to drain. Click to open the checked switchover page.",
           "datasource": {
@@ -3998,7 +3783,7 @@ spec:
           },
           "gridPos": {
             "x": 10,
-            "y": 93,
+            "y": 86,
             "w": 7,
             "h": 5
           },
@@ -4087,11 +3872,11 @@ spec:
         },
         {
           "type": "text",
-          "id": 43,
+          "id": 41,
           "title": "Move a leader",
           "gridPos": {
             "x": 17,
-            "y": 93,
+            "y": 86,
             "w": 7,
             "h": 5
           },
@@ -4103,7 +3888,7 @@ spec:
         },
         {
           "type": "table",
-          "id": 44,
+          "id": 42,
           "title": "Checks for $target",
           "description": "Same checks as the app's safety check. For the detailed explanation of a failure, run the check in the app.",
           "datasource": {
@@ -4112,7 +3897,7 @@ spec:
           },
           "gridPos": {
             "x": 0,
-            "y": 98,
+            "y": 91,
             "w": 14,
             "h": 9
           },
@@ -4243,7 +4028,7 @@ spec:
         },
         {
           "type": "state-timeline",
-          "id": 45,
+          "id": 43,
           "title": "Verdict history",
           "description": "When it would have been safe to move the leader to each node.",
           "datasource": {
@@ -4252,7 +4037,7 @@ spec:
           },
           "gridPos": {
             "x": 14,
-            "y": 98,
+            "y": 91,
             "w": 10,
             "h": 9
           },
@@ -4335,16 +4120,16 @@ spec:
         },
         {
           "type": "stat",
-          "id": 46,
+          "id": 44,
           "title": "Move the Raft leader: verdict per node",
-          "description": "Raft safety check for every member of the data group and the parent group: target is a Raft member, ACTIVE, reachable, and Raft has a healthy majority. Moving the Raft leader does not move the write leader. Click a tile to open the checked transfer page.",
+          "description": "Raft safety check for every member of the data group and the parent group: target is a Raft member, ACTIVE, reachable, caught up with the leader's Raft log, Raft has a healthy majority and the group is stable (PGDGroup Ready, no node joining or parting). Moving the Raft leader does not move the write leader. Click a tile to open the checked transfer page.",
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
           "gridPos": {
             "x": 0,
-            "y": 107,
+            "y": 100,
             "w": 24,
             "h": 5
           },
@@ -4424,6 +4209,221 @@ spec:
             "wideLayout": true
           },
           "transformations": []
+        },
+        {
+          "type": "row",
+          "id": 45,
+          "title": "Versions",
+          "collapsed": false,
+          "gridPos": {
+            "x": 0,
+            "y": 105,
+            "w": 24,
+            "h": 1
+          },
+          "panels": []
+        },
+        {
+          "type": "table",
+          "id": 46,
+          "title": "Versions",
+          "description": "server_version and bdr.bdr_version(), read on each node directly. Status compares each node with the newest version in the cluster: 'behind' means that node hasn't been upgraded yet (e.g. mid rolling upgrade).",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 106,
+            "w": 24,
+            "h": 6
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (node, pg_version, pgd_version) (pgd_demo_node_version_info{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "A",
+              "legendFormat": "__auto",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (node) (pgd_demo_node_pg_version_num{cluster=\"$cluster\", group=\"$group\"}) - on () group_left max(pgd_demo_node_pg_version_num{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "B",
+              "legendFormat": "__auto",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (node) (pgd_demo_node_pgd_version_num{cluster=\"$cluster\", group=\"$group\"}) - on () group_left max(pgd_demo_node_pgd_version_num{cluster=\"$cluster\", group=\"$group\"})",
+              "refId": "C",
+              "legendFormat": "__auto",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                }
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "postgres status"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "0": {
+                            "text": "newest",
+                            "color": "green",
+                            "index": 0
+                          }
+                        }
+                      },
+                      {
+                        "type": "range",
+                        "options": {
+                          "from": -1000000000000000.0,
+                          "to": -0.5,
+                          "result": {
+                            "text": "behind",
+                            "color": "orange",
+                            "index": 1
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 120
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "pgd status"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "0": {
+                            "text": "newest",
+                            "color": "green",
+                            "index": 0
+                          }
+                        }
+                      },
+                      {
+                        "type": "range",
+                        "options": {
+                          "from": -1000000000000000.0,
+                          "to": -0.5,
+                          "result": {
+                            "text": "behind",
+                            "color": "orange",
+                            "index": 1
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-background",
+                      "mode": "basic"
+                    }
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 120
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "fields": ""
+            },
+            "sortBy": [
+              {
+                "displayName": "node"
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value #A": true
+                },
+                "renameByName": {
+                  "pg_version": "postgres",
+                  "Value #B": "postgres status",
+                  "pgd_version": "pgd",
+                  "Value #C": "pgd status"
+                },
+                "indexByName": {
+                  "node": 0,
+                  "pg_version": 1,
+                  "Value #B": 2,
+                  "pgd_version": 3,
+                  "Value #C": 4
+                }
+              }
+            }
+          ]
         }
       ]
     }
