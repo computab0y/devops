@@ -19,6 +19,14 @@ configMapGenerator:
   files:
   - files/processor.py
 
+# Pin the running builds so `oc apply -k` doesn't swap them for :latest.
+# After a new build, update with the digest from: oc get istag -n filegateway
+images:
+- name: image-registry.openshift-image-registry.svc:5000/filegateway/filegw-gateway
+  digest: sha256:3c8d7336e43ad9accd153e252ef9ad23aa6b99c7db4bbe663c3d3aa3dd8780e1
+- name: image-registry.openshift-image-registry.svc:5000/filegateway/filegw-processor
+  digest: sha256:538c26a8e69cf102fe18ce7201e8773c433c2494da1564d746dc3bda43712d18
+
 # Host keys are NOT in git - create once so clients don't see a changed host key on every restart:
 #   ssh-keygen -t ed25519 -N '' -f ssh_host_ed25519_key && ssh-keygen -t rsa -b 4096 -N '' -f ssh_host_rsa_key
 #   oc create secret generic filegw-hostkeys -n filegateway --from-file=ssh_host_ed25519_key \

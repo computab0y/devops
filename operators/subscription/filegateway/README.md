@@ -146,6 +146,11 @@ python 3.12 + boto3) run in-cluster from the inline Dockerfiles in `base/builds.
 changing a Dockerfile: `oc start-build filegw-gateway -n filegateway` - the ConfigChange
 trigger only fires on the first build.
 
+Image digests are pinned in the `images:` block of `base/kustomization.yaml`, so applying never
+changes which build is running. A new build still rolls out on its own through the image trigger,
+but the next `oc apply -k` would roll it back. After each build, copy the new digest from
+`oc get istag -n filegateway` into `kustomization.yaml` and commit it.
+
 Always apply via `-k`: the namespace comes from `kustomization.yaml`, so `oc apply -f` on a
 single file lands in whatever project you're in.
 
