@@ -20,10 +20,11 @@ ClientAliveInterval 60
 
 Subsystem sftp internal-sftp
 
-# The pod is privileged, so password users get SFTP inside their own home and never a shell
+# The pod is privileged, so password users get SFTP inside their own home and never a shell.
+# Each is locked into /users/ftp_root/<user>, which they see as / holding SUBMISSION and NOTIFICATION.
 Match Group filegw-users
   PasswordAuthentication yes
   PubkeyAuthentication no
-  ChrootDirectory /home/%u
-  ForceCommand internal-sftp
+  ChrootDirectory /users/ftp_root/%u
+  ForceCommand internal-sftp -d /
   PermitTTY no

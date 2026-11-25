@@ -24,6 +24,7 @@ SETTLE_SECONDS = int(os.environ.get("SETTLE_SECONDS", "5"))
 MAX_BYTES = int(os.environ.get("MAX_BYTES", str(100 * 1024 * 1024)))
 ALLOWED = {e.strip().lower() for e in os.environ.get("ALLOWED_EXTENSIONS", ".csv,.txt,.json,.xml,.pdf").split(",")}
 IGNORED_SUFFIXES = (".filepart", ".part", ".tmp", "~")  # in-progress uploads from WinSCP and friends
+IGNORED_NAMES = {"DO_NOT_DELETE.txt"}  # placeholder the gateway keeps in each user's folders
 
 SUBMISSION, NOTIFICATION = "submission/", "notification/"
 RESERVED_PREFIXES = {SUBMISSION, NOTIFICATION, "processed/", "rejected/"}
@@ -131,7 +132,8 @@ def pending(root):
         for obj in page.get("Contents", []):
             name = obj["Key"][len(prefix):]
             base = os.path.basename(name)
-            if not name or name.endswith("/") or base.startswith(".") or base.endswith(IGNORED_SUFFIXES):
+            if (not name or name.endswith("/") or base.startswith(".") or base.endswith(IGNORED_SUFFIXES)
+                    or name in IGNORED_NAMES):
                 continue
             if obj["LastModified"] > cutoff:
                 continue  # still settling

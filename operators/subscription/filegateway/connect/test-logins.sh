@@ -37,7 +37,7 @@ while IFS= read -r line <&3 || [ -n "$line" ]; do
   user="${line%%,*}"
   password="${line#*,}"
 
-  output="$(printf 'ls -la /\nls -la /submission\nls -la /notification\n' |
+  output="$(printf 'ls -la /\nls -la /SUBMISSION\nls -la /NOTIFICATION\n' |
     FILEGW_TEST_PASSWORD="$password" SSH_ASKPASS="$ASKPASS" SSH_ASKPASS_REQUIRE=force \
     sftp -F /dev/null -P "$PORT" \
       -o UserKnownHostsFile="$HERE/known_hosts" -o StrictHostKeyChecking=yes \
@@ -51,8 +51,8 @@ while IFS= read -r line <&3 || [ -n "$line" ]; do
     reason="login failed (sftp exit $rc)"
   elif printf '%s\n' "$output" | grep -qE "^(Can't ls|Couldn't|remote .*: )|not found"; then
     reason="directory listing failed"
-  elif ! printf '%s\n' "$output" | grep -qE ' /submission$' || ! printf '%s\n' "$output" | grep -qE ' /notification$'; then
-    reason="submission/notification missing"
+  elif ! printf '%s\n' "$output" | grep -qE ' /SUBMISSION$' || ! printf '%s\n' "$output" | grep -qE ' /NOTIFICATION$'; then
+    reason="SUBMISSION/NOTIFICATION missing"
   fi
 
   if [ -z "$reason" ]; then

@@ -2,14 +2,17 @@
 # Mount each S3 folder with rclone (FUSE) under each SFTP user's home, then run sshd.
 # `df -h` in an SSH session shows the mapping, e.g. "s3://filegateway/submission  ...  /home/ray/submission".
 #
-# ray (SFTP_USER) maps to the bucket root: s3://<bucket>/{submission,notification}
-# Users in the filegw-users secret map by name: s3://<bucket>/<user>/{submission,notification}
+# ray (SFTP_USER) maps to the bucket root:      /home/ray/{submission,notification} -> s3://<bucket>/{submission,notification}
+# Users in the filegw-users secret are chrooted: /users/ftp_root/<user>/{SUBMISSION,NOTIFICATION}
+#                                                -> s3://<bucket>/<user>/{submission,notification}
 set -eu
 
 U="${SFTP_USER:-ray}"
 H="/home/$U"
-USERS_FILE=/users/users
-MOUNTED_USERS=/run/filegw-users   # read by healthcheck.sh; a later secret change can't fail the probe
+USERS_FILE=/etc/filegw/users
+FTP_ROOT=/users/ftp_root
+MOUNTS=/run/filegw-mounts   # every mountpoint, read by healthcheck.sh
+MARKER=DO_NOT_DELETE.txt
 
 # Stable host keys from the filegw-hostkeys secret, else generate ephemeral ones
 if ls /hostkeys/ssh_host_*_key >/dev/null 2>&1; then
@@ -34,35 +37,47 @@ export RCLONE_CONFIG_S3_ENDPOINT="http://${BUCKET_HOST}:${BUCKET_PORT}"
 export RCLONE_CONFIG_S3_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
 export RCLONE_CONFIG_S3_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
 export RCLONE_CONFIG_S3_FORCE_PATH_STYLE=true
+# The bucket already exists; without this, uploads first try to create it and Ceph refuses (TooManyBuckets)
+export RCLONE_CONFIG_S3_NO_CHECK_BUCKET=true
 
-# mount_home USER HOME S3_PREFIX  (S3_PREFIX is "" or "<user>/")
-mount_home() {
-  m_user="$1"; m_home="$2"; m_prefix="$3"
+# mount_dir USER LOCAL_DIR S3_PATH [--read-only]   (S3_PATH is relative to the bucket)
+mount_dir() {
+  m_user="$1"; m_dir="$2"; m_s3="$3"; m_ro="${4:-}"
   m_uid="$(id -u "$m_user")"
   m_gid="$(id -g "$m_user")"
-  for d in submission notification; do
-    mkdir -p "$m_home/$d"
-    chown "$m_uid:$m_gid" "$m_home/$d"
-    ro=""
-    [ "$d" = notification ] && ro="--read-only"
-    rclone mount "s3:${BUCKET_NAME}/${m_prefix}$d" "$m_home/$d" $ro \
-      --devname "s3://${BUCKET_NAME}/${m_prefix}$d" \
-      --daemon --allow-other \
-      --uid "$m_uid" --gid "$m_gid" --umask 022 \
-      --vfs-cache-mode writes --cache-dir "/cache/${m_prefix}$d" \
-      --dir-cache-time 5s --attr-timeout 1s \
-      --log-file "/var/log/rclone-$m_user-$d.log" --log-level INFO </dev/null
-    echo "mounted s3:${BUCKET_NAME}/${m_prefix}$d -> $m_home/$d"
-  done
+  mkdir -p "$m_dir"
+  chown "$m_uid:$m_gid" "$m_dir"
+  rclone mount "s3:${BUCKET_NAME}/$m_s3" "$m_dir" $m_ro \
+    --devname "s3://${BUCKET_NAME}/$m_s3" \
+    --daemon --allow-other \
+    --uid "$m_uid" --gid "$m_gid" --umask 022 \
+    --vfs-cache-mode writes --cache-dir "/cache/$m_s3" \
+    --dir-cache-time 5s --attr-timeout 1s \
+    --log-file "/var/log/rclone-$m_user-$(basename "$m_dir").log" --log-level INFO </dev/null
+  echo "$m_dir" >> "$MOUNTS"
+  echo "mounted s3:${BUCKET_NAME}/$m_s3 -> $m_dir"
 }
 
-: > "$MOUNTED_USERS"
-mount_home "$U" "$H" ""
-echo "$U" >> "$MOUNTED_USERS"
+# ensure_marker S3_PATH: create S3_PATH/DO_NOT_DELETE.txt holding the current date, if it's missing
+ensure_marker() {
+  if [ -z "$(rclone lsf --files-only --include "/$MARKER" "s3:${BUCKET_NAME}/$1/")" ]; then
+    date | rclone rcat "s3:${BUCKET_NAME}/$1/$MARKER"
+    echo "created s3:${BUCKET_NAME}/$1/$MARKER"
+  fi
+}
+
+: > "$MOUNTS"
+mount_dir "$U" "$H/submission" submission
+mount_dir "$U" "$H/notification" notification --read-only
 
 # Additional SFTP-only users: one "name:sha512-crypt-hash" per line
 if [ -r "$USERS_FILE" ]; then
   getent group filegw-users >/dev/null || groupadd -g 1999 filegw-users
+  # sshd's ChrootDirectory requires every directory down to the user's home to be root-owned
+  # and writable only by root, so users can only write inside SUBMISSION
+  mkdir -p "$FTP_ROOT"
+  chown root:root /users "$FTP_ROOT"
+  chmod 755 /users "$FTP_ROOT"
   uid=2000
   while IFS=: read -r name hash; do
     [ -n "$name" ] || continue
@@ -71,14 +86,16 @@ if [ -r "$USERS_FILE" ]; then
       root|"$U"|submission|notification|processed|rejected|*[!a-z0-9_-]*)
         echo "WARNING: skipping invalid or reserved username '$name'"; continue ;;
     esac
+    home="$FTP_ROOT/$name"
     id "$name" >/dev/null 2>&1 ||
-      useradd -M -d "/home/$name" -s /usr/sbin/nologin -u "$uid" -G filegw-users -p "$hash" "$name"
-    # sshd's ChrootDirectory requires a root-owned home that only root can write to
-    mkdir -p "/home/$name"
-    chown root:root "/home/$name"
-    chmod 755 "/home/$name"
-    mount_home "$name" "/home/$name" "$name/"
-    echo "$name" >> "$MOUNTED_USERS"
+      useradd -M -d "$home" -s /usr/sbin/nologin -u "$uid" -G filegw-users -p "$hash" "$name"
+    mkdir -p "$home"
+    chown root:root "$home"
+    chmod 755 "$home"
+    ensure_marker "$name/submission"
+    ensure_marker "$name/notification"
+    mount_dir "$name" "$home/SUBMISSION" "$name/submission"
+    mount_dir "$name" "$home/NOTIFICATION" "$name/notification" --read-only
   done < "$USERS_FILE"
 fi
 
