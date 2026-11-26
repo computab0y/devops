@@ -24,6 +24,9 @@ s3://filegateway/notification  1.0P     0  1.0P   0% /home/ray/notification
 
 (1.0P is what S3 reports; the bucket has a 20G quota in `base/bucket.yaml`.)
 
+Password users (user01, user02, ...) get their own `SUBMISSION` and `NOTIFICATION` folders instead.
+See [Password users](#password-users).
+
 ## Connecting from another PC
 
 | | |
@@ -90,9 +93,17 @@ cd operators\subscription\filegateway\connect
 
 ## Password users
 
-Each user in the `filegw-users` secret logs in over SFTP with a password and sees only their own
-folders, which map to `s3://filegateway/<user>/submission/` and `s3://filegateway/<user>/notification/`
-(read-only). The processor handles them the same way as `ray`'s, under the `<user>/` prefix.
+Each user in the `filegw-users` secret logs in over SFTP with a password and is locked into
+`/users/ftp_root/<user>` on the gateway. They see it as `/`, holding only two folders:
+
+| User sees | Bucket folder | |
+|---|---|---|
+| `/SUBMISSION` | `s3://filegateway/<user>/submission/` | uploads go here |
+| `/NOTIFICATION` | `s3://filegateway/<user>/notification/` | read-only |
+
+Each folder holds a `DO_NOT_DELETE.txt` containing the date it was created. The gateway creates
+any that are missing when it starts, and the processor ignores them. The processor handles each
+user's uploads the same way as `ray`'s, under the `<user>/` prefix.
 
 ```bash
 scripts/provision-users.sh 30                                  # user01..user30; keeps existing passwords
@@ -102,8 +113,27 @@ connect/test-logins.sh                                         # log in as each 
 connect/test-logins.sh -q /path/to/users.csv                   # PASS/FAIL only, other credentials file
 ```
 
-Plaintext passwords are only in `~/.filegw/users.csv` (mode 600, `username,password` lines). The
-cluster stores SHA-512 crypt hashes. Allow about 60Mi of gateway memory per user.
+Plaintext passwords are only in `~/.filegw/users.csv` (`username,password` lines, readable only by
+you). The cluster stores SHA-512 crypt hashes. Allow about 60Mi of gateway memory per user. On
+Windows, run `provision-users.sh` from WSL with `FILEGW_CREDS=/mnt/c/Users/<you>/.filegw/users.csv`
+so the Windows scripts below find the file.
+
+### Windows: test users and add them to WinSCP
+
+These need WinSCP installed and read `%USERPROFILE%\.filegw\users.csv`. Run them from
+`connect\` in PowerShell. Close WinSCP before importing, or it may overwrite the new sites.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\test-users.ps1          # log in as each user and check folders and files
+powershell -ExecutionPolicy Bypass -File .\import-winscp-sites.ps1  # add a WinSCP site per user, in folder FileGateway
+powershell -ExecutionPolicy Bypass -File .\test-winscp-sites.ps1    # log in through each saved WinSCP site
+```
+
+- `test-users.ps1` also checks `/users/ftp_root/<user>` on the server with `oc exec`; it needs
+  `oc login`, or pass `-SkipServerCheck`. Add `-Quiet` for PASS/FAIL only.
+- `import-winscp-sites.ps1` saves passwords in WinSCP's own format, which only obfuscates them.
+  Use `-NoPasswords` to be asked at login instead, or set a master password in WinSCP (Preferences >
+  Security). Existing sites are kept unless you pass `-Force`, for example after new passwords.
 
 ## Using the bucket directly (S3 API)
 
