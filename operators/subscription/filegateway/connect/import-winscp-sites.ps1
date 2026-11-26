@@ -14,6 +14,11 @@
   Existing sites with the same name are left as they are unless -Force is given.
   Then test them all with .\test-winscp-sites.ps1.
 
+  Also caches the server's ssh-ed25519 host key in WinSCP, taken from the pinned known_hosts
+  next to this script, so a new PC trusts the right server without a prompt (and WinSCP.com
+  scripts don't fail with "Host key wasn't verified" / "Authentication failed"). If WinSCP
+  already caches a different key for the server, it is left alone with a warning unless -Force.
+
 .EXAMPLE
   .\import-winscp-sites.ps1
   .\import-winscp-sites.ps1 -Force
@@ -78,6 +83,62 @@ function Get-KeyName([string]$name) {
   $sb.ToString()
 }
 
+# --- Host key: cache the pinned ssh-ed25519 key from known_hosts in WinSCP ---
+# WinSCP (like PuTTY) stores an ed25519 key as "0x<x>,0x<y>": the curve point's coordinates in hex.
+# known_hosts holds the 32-byte public key, which is y plus the sign of x, so recover x (RFC 8032 5.1.3).
+Add-Type -AssemblyName System.Numerics
+function ConvertTo-WinSCPEd25519Key([string]$base64) {
+  $blob = [Convert]::FromBase64String($base64)
+  $u32 = { param([int]$o) ([int]$blob[$o] -shl 24) -bor ([int]$blob[$o + 1] -shl 16) -bor ([int]$blob[$o + 2] -shl 8) -bor [int]$blob[$o + 3] }
+  $o = 4 + (& $u32 0)                                  # skip the "ssh-ed25519" name
+  if ((& $u32 $o) -ne 32) { throw 'known_hosts ssh-ed25519 entry is not a 32-byte key' }
+  [byte[]]$pk = $blob[($o + 4)..($o + 35)]
+  $sign = $pk[31] -shr 7
+  $pk[31] = $pk[31] -band 0x7F
+  $p = [System.Numerics.BigInteger]::Pow(2, 255) - 19
+  $mod = { param($a) $r = $a % $p; if ($r.Sign -lt 0) { $r + $p } else { $r } }
+  $pow = { param($b, $e) [System.Numerics.BigInteger]::ModPow($b, $e, $p) }
+  $y = New-Object System.Numerics.BigInteger (,[byte[]]($pk + [byte]0))   # little-endian, positive
+  $d = & $mod ([System.Numerics.BigInteger](-121665) * (& $pow 121666 ($p - 2)))
+  $u = & $mod ($y * $y - 1)
+  $v = & $mod ($d * $y * $y + 1)
+  $x = & $mod ($u * (& $pow $v 3) * (& $pow (& $mod ($u * (& $pow $v 7))) ([System.Numerics.BigInteger]::Divide($p - 5, 8))))
+  if (-not (& $mod ($v * $x * $x - $u)).IsZero) { $x = & $mod ($x * (& $pow 2 ([System.Numerics.BigInteger]::Divide($p - 1, 4)))) }
+  if (-not (& $mod ($v * $x * $x - $u)).IsZero) { throw 'known_hosts ssh-ed25519 entry is not a valid key' }
+  if ([int](-not $x.IsEven) -ne $sign) { $x = $p - $x }
+  $hex = { param($n) $h = $n.ToString('x').TrimStart('0'); if ($h) { $h } else { '0' } }
+  '0x{0},0x{1}' -f (& $hex $x), (& $hex $y)
+}
+
+$hostKeyStatus = ''
+$knownHosts = Join-Path $PSScriptRoot 'known_hosts'
+$khHost = if ($Port -eq 22) { $HostName } else { "[$HostName]:$Port" }
+$pinned = if (Test-Path $knownHosts) {
+  Get-Content $knownHosts | ForEach-Object { , ($_.Trim() -split '\s+') } |
+    Where-Object { $_.Count -ge 3 -and $_[1] -eq 'ssh-ed25519' -and (($_[0] -split ',') -contains $khHost) } |
+    Select-Object -First 1
+}
+if (-not $pinned) {
+  Write-Warning "No ssh-ed25519 key for $khHost in $knownHosts; WinSCP will ask you to accept the server's key on first connect."
+} else {
+  $cacheValue = ConvertTo-WinSCPEd25519Key $pinned[2]
+  $cacheName = "ssh-ed25519@$Port`:$HostName"
+  $hk = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Software\Martin Prikryl\WinSCP 2\SshHostKeys')
+  try {
+    $cached = $hk.GetValue($cacheName)
+    if ($cached -eq $cacheValue) {
+      $hostKeyStatus = 'Host key already cached in WinSCP (matches known_hosts).'
+    } elseif ($cached -and -not $Force) {
+      Write-Warning ("WinSCP caches a different ssh-ed25519 key for $HostName`:$Port than known_hosts. Either the server's " +
+        'key changed or WinSCP trusted the wrong server. Left as is; check, then re-run with -Force to replace it.')
+      $hostKeyStatus = 'Host key NOT updated (different key cached; see warning).'
+    } else {
+      $hk.SetValue($cacheName, $cacheValue, 'String')
+      $hostKeyStatus = if ($cached) { 'Host key in WinSCP replaced with the one from known_hosts.' } else { 'Host key from known_hosts cached in WinSCP.' }
+    }
+  } finally { $hk.Close() }
+}
+
 $root = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($SessionsKey)
 $added = 0; $updated = 0; $skipped = 0
 try {
@@ -102,4 +163,5 @@ try {
 
 Write-Host ''
 Write-Host "$added added, $updated updated, $skipped skipped in WinSCP site folder '$Folder' ($HostName`:$Port)"
+if ($hostKeyStatus) { Write-Host $hostKeyStatus }
 if (-not $NoPasswords) { Write-Host 'Passwords are saved with WinSCP''s obfuscation only; set a master password in WinSCP > Preferences > Security to encrypt them.' }

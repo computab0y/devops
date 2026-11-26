@@ -135,6 +135,9 @@ powershell -ExecutionPolicy Bypass -File .\test-winscp-sites.ps1    # log in thr
   and `NOTIFICATION`. A server not pinned in `known_hosts` shows its host key for you to confirm first;
   pass `-HostKey` to skip that. For this gateway add `-CheckMarker` to also check `DO_NOT_DELETE.txt`;
   `-TestWrite` proves each user can upload; `-Quiet` prints PASS/FAIL only.
+- `import-winscp-sites.ps1` also caches the server's host key in WinSCP from the pinned
+  `connect/known_hosts`, so a new PC needs no "unknown server" prompt. Without it, WinSCP scripts
+  refuse the server and report `Authentication failed` even with the right password.
 - `import-winscp-sites.ps1` saves passwords in WinSCP's own format, which only obfuscates them.
   Use `-NoPasswords` to be asked at login instead, or set a master password in WinSCP (Preferences >
   Security). Existing sites are kept unless you pass `-Force`, for example after new passwords.
