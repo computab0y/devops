@@ -100,6 +100,10 @@ try {
     $lines = @($text -split "`r?`n")
     if ($rc -ne 0) {
       $err = ($lines | Where-Object { $_ -match 'Access denied|Authentication failed|Connection failed|Network error|Error|failed|not exist|No such' } | Select-Object -First 3) -join ' / '
+      if ($text -match "Host key wasn't verified") {
+        # WinSCP reports a refused unknown host key as "Authentication failed" too; name the real cause
+        $err = "server's host key isn't cached in WinSCP - run .\import-winscp-sites.ps1 to cache the pinned key"
+      }
       $problems.Add("WinSCP exit $rc$(if ($err) { ": $err" })")
     } else {
       # pwd prints the remote directory on its own line, right after the session opens
