@@ -64,3 +64,6 @@ Thumbs.db
 # Ansible
 *.retry
 vars.local.yml
+
+# File gateway credentials (plaintext passwords) - never commit
+operators/subscription/filegateway/**/users*.csv
