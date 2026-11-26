@@ -129,8 +129,12 @@ powershell -ExecutionPolicy Bypass -File .\import-winscp-sites.ps1  # add a WinS
 powershell -ExecutionPolicy Bypass -File .\test-winscp-sites.ps1    # log in through each saved WinSCP site
 ```
 
-- `test-users.ps1` also checks `/users/ftp_root/<user>` on the server with `oc exec`; it needs
-  `oc login`, or pass `-SkipServerCheck`. Add `-Quiet` for PASS/FAIL only.
+- `test-users.ps1` works against any SFTP file gateway (this one, or e.g. a Red Hat Linux server)
+  and needs no `oc login`. It asks for the server IP and port, or pass `-HostName` / `-Port`, and
+  checks each user is locked into `/users/ftp_root/<user>` (seen as `/`) holding only `SUBMISSION`
+  and `NOTIFICATION`. A server not pinned in `known_hosts` shows its host key for you to confirm first;
+  pass `-HostKey` to skip that. For this gateway add `-CheckMarker` to also check `DO_NOT_DELETE.txt`;
+  `-TestWrite` proves each user can upload; `-Quiet` prints PASS/FAIL only.
 - `import-winscp-sites.ps1` saves passwords in WinSCP's own format, which only obfuscates them.
   Use `-NoPasswords` to be asked at login instead, or set a master password in WinSCP (Preferences >
   Security). Existing sites are kept unless you pass `-Force`, for example after new passwords.
